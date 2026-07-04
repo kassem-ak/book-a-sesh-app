@@ -9,7 +9,7 @@ This repository currently contains two things:
 
 ## Current Status
 
-The Android app builds successfully and contains a working Discover and booking slice. The wider product scope is partially scaffolded through sample data, state, theme tokens, and shared components, but many tabs and overlays are still placeholders.
+The Android app builds successfully and now contains clickable prototype UI for all five tabs: Discover, Community, Shop, Chat, and Profile. The major state-backed overlays for booking, shops, communities, events, chat, notifications, admin approvals, and accounting are wired. The remaining work is mostly polish, test coverage, real search/filter depth, persistence, and backend integrations.
 
 Last verified command:
 
@@ -86,8 +86,35 @@ The full Spotter handoff describes:
 - Basic ranked data filtering.
 - Dark map mock with grid texture, avatar pins, boosted marker, user location dot, floating search pill, view toggle, and nearest-person dock card.
 
-### Profile And Booking Slice
+### Community
 
+- Community tab with happening-soon event cards.
+- Sponsored community ad with dismiss behavior.
+- Community list with official badges and join/leave state.
+- Community detail overlay with location groups and event list.
+- Event detail overlay with RSVP state.
+- Start-community, request-sport/hobby, and create-event overlays.
+
+### Shop
+
+- Shop tab with List/Map segmented control.
+- Closest-first partner store cards.
+- Map panel with shop pins, distance chips, and nearest-shop dock card.
+- Storefront overlay with partner badge, deal banner, product grid, add/added toggles, and live checkout bar.
+- Shop partnership registration form with validation and success state.
+
+### Chat
+
+- Conversation list with online dots, unread counts, previews, and timestamps.
+- Conversation overlay with message bubbles and composer UI.
+
+### Profile, Admin, And Booking
+
+- Profile tab with user card, training links, notification toggles, calendar sync/provider picker, theme toggle, and role switcher.
+- Admin role surface with approvals and accounting entry points.
+- Notifications overlay with platform update support.
+- Admin approvals overlay for hobby/community/shop requests.
+- Admin accounting overlay with expenses, margins, shares, 3-admin proposal approvals, notifications, expense editor, and history.
 - Person profile overlay for coaches and partners.
 - Stats, bio, tags, qualifications, packages, and reviews.
 - Coach booking overlay with:
@@ -135,35 +162,20 @@ State and behavior are scaffolded for:
 
 ## Not Yet Implemented As Real UI
 
-These areas currently exist only as placeholders or state/data scaffolding:
+These areas still need production work or deeper fidelity:
 
-- Community tab screen.
-- Community detail overlay.
-- Start-community flow.
-- Request sport/hobby flow.
-- Create-event flow.
-- Event detail overlay.
-- Shop tab screen.
-- Shop map/list UI.
-- Storefront overlay.
-- Product grid and cart checkout bar.
-- Shop registration form.
-- Chat tab screen.
-- Conversation overlay.
-- Profile tab screen.
-- Profile preferences and role switcher.
-- Notifications overlay.
-- Admin approvals console.
-- Admin accounting screen.
-- Accounting expense editor.
-- Accounting history screen.
-- Report/misconduct overlay.
-- Real ad tap destination.
-- Real search behavior.
-- Backend persistence, authentication, payments, push notifications, and calendar OAuth integrations.
+- Real ad tap destinations.
+- Real search behavior across coaches, partners, communities, shops, and chats.
+- Deeper filtering and sorting beyond the current prototype-level interactions.
+- Payment checkout implementation.
+- Real profile/report moderation workflow beyond the queued prototype screen.
+- Backend persistence for users, bookings, cart, events, shop requests, approvals, and accounting history.
+- Authentication and distinct admin identities for real 3-admin approval enforcement.
+- Push notifications and calendar OAuth integrations.
+- Automated unit and Compose UI tests.
+- Visual polish pass against the original HTML handoff on device/emulator screenshots.
 
 ## Handoff Files
-
 The design handoff is tracked in:
 
 ```text
@@ -264,17 +276,14 @@ Recommended future test coverage:
 
 ## Suggested Next Priorities
 
-1. Replace placeholder tabs with real Community, Shop, Chat, and Profile UI.
-2. Add missing overlays to `OverlayRouter`.
-3. Implement Shop storefront, cart, and shop-registration flow.
-4. Implement Community/event detail and create-event/request flows.
-5. Implement Profile settings, calendar provider picker, notifications, and role switcher.
-6. Implement Admin approvals and accounting screens using the existing `SpotterViewModel` accounting state.
-7. Add tests for ranking, booking, and accounting before connecting a backend.
-8. Replace sample-only behavior with persisted backend/auth/payment/calendar integrations when product direction is ready.
+1. Add unit tests for ranking, booking, cart, community/event, and accounting proposal logic.
+2. Add Compose UI tests for the main tab and overlay flows.
+3. Polish spacing/copy against the extracted HTML handoff on emulator screenshots.
+4. Implement real search and richer filters.
+5. Add backend persistence/auth boundaries for bookings, events, shop requests, approvals, and accounting.
+6. Replace sample-only payment, push notification, and calendar behavior with real integrations when product direction is ready.
 
 ## Notes
-
 - The current app is a high-fidelity prototype implementation, not a production backend-connected app.
 - Product images are still placeholders in the handoff and should be replaced with real photography later.
 - The design handoff calls for high fidelity: keep colors, typography, spacing, radii, copy, and interactions aligned with the extracted handoff files.

@@ -1,0 +1,314 @@
+{
+  "name": "Spotter",
+  "description": "Figma-ready design tokens for the Spotter Android prototype.",
+  "source": [
+    "extracted/design_handoff_spotter_app/README.md",
+    "app/src/main/java/com/spotter/app/ui/theme"
+  ],
+  "color": {
+    "dark": {
+      "bg": {
+        "$type": "color",
+        "$value": "#0D0E11"
+      },
+      "nav": {
+        "$type": "color",
+        "$value": "#101216"
+      },
+      "surface": {
+        "$type": "color",
+        "$value": "#16181D"
+      },
+      "surface2": {
+        "$type": "color",
+        "$value": "#1C1F26"
+      },
+      "them": {
+        "$type": "color",
+        "$value": "#1C1F26"
+      },
+      "line": {
+        "$type": "color",
+        "$value": "#FFFFFF"
+      },
+      "txt": {
+        "$type": "color",
+        "$value": "#F2F3F5"
+      },
+      "strong": {
+        "$type": "color",
+        "$value": "#E7E9EC"
+      },
+      "soft": {
+        "$type": "color",
+        "$value": "#C5CAD2"
+      },
+      "txt2": {
+        "$type": "color",
+        "$value": "#9BA1AC"
+      },
+      "txt3": {
+        "$type": "color",
+        "$value": "#6B7280"
+      },
+      "mono": {
+        "$type": "color",
+        "$value": "#3A3F47"
+      },
+      "mapBg": {
+        "$type": "color",
+        "$value": "#0A0B0D"
+      },
+      "grid": {
+        "$type": "color",
+        "$value": "#FFFFFF"
+      },
+      "accent": {
+        "$type": "color",
+        "$value": "#C6F24E"
+      },
+      "volt": {
+        "$type": "color",
+        "$value": "#C6F24E"
+      },
+      "amber": {
+        "$type": "color",
+        "$value": "#F2C84B"
+      },
+      "amberText": {
+        "$type": "color",
+        "$value": "#F2C84B"
+      },
+      "danger": {
+        "$type": "color",
+        "$value": "#E8543F"
+      },
+      "avatarBg": {
+        "$type": "color",
+        "$value": "#262B33"
+      },
+      "ink": {
+        "$type": "color",
+        "$value": "#0D0E11"
+      },
+      "pageTop": {
+        "$type": "color",
+        "$value": "#15171C"
+      },
+      "pageBottom": {
+        "$type": "color",
+        "$value": "#08090B"
+      }
+    },
+    "light": {
+      "bg": {
+        "$type": "color",
+        "$value": "#F4F5F7"
+      },
+      "nav": {
+        "$type": "color",
+        "$value": "#FFFFFF"
+      },
+      "surface": {
+        "$type": "color",
+        "$value": "#FFFFFF"
+      },
+      "surface2": {
+        "$type": "color",
+        "$value": "#EBEDF1"
+      },
+      "them": {
+        "$type": "color",
+        "$value": "#E9EBEF"
+      },
+      "line": {
+        "$type": "color",
+        "$value": "#000000"
+      },
+      "txt": {
+        "$type": "color",
+        "$value": "#15171C"
+      },
+      "strong": {
+        "$type": "color",
+        "$value": "#22252B"
+      },
+      "soft": {
+        "$type": "color",
+        "$value": "#3F454D"
+      },
+      "txt2": {
+        "$type": "color",
+        "$value": "#5A616B"
+      },
+      "txt3": {
+        "$type": "color",
+        "$value": "#8A909A"
+      },
+      "mono": {
+        "$type": "color",
+        "$value": "#AEB4BE"
+      },
+      "mapBg": {
+        "$type": "color",
+        "$value": "#E6E8ED"
+      },
+      "grid": {
+        "$type": "color",
+        "$value": "#000000"
+      },
+      "accent": {
+        "$type": "color",
+        "$value": "#5E8A00"
+      },
+      "volt": {
+        "$type": "color",
+        "$value": "#C6F24E"
+      },
+      "amber": {
+        "$type": "color",
+        "$value": "#F2C84B"
+      },
+      "amberText": {
+        "$type": "color",
+        "$value": "#9A7400"
+      },
+      "danger": {
+        "$type": "color",
+        "$value": "#E8543F"
+      },
+      "avatarBg": {
+        "$type": "color",
+        "$value": "#565E6B"
+      },
+      "ink": {
+        "$type": "color",
+        "$value": "#0D0E11"
+      },
+      "pageTop": {
+        "$type": "color",
+        "$value": "#E3E5EB"
+      },
+      "pageBottom": {
+        "$type": "color",
+        "$value": "#C7CAD2"
+      }
+    }
+  },
+  "typography": {
+    "pageTitle": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Archivo",
+        "fontWeight": 800,
+        "fontSize": 27,
+        "lineHeight": 28,
+        "letterSpacing": -0.5
+      }
+    },
+    "overlayTitle": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Archivo",
+        "fontWeight": 800,
+        "fontSize": 19
+      }
+    },
+    "sectionHeading": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Archivo",
+        "fontWeight": 800,
+        "fontSize": 12,
+        "letterSpacing": 1.4,
+        "textCase": "uppercase"
+      }
+    },
+    "body": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Hanken Grotesk",
+        "fontWeight": 400,
+        "fontSize": 14
+      }
+    },
+    "label": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Hanken Grotesk",
+        "fontWeight": 700,
+        "fontSize": 14
+      }
+    },
+    "microBadge": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Archivo",
+        "fontWeight": 800,
+        "fontSize": 9,
+        "letterSpacing": 0.7
+      }
+    },
+    "navLabel": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "Hanken Grotesk",
+        "fontWeight": 600,
+        "fontSize": 10
+      }
+    }
+  },
+  "radius": {
+    "card": {
+      "$type": "dimension",
+      "$value": 18
+    },
+    "input": {
+      "$type": "dimension",
+      "$value": 14
+    },
+    "button": {
+      "$type": "dimension",
+      "$value": 15
+    },
+    "buttonSmall": {
+      "$type": "dimension",
+      "$value": 13
+    },
+    "avatar": {
+      "$type": "dimension",
+      "$value": 15
+    },
+    "pill": {
+      "$type": "dimension",
+      "$value": 999
+    }
+  },
+  "spacing": {
+    "screenHorizontal": {
+      "$type": "dimension",
+      "$value": 18
+    },
+    "cardPadding": {
+      "$type": "dimension",
+      "$value": 14
+    },
+    "listGap": {
+      "$type": "dimension",
+      "$value": 11
+    },
+    "tapTargetMin": {
+      "$type": "dimension",
+      "$value": 44
+    }
+  },
+  "frame": {
+    "androidMobile": {
+      "$type": "dimension",
+      "$value": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  }
+}
