@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="ext-resource-dependency" content="Spotter.dc.html">
+<meta name="ext-resource-dependency" content="android-frame.jsx">
+<script src="./support.js"></script>
+</head>
+<body>
+<template id="__bundler_thumbnail">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0D0E11"/><rect x="30" y="30" width="40" height="40" rx="10" fill="#C6F24E"/><text x="50" y="57" font-family="sans-serif" font-size="22" font-weight="800" fill="#0D0E11" text-anchor="middle">S</text></svg>
+</template>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Hanken+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#08090B; }
+</style>
+</helmet>
+<div style="min-height:100vh;background:#08090B;padding:54px 44px 70px;box-sizing:border-box;font-family:'Hanken Grotesk',sans-serif;color:#F2F3F5">
+  <div style="font-family:Archivo;font-weight:800;font-size:36px;letter-spacing:-0.6px">Spotter — screen board</div>
+  <div style="font-size:15px;color:#9BA1AC;margin-top:6px;margin-bottom:48px">Trainer & training-partner finder · Android 412×892 · dark + light</div>
+
+  <div style="font-family:Archivo;font-weight:800;font-size:13px;letter-spacing:1.6px;text-transform:uppercase;color:#6B7280;margin-bottom:18px">Core tabs</div>
+  <div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start;margin-bottom:56px">
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">01 · Discover</div><dc-import name="Spotter" screen="discover" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">02 · Map</div><dc-import name="Spotter" screen="map" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">03 · Community</div><dc-import name="Spotter" screen="community" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">04 · Chat</div><dc-import name="Spotter" screen="chat" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">05 · Profile</div><dc-import name="Spotter" screen="profile" hint-size="452px,972px"></dc-import></div>
+  </div>
+
+  <div style="font-family:Archivo;font-weight:800;font-size:13px;letter-spacing:1.6px;text-transform:uppercase;color:#6B7280;margin-bottom:18px">Coach & booking flow</div>
+  <div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start;margin-bottom:56px">
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">06 · Coach profile</div><dc-import name="Spotter" overlay="person" person-id="c1" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">07 · Booking — calendar</div><dc-import name="Spotter" overlay="booking" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">08 · Booking confirmed</div><dc-import name="Spotter" overlay="booking" booked="{{ true }}" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">09 · Partner profile</div><dc-import name="Spotter" overlay="person" person-id="p1" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">10 · Conversation</div><dc-import name="Spotter" overlay="conversation" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">11 · My bookings</div><dc-import name="Spotter" screen="profile" overlay="bookings" hint-size="452px,972px"></dc-import></div>
+  </div>
+
+  <div style="font-family:Archivo;font-weight:800;font-size:13px;letter-spacing:1.6px;text-transform:uppercase;color:#6B7280;margin-bottom:18px">Community flow</div>
+  <div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start;margin-bottom:56px">
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">12 · Community detail</div><dc-import name="Spotter" screen="community" overlay="community" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">13 · Create event</div><dc-import name="Spotter" screen="community" overlay="createEvent" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">14 · Event detail</div><dc-import name="Spotter" screen="community" overlay="event" hint-size="452px,972px"></dc-import></div>
+  </div>
+
+  <div style="font-family:Archivo;font-weight:800;font-size:13px;letter-spacing:1.6px;text-transform:uppercase;color:#6B7280;margin-bottom:18px">Light theme</div>
+  <div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start">
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">15 · Discover — light</div><dc-import name="Spotter" screen="discover" theme="Light" hint-size="452px,972px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="font-size:13px;font-weight:700;color:#9BA1AC">16 · Profile — light</div><dc-import name="Spotter" screen="profile" theme="Light" hint-size="452px,972px"></dc-import></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
