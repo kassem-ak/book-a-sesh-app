@@ -1,81 +1,281 @@
-# Spotter 🏋️ — Trainer & Training-Partner Finder
+# Spotter - Trainer and Training-Partner Finder
 
-A high-fidelity, interactive app design for **book-a-sesh**: a cross-platform (Android-first) app that connects trainees with professional coaches and athletes with training partners — across **all sports**.
+Spotter is an Android-first mobile app for finding sports coaches, training partners, communities, events, and partner shops nearby. The product prototype is set in Beirut, Lebanon and uses a dark athletic visual system with a volt accent.
 
-The whole design is a single interactive HTML prototype: open it in a browser, click through every flow, and toggle light/dark. No build step, no dependencies.
+This repository currently contains two things:
 
----
+- The original HTML design handoff, kept as the source of truth for intended screens, copy, tokens, state, and interactions.
+- A native Android/Kotlin Compose implementation that has started recreating the handoff in app code.
 
-## ✨ What the app does
+## Current Status
 
-### Two ways to train
-- **Coaches** — verified professionals with profiles, packages, and per-session pricing. Book, schedule, and pay in-app.
-- **Training partners** — peers matched by sport, level, and goal (e.g. *"5k under 22 min"*, *"200 kg deadlift"*). Send a training request, not a payment.
+The Android app builds successfully and contains a working Discover and booking slice. The wider product scope is partially scaffolded through sample data, state, theme tokens, and shared components, but many tabs and overlays are still placeholders.
 
-### Discovery, ranked fairly
-- Sport filter (dropdown), Coaches ⇄ Partners switch, and search.
-- Lists are **ranked by rating** — the best coaches rise to the top.
-- **Boosted profiles** (paid) appear in a clearly-labeled *Featured* section, so promotion never masquerades as merit.
+Last verified command:
 
-### Map
-Proximity view of nearby coaches and partners (boosted ones gold-ringed), with a bottom sheet preview and one-tap chat.
-
-### Booking & payments
-Full booking flow: **month-calendar** day picker → time slot → package (single / 5-pack / monthly) → confirm & pay. Bookings live under Profile with upcoming/past status.
-
-### Two-sided ratings
-- Trainees rate coaches after sessions.
-- **Coaches also rate and publicly review trainees** — accountability goes both ways.
-
-### Communities 🤝
-- One community per **sport**, with location-based **sub-communities** (e.g. *Downtown Runners*, *Iron District Lifters*).
-- Users can join any number of sub-communities across any number of sports.
-- Communities and sub-communities host **events & meetups** — anyone can create one (type, title, location group, day, time) and members RSVP.
-
-### Business model
-- **Subscription applies to coaches only** ($19/mo) — unlocks scheduling, payments, and a public coach profile.
-- **Profile boost** — optional paid placement at the top of search.
-- Trainees and training partners use the app free.
-
----
-
-## 🎨 Design
-
-| Token | Choice |
-|---|---|
-| Look | Dark, athletic, high-contrast (light theme included) |
-| Accent | Volt `#C6F24E` · Gold `#F2C84B` for boosted/featured |
-| Type | Archivo (display) + Hanken Grotesk (text) |
-| Frame | Android, 412 × 892 |
-
-The theme is fully tokenized (CSS variables) — dark and light share one component system, switchable in-app (Profile → Appearance).
-
----
-
-## 📁 Repository layout
-
-```
-figma/
-  Spotter Figma Board (standalone).html   ← import this into Figma
-src/
-  Spotter.dc.html                         ← the interactive prototype (open in browser)
-  Spotter Figma Board.dc.html             ← screen-board source
-  android-frame.jsx, support.js           ← runtime support
+```powershell
+.\gradlew.bat assembleDebug
 ```
 
-## 🖼 The screen board (16 frames)
+Output APK:
 
-**Core tabs:** 01 Discover · 02 Map · 03 Community · 04 Chat · 05 Profile
-**Coach & booking:** 06 Coach profile · 07 Booking calendar · 08 Booking confirmed · 09 Partner profile · 10 Conversation · 11 My bookings
-**Community:** 12 Community detail · 13 Create event · 14 Event detail
-**Light theme:** 15 Discover · 16 Profile
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
 
-## 🔁 Import into Figma
+## Product Scope From The Handoff
 
-1. Figma → Resources → Plugins → **html.to.design** (free).
-2. Import `figma/Spotter Figma Board (standalone).html` (file import, or serve it and use URL import).
-3. Every frame converts to editable Figma layers.
+The full Spotter handoff describes:
 
-## 🚧 Status
+- Discover coaches and training partners using card and map views.
+- Search, sport/hobby filters, sorting, boosted profiles, and sponsored ads.
+- Coach and partner profiles with stats, qualifications, reviews, and tags.
+- Booking flow with calendar day picker, time slots, packages, confirmation, and calendar sync messaging.
+- Bookings view with active packages, upcoming sessions, change requests, and past sessions.
+- Community tab with events, community detail, start-community, request-hobby, create-event, RSVP, join, and leave flows.
+- Shop marketplace with list/map views, store profiles, product grid, cart, and checkout bar.
+- Shop partnership registration form that feeds admin approvals.
+- Chat list and conversation overlays.
+- Profile preferences, role switcher, notifications, calendar provider picker, and light/dark appearance.
+- Admin console with approvals, reports, promotions, loyalty, and accounting.
+- Accounting module with expenses, margins, admin profit shares, 3-admin approval, notifications, and history.
 
-Design prototype — all data is illustrative, imagery uses placeholders pending real photography. Interactions (booking, RSVPs, joins, theme) are fully clickable in the prototype.
+## Implemented In Android
+
+### App Shell
+
+- Android Compose project with Gradle wrapper.
+- Single `MainActivity` entry point.
+- Edge-to-edge Compose layout.
+- Central `SpotterViewModel` for prototype-like state.
+- Five-tab bottom navigation:
+  - Discover
+  - Community
+  - Shop
+  - Chat
+  - Profile
+- Full-screen overlay host with slide/fade transition.
+
+### Design System
+
+- Dark and light semantic color tokens.
+- Archivo and Hanken Grotesk local font assets.
+- Shape/radius tokens matching the handoff.
+- Shared UI primitives:
+  - Cards
+  - Avatar tiles
+  - Badges
+  - Segmented controls
+  - Toggles
+  - Sort pills
+  - Volt CTA buttons
+  - Overlay scaffold/header
+  - Striped placeholders
+  - Sponsored ad card
+
+### Discover
+
+- Header, location, notification bell, and search field UI.
+- Coaches/training-partners segmented control.
+- Sport/hobby dropdown with request action.
+- Cards/map segmented control.
+- Featured boosted coach cards.
+- Sponsored ad card with dismiss behavior.
+- Coach/partner list cards.
+- Sorting by rating, price, and distance where applicable.
+- Basic ranked data filtering.
+- Dark map mock with grid texture, avatar pins, boosted marker, user location dot, floating search pill, view toggle, and nearest-person dock card.
+
+### Profile And Booking Slice
+
+- Person profile overlay for coaches and partners.
+- Stats, bio, tags, qualifications, packages, and reviews.
+- Coach booking overlay with:
+  - Month calendar
+  - Unavailable/full days
+  - Time slots
+  - Package selection
+  - Confirm/pay action
+  - Success state
+  - Calendar-sync success line when enabled in state
+- Bookings overlay with:
+  - Active package progress bars
+  - Upcoming sessions
+  - Calendar chip when calendar sync is on
+  - Request-change action
+  - Past sessions and rate affordance
+
+### Data And State
+
+Sample data is already ported for:
+
+- Coaches
+- Training partners
+- Reviews
+- Shops and products
+- Communities and sub-groups
+- Events
+- Chats and messages
+- Booking calendar metadata
+- Accounting revenue, expenses, margins, shares, history
+- Ads
+
+State and behavior are scaffolded for:
+
+- Top-level tab and overlay routing
+- Discover/shop view modes
+- Cart
+- Booking
+- Notification state
+- Calendar sync/provider
+- Ad dismissal
+- Shop registration fields
+- Community/event/request flows
+- Admin accounting proposals, approvals, expenses, history, and notifications
+
+## Not Yet Implemented As Real UI
+
+These areas currently exist only as placeholders or state/data scaffolding:
+
+- Community tab screen.
+- Community detail overlay.
+- Start-community flow.
+- Request sport/hobby flow.
+- Create-event flow.
+- Event detail overlay.
+- Shop tab screen.
+- Shop map/list UI.
+- Storefront overlay.
+- Product grid and cart checkout bar.
+- Shop registration form.
+- Chat tab screen.
+- Conversation overlay.
+- Profile tab screen.
+- Profile preferences and role switcher.
+- Notifications overlay.
+- Admin approvals console.
+- Admin accounting screen.
+- Accounting expense editor.
+- Accounting history screen.
+- Report/misconduct overlay.
+- Real ad tap destination.
+- Real search behavior.
+- Backend persistence, authentication, payments, push notifications, and calendar OAuth integrations.
+
+## Handoff Files
+
+The design handoff is tracked in:
+
+```text
+extracted/design_handoff_spotter_app/
+```
+
+Important files:
+
+```text
+extracted/design_handoff_spotter_app/README.md
+extracted/design_handoff_spotter_app/Spotter.dc.html
+extracted/design_handoff_spotter_app/Spotter App (standalone).html
+extracted/design_handoff_spotter_app/Spotter Figma Board.dc.html
+extracted/design_handoff_spotter_app/android-frame.jsx
+extracted/design_handoff_spotter_app/support.js
+```
+
+Use `README.md` and `Spotter.dc.html` in that folder as the source of truth for remaining behavior and screen details. The HTML files are design references, not production code.
+
+## Repository Layout
+
+```text
+.
+|-- app/
+|   |-- build.gradle.kts
+|   |-- src/main/AndroidManifest.xml
+|   |-- src/main/java/com/spotter/app/
+|   |   |-- MainActivity.kt
+|   |   |-- data/
+|   |   |-- state/
+|   |   |-- ui/
+|   |   |   |-- components/
+|   |   |   |-- nav/
+|   |   |   |-- overlays/
+|   |   |   |-- screens/
+|   |   |   |-- theme/
+|   |-- src/main/res/font/
+|   |-- src/main/res/values/
+|-- extracted/design_handoff_spotter_app/
+|-- gradle/wrapper/
+|-- build.gradle.kts
+|-- settings.gradle.kts
+```
+
+## Important Android Files
+
+- `app/src/main/java/com/spotter/app/MainActivity.kt` - app entry point.
+- `app/src/main/java/com/spotter/app/ui/SpotterApp.kt` - tab shell and overlay host.
+- `app/src/main/java/com/spotter/app/ui/OverlayRouter.kt` - overlay id router.
+- `app/src/main/java/com/spotter/app/state/SpotterViewModel.kt` - central app state and behavior.
+- `app/src/main/java/com/spotter/app/data/SampleData.kt` - static prototype data.
+- `app/src/main/java/com/spotter/app/data/Models.kt` - data models.
+- `app/src/main/java/com/spotter/app/ui/screens/DiscoverScreen.kt` - Discover cards view.
+- `app/src/main/java/com/spotter/app/ui/screens/DiscoverMap.kt` - Discover map view.
+- `app/src/main/java/com/spotter/app/ui/overlays/PersonOverlay.kt` - person profile overlay.
+- `app/src/main/java/com/spotter/app/ui/overlays/BookingOverlay.kt` - booking flow.
+- `app/src/main/java/com/spotter/app/ui/overlays/BookingsOverlay.kt` - bookings overlay.
+- `app/src/main/java/com/spotter/app/ui/theme/` - color, type, shape, and theme definitions.
+
+## Build Requirements
+
+- Android Studio or Android command-line tooling.
+- JDK 17.
+- Android Gradle Plugin 8.7.3.
+- Kotlin 2.0.21.
+- Compile SDK 36.
+- Min SDK 26.
+
+## Build
+
+From the repository root:
+
+```powershell
+.\gradlew.bat assembleDebug
+```
+
+The debug APK will be written to:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+## Tests
+
+There are currently no automated tests in the repo. The following directories do not exist yet:
+
+```text
+app/src/test
+app/src/androidTest
+```
+
+Recommended future test coverage:
+
+- Unit tests for ranking/filtering logic.
+- Unit tests for booking calendar and slot selection logic.
+- Unit tests for accounting proposal approval behavior.
+- Compose UI tests for critical flows once the remaining screens are built.
+
+## Suggested Next Priorities
+
+1. Replace placeholder tabs with real Community, Shop, Chat, and Profile UI.
+2. Add missing overlays to `OverlayRouter`.
+3. Implement Shop storefront, cart, and shop-registration flow.
+4. Implement Community/event detail and create-event/request flows.
+5. Implement Profile settings, calendar provider picker, notifications, and role switcher.
+6. Implement Admin approvals and accounting screens using the existing `SpotterViewModel` accounting state.
+7. Add tests for ranking, booking, and accounting before connecting a backend.
+8. Replace sample-only behavior with persisted backend/auth/payment/calendar integrations when product direction is ready.
+
+## Notes
+
+- The current app is a high-fidelity prototype implementation, not a production backend-connected app.
+- Product images are still placeholders in the handoff and should be replaced with real photography later.
+- The design handoff calls for high fidelity: keep colors, typography, spacing, radii, copy, and interactions aligned with the extracted handoff files.
+- The repo is currently Android-native; the original handoff HTML remains useful for reference and visual comparison only.
