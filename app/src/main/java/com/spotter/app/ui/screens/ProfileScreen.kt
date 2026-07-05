@@ -3,6 +3,8 @@ package com.spotter.app.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,13 +21,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Loyalty
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Percent
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material.icons.rounded.Verified
+import androidx.compose.material.icons.rounded.WorkspacePremium
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -74,13 +81,100 @@ fun ProfileScreen(vm: SpotterViewModel) {
                         Icon(Icons.Rounded.Verified, null, tint = c.accent, modifier = Modifier.size(17.dp))
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text("Running, strength, mobility", style = t.bodySm, color = c.txt2)
+                    Text(
+                        when (vm.role) {
+                            Role.COACH -> "Strength coach · Iron Yard Gym, Hamra"
+                            Role.ADMIN -> "System administrator"
+                            else -> "Training for first marathon 🏃"
+                        },
+                        style = t.bodySm, color = c.txt2,
+                    )
                     Spacer(Modifier.height(8.dp))
                     Row {
-                        MicroBadge(vm.role.name.lowercase(), c.volt.copy(alpha = 0.12f), c.accent)
+                        when (vm.role) {
+                            Role.COACH -> MicroBadge("Coach", c.volt.copy(alpha = 0.14f), c.accent)
+                            Role.ADMIN -> MicroBadge("Admin", c.danger.copy(alpha = 0.14f), c.danger)
+                            else -> MicroBadge("User", c.volt.copy(alpha = 0.12f), c.accent)
+                        }
                         Spacer(Modifier.width(7.dp))
                         MicroBadge("Beirut", c.surface2, c.txt2)
                     }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val stats = when (vm.role) {
+                Role.COACH -> listOf("640+" to "Sessions", "38" to "Clients", "★ 4.9" to "Rating")
+                Role.ADMIN -> listOf("12.4k" to "Users", "312" to "Coaches", "3" to "Reports")
+                else -> listOf("48" to "Sessions", "7" to "Partners", "12" to "Day streak")
+            }
+            stats.forEach { (num, label) ->
+                SpotterCard(modifier = Modifier.weight(1f)) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(num, style = t.price.copy(fontSize = 23.sp), color = c.accent)
+                        Spacer(Modifier.height(2.dp))
+                        Text(label, style = t.caption, color = c.txt2)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(22.dp))
+        SectionHeading("My goals")
+        Spacer(Modifier.height(11.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GoalChip("Run a marathon", highlight = true)
+            GoalChip("Build endurance", highlight = false)
+            GoalChip("Stay consistent", highlight = false)
+        }
+
+        if (vm.role != Role.ADMIN) {
+            Spacer(Modifier.height(22.dp))
+            SectionHeading("Qualifications")
+            Spacer(Modifier.height(11.dp))
+            vm.myCerts.forEach { cert ->
+                CertCard(
+                    name = cert.name, meta = "${cert.issuer} · ${cert.year}", verified = cert.verified,
+                    onRemove = { vm.removeCert(cert.id) },
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AddCertButton(Icons.Rounded.PhotoCamera, "Scan with camera", Modifier.weight(1f)) { vm.addCert("Scanned certificate") }
+                AddCertButton(Icons.Rounded.UploadFile, "Upload file", Modifier.weight(1f)) { vm.addCert("Uploaded certificate") }
+            }
+        }
+
+        if (vm.role == Role.USER) {
+            Spacer(Modifier.height(22.dp))
+            RoleCard(
+                title = "Become a coach",
+                body = "List your services, get booked, and earn. Subscription unlocks scheduling, payments & a public coach profile.",
+                badge = null,
+                buttonLabel = "Start coaching",
+            ) { vm.role = Role.COACH }
+        }
+
+        if (vm.role == Role.COACH) {
+            Spacer(Modifier.height(22.dp))
+            RoleCard(
+                title = "Coach subscription",
+                body = "Scheduling, payments and your public coach profile are active.",
+                badge = "Active",
+                buttonLabel = "Manage",
+            ) {}
+            Spacer(Modifier.height(22.dp))
+            SectionHeading("Coach tools")
+            Spacer(Modifier.height(11.dp))
+            SpotterCard {
+                Column(Modifier.padding(15.dp)) {
+                    CoachToolRow("2", "Appointment requests", "Approve bookings & change requests") { vm.overlay = "coachRequests" }
+                    Spacer(Modifier.height(13.dp))
+                    CoachToolRow(null, "My schedule", "Edit weekly timetable") { vm.overlay = "coachSchedule" }
+                    Spacer(Modifier.height(13.dp))
+                    CoachToolRow(null, "Packages, pricing & promos", "Set prices · create discounts") { vm.overlay = "coachPackages" }
                 }
             }
         }
@@ -135,6 +229,136 @@ fun ProfileScreen(vm: SpotterViewModel) {
             Spacer(Modifier.height(11.dp))
             AdminQueueCard(vm)
         }
+    }
+}
+
+@Composable
+private fun GoalChip(label: String, highlight: Boolean) {
+    val c = SpotterTheme.colors
+    val t = SpotterTheme.type
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (highlight) c.volt.copy(alpha = 0.10f) else c.surface)
+            .border(1.dp, if (highlight) c.volt.copy(alpha = 0.25f) else c.line, RoundedCornerShape(999.dp))
+            .padding(horizontal = 14.dp, vertical = 9.dp),
+    ) {
+        Text(label, style = t.labelSm.copy(fontWeight = FontWeight.W600), color = if (highlight) c.accent else c.strong)
+    }
+}
+
+@Composable
+private fun CertCard(name: String, meta: String, verified: Boolean, onRemove: () -> Unit) {
+    val c = SpotterTheme.colors
+    val t = SpotterTheme.type
+    SpotterCard {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(c.volt.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.WorkspacePremium, null, tint = c.accent, modifier = Modifier.size(19.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(name, style = t.labelSm, color = c.txt)
+                Spacer(Modifier.height(1.dp))
+                Text(meta, style = t.bodySm, color = c.txt2)
+            }
+            MicroBadge(
+                if (verified) "Verified" else "Pending",
+                if (verified) c.volt.copy(alpha = 0.12f) else c.amber.copy(alpha = 0.16f),
+                if (verified) c.accent else c.amberText,
+            )
+            Spacer(Modifier.width(8.dp))
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.size(24.dp).clip(RoundedCornerShape(99.dp)).background(c.surface2).clickable { onRemove() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.Close, null, tint = c.txt2, modifier = Modifier.size(11.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddCertButton(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c = SpotterTheme.colors
+    val t = SpotterTheme.type
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .border(1.5.dp, c.line, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(vertical = 13.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = c.accent, modifier = Modifier.size(17.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = t.labelSm.copy(fontWeight = FontWeight.W700), color = c.strong)
+    }
+}
+
+@Composable
+private fun RoleCard(title: String, body: String, badge: String?, buttonLabel: String, onButton: () -> Unit) {
+    val c = SpotterTheme.colors
+    val t = SpotterTheme.type
+    SpotterCard(background = c.volt.copy(alpha = 0.08f), borderColor = c.volt.copy(alpha = 0.25f)) {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = t.overlayTitle.copy(fontSize = 16.sp), color = c.txt, modifier = Modifier.weight(1f))
+                if (badge != null) MicroBadge(badge, c.volt.copy(alpha = 0.14f), c.accent)
+            }
+            Spacer(Modifier.height(7.dp))
+            Text(body, style = t.bodySm, color = c.txt2)
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom) {
+                    Text("$19", style = t.price.copy(fontSize = 20.sp), color = c.accent)
+                    Text("/month", style = t.bodySm, color = c.txt3)
+                }
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(c.volt)
+                        .clickable { onButton() }
+                        .padding(horizontal = 20.dp, vertical = 11.dp),
+                ) {
+                    Text(buttonLabel, style = t.labelSm.copy(fontWeight = FontWeight.W800), color = c.ink)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoachToolRow(count: String?, title: String, body: String, onOpen: () -> Unit) {
+    val c = SpotterTheme.colors
+    val t = SpotterTheme.type
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(SpotterTheme.shapes.input)
+            .clickable { onOpen() },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(if (count != null) c.volt.copy(alpha = 0.12f) else c.surface2),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (count != null) {
+                Text(count, style = t.priceSm, color = c.accent)
+            } else {
+                Icon(Icons.Rounded.ChevronRight, null, tint = c.accent, modifier = Modifier.size(18.dp))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = t.name, color = c.txt)
+            Text(body, style = t.bodySm, color = c.txt2)
+        }
+        Icon(Icons.Rounded.ChevronRight, null, tint = c.txt3, modifier = Modifier.size(20.dp))
     }
 }
 

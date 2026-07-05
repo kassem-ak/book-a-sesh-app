@@ -19,6 +19,9 @@ import com.spotter.app.ui.overlays.AdminPromosOverlay
 import com.spotter.app.ui.overlays.AdminReportsOverlay
 import com.spotter.app.ui.overlays.BookingOverlay
 import com.spotter.app.ui.overlays.BookingsOverlay
+import com.spotter.app.ui.overlays.CoachPackagesOverlay
+import com.spotter.app.ui.overlays.CoachRequestsOverlay
+import com.spotter.app.ui.overlays.CoachScheduleOverlay
 import com.spotter.app.ui.overlays.CommunityDetailOverlay
 import com.spotter.app.ui.overlays.ConversationOverlay
 import com.spotter.app.ui.overlays.CreateEventOverlay
@@ -48,6 +51,9 @@ fun OverlayRouter(vm: SpotterViewModel, overlayId: String) {
         "request" -> RequestOverlay(vm)
         "conversation" -> ConversationOverlay(vm)
         "notifications" -> NotificationsOverlay(vm)
+        "coachRequests" -> CoachRequestsOverlay(vm)
+        "coachSchedule" -> CoachScheduleOverlay(vm)
+        "coachPackages" -> CoachPackagesOverlay(vm)
         "adminApprovals" -> AdminApprovalsOverlay(vm)
         "adminReports" -> AdminReportsOverlay(vm)
         "adminCase" -> AdminCaseOverlay(vm)
