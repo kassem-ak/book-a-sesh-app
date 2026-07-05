@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -152,15 +153,34 @@ fun AdminApprovalsOverlay(vm: SpotterViewModel) {
     val t = SpotterTheme.type
     OverlayScaffold(header = { OverlayHeader("Approvals", vm::closeOverlay) }) {
         Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 22.dp)) {
-            ApprovalCard("Hobby request", "Padel", "Requested by Alex Morgan", pending = true) {}
+            ApprovalCard(
+                "Hobby request", "Padel", "Sport · requested by 214 users",
+                decision = vm.hobbyDecisions["padel"], approveLabel = "Approve", declineLabel = "Reject",
+                onApprove = { vm.hobbyDecisions["padel"] = "Approved" },
+                onDecline = { vm.hobbyDecisions["padel"] = "Rejected" },
+            )
             Spacer(Modifier.height(11.dp))
-            ApprovalCard("Official community", "Chess", "Needs admin review before official badge", pending = true) {}
+            ApprovalCard(
+                "Hobby request", "Salsa", "Hobby · requested by 89 users",
+                decision = vm.hobbyDecisions["salsa"], approveLabel = "Approve", declineLabel = "Reject",
+                onApprove = { vm.hobbyDecisions["salsa"] = "Approved" },
+                onDecline = { vm.hobbyDecisions["salsa"] = "Rejected" },
+            )
+            Spacer(Modifier.height(11.dp))
+            ApprovalCard(
+                "Official community", "Chess community", "640 members · applied for official status",
+                decision = vm.hobbyDecisions["chess-off"], approveLabel = "Approve", declineLabel = "Reject",
+                onApprove = { vm.hobbyDecisions["chess-off"] = "Approved" },
+                onDecline = { vm.hobbyDecisions["chess-off"] = "Rejected" },
+            )
             if (vm.shopRegDoneName.isNotBlank()) {
                 Spacer(Modifier.height(11.dp))
-                val decision = vm.shopDecisions[vm.shopRegDoneName]
-                ApprovalCard("Shop partnership", vm.shopRegDoneName, vm.shopRegDoneMeta.ifBlank { "Contact details pending" }, pending = decision == null) {
-                    vm.shopDecisions[vm.shopRegDoneName] = "Deal opened - onboarding sent"
-                }
+                ApprovalCard(
+                    "Shop partnership", vm.shopRegDoneName, vm.shopRegDoneMeta.ifBlank { "Contact details pending" },
+                    decision = vm.shopDecisions[vm.shopRegDoneName], approveLabel = "Open deal", declineLabel = "Decline",
+                    onApprove = { vm.shopDecisions[vm.shopRegDoneName] = "Deal opened — onboarding sent" },
+                    onDecline = { vm.shopDecisions[vm.shopRegDoneName] = "Declined" },
+                )
             }
             Spacer(Modifier.height(18.dp))
             Text("Shop requests submitted from the Be a Shop flow appear here with contact metadata.", style = t.bodySm, color = c.txt3)
@@ -169,15 +189,26 @@ fun AdminApprovalsOverlay(vm: SpotterViewModel) {
 }
 
 @Composable
-private fun ApprovalCard(type: String, title: String, detail: String, pending: Boolean, onApprove: () -> Unit) {
+private fun ApprovalCard(
+    type: String,
+    title: String,
+    detail: String,
+    decision: String?,
+    approveLabel: String,
+    declineLabel: String,
+    onApprove: () -> Unit,
+    onDecline: () -> Unit,
+) {
     val c = SpotterTheme.colors
     val t = SpotterTheme.type
+    val pending = decision == null
+    val rejected = decision == "Rejected" || decision == "Declined"
     SpotterCard {
         Column(Modifier.padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MicroBadge(type, if (pending) c.amber.copy(alpha = 0.18f) else c.volt.copy(alpha = 0.12f), if (pending) c.amberText else c.accent)
                 Spacer(Modifier.weight(1f))
-                Text(if (pending) "Pending" else "Done", style = t.caption, color = if (pending) c.amberText else c.accent)
+                Text(decision ?: "Pending", style = t.caption.copy(fontWeight = FontWeight.W800), color = if (pending) c.amberText else if (rejected) c.danger else c.accent)
             }
             Spacer(Modifier.height(10.dp))
             Text(title, style = t.name, color = c.txt)
@@ -186,8 +217,8 @@ private fun ApprovalCard(type: String, title: String, detail: String, pending: B
             if (pending) {
                 Spacer(Modifier.height(13.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    SmallAction("Open deal", true, onApprove)
-                    SmallAction("Decline", false) {}
+                    SmallAction(approveLabel, true, onApprove)
+                    SmallAction(declineLabel, false, onDecline)
                 }
             }
         }
@@ -236,10 +267,12 @@ fun AdminAccountingOverlay(vm: SpotterViewModel) {
             SectionHeading("Margins per transaction")
             Spacer(Modifier.height(11.dp))
             SampleData.marginDefs.forEach { (key, label) ->
+                val changed = effective.margins[key] != vm.acctMargins[key]
                 PercentEditRow(
                     label = label,
                     raw = vm.acctRawText("margins", key),
-                    valueLabel = pct(effective.margins[key]),
+                    valueLabel = if (changed) "was ${pct(vm.acctMargins[key])}" else pct(effective.margins[key]),
+                    changed = changed,
                     enabled = vm.acctEditable,
                     onMinus = { vm.acctAdjust("margins", key, -0.5) },
                     onPlus = { vm.acctAdjust("margins", key, 0.5) },
@@ -255,10 +288,12 @@ fun AdminAccountingOverlay(vm: SpotterViewModel) {
             }
             Spacer(Modifier.height(11.dp))
             SampleData.shareDefs.forEach { (key, label) ->
+                val changed = effective.shares[key] != vm.acctShares[key]
                 PercentEditRow(
                     label = "$label - ${vm.payoutLabel(key)}",
                     raw = vm.acctRawText("shares", key),
-                    valueLabel = pct(effective.shares[key]),
+                    valueLabel = if (changed) "was ${pct(vm.acctShares[key])}" else pct(effective.shares[key]),
+                    changed = changed,
                     enabled = vm.acctEditable,
                     onMinus = { vm.acctAdjust("shares", key, -1.0) },
                     onPlus = { vm.acctAdjust("shares", key, 1.0) },
@@ -339,7 +374,7 @@ private fun ExpenseRow(expense: Expense, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun PercentEditRow(label: String, raw: String, valueLabel: String, enabled: Boolean, onMinus: () -> Unit, onPlus: () -> Unit, onRaw: (String) -> Unit) {
+private fun PercentEditRow(label: String, raw: String, valueLabel: String, changed: Boolean, enabled: Boolean, onMinus: () -> Unit, onPlus: () -> Unit, onRaw: (String) -> Unit) {
     val c = SpotterTheme.colors
     val t = SpotterTheme.type
     SpotterCard(background = if (enabled) c.surface else c.surface2) {
@@ -347,11 +382,16 @@ private fun PercentEditRow(label: String, raw: String, valueLabel: String, enabl
             Column(Modifier.weight(1f)) {
                 Text(label, style = t.labelSm, color = c.txt, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(3.dp))
-                Text(valueLabel, style = t.caption, color = c.txt3)
+                Text(valueLabel, style = t.caption, color = if (changed) c.accent else c.txt3)
             }
             StepButton(Icons.Rounded.Remove, enabled, onMinus)
             Spacer(Modifier.width(7.dp))
-            SpotterTextField(raw, onRaw, "0", modifier = Modifier.width(76.dp), keyboardType = KeyboardType.Decimal)
+            SpotterTextField(
+                raw, onRaw, "0",
+                modifier = Modifier.width(76.dp),
+                keyboardType = KeyboardType.Decimal,
+                textColor = if (changed) c.accent else Color.Unspecified,
+            )
             Spacer(Modifier.width(7.dp))
             StepButton(Icons.Rounded.Add, enabled, onPlus)
         }

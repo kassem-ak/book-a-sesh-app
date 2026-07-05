@@ -306,9 +306,107 @@ class SpotterViewModel : ViewModel() {
 
     fun payoutLabel(key: String): String = fmtMoney((net * effective().shares[key] / 100).roundToLong().toDouble()) + " / mo"
 
+    // ================= Admin: approvals =================
+    val hobbyDecisions = mutableStateMapOf<String, String>() // padel/salsa/chess-off -> Approved | Rejected
+
+    // ================= Admin: misconduct reports =================
+    val caseDecisions = mutableStateMapOf<String, String>() // report id -> ban | suspend | dismiss
+    var caseId by mutableStateOf("r1")
+    val flagVerdicts = mutableStateMapOf<String, String>() // flag id -> reinstated | suspended
+    var safetyCaseId by mutableStateOf("sf-demo1")
+
+    fun openCase(id: String) { caseId = id; overlay = "adminCase" }
+    fun openSafetyCase(id: String) { safetyCaseId = id; overlay = "safetyCase" }
+    fun backToReports() { overlay = "adminReports" }
+    fun decideCase(verdict: String) { caseDecisions[caseId] = verdict }
+    fun decideFlag(verdict: String) { flagVerdicts[safetyCaseId] = verdict }
+
+    // ================= Admin: promotions =================
+    var promoPct by mutableStateOf(15)
+    var promoAud by mutableStateOf("All users")
+    var promoCode by mutableStateOf<String?>(null)
+
+    fun genPromo() {
+        val suffix = List(4) { "ABCDEFGHJKMNPQRSTUVWXYZ23456789".random() }.joinToString("")
+        promoCode = "SPOT$promoPct-$suffix"
+    }
+
+    // ================= Admin: loyalty =================
+    val loyaltyPts = mutableStateMapOf("l1" to 500, "l2" to 900, "l3" to 1500)
+    fun loyaltyAdjust(key: String, delta: Int) { loyaltyPts[key] = max(100, (loyaltyPts[key] ?: 100) + delta) }
+
+    // ================= Coach role =================
+    val myCerts = mutableStateListOf(Cert("ct1", "First Aid & CPR", "Red Cross Lebanon", "2025", verified = true))
+    fun addCert(name: String) { myCerts.add(Cert("ct${System.currentTimeMillis()}", name, "Awaiting verification", "2026", verified = false)) }
+    fun removeCert(id: String) { myCerts.removeAll { it.id == id } }
+
+    val apptDecisions = mutableStateMapOf<String, String>() // a1/a2 -> Approved | Declined
+    var coachRate by mutableStateOf(0)
+
+    // -- weekly schedule editor --
+    var schedDay by mutableStateOf("THU")
+    var addTimeIdx by mutableStateOf(4)
+    val schedule = mutableStateMapOf(
+        "MON" to listOf("6:30 AM", "8:00 AM", "5:30 PM", "6:30 PM"),
+        "TUE" to listOf("6:30 AM", "8:00 AM", "5:30 PM", "6:30 PM"),
+        "WED" to listOf("6:30 AM", "5:30 PM", "6:30 PM"),
+        "THU" to listOf("6:30 AM", "8:00 AM", "5:30 PM", "6:30 PM"),
+        "FRI" to listOf("6:30 AM", "8:00 AM", "5:30 PM"),
+        "SAT" to listOf("8:00 AM", "12:00 PM"),
+        "SUN" to listOf(),
+    )
+
+    val schedTimes: List<String> = buildList {
+        for (h in 5..22) for (m in listOf("00", "30")) {
+            val h12 = if (h % 12 == 0) 12 else h % 12
+            add("$h12:$m ${if (h < 12) "AM" else "PM"}")
+        }
+    }
+
+    private fun byTime(slots: List<String>) = slots.sortedBy { schedTimes.indexOf(it) }
+    val daySlots: List<String> get() = byTime(schedule[schedDay].orEmpty())
+    val addTimeLabel: String get() = schedTimes.getOrElse(addTimeIdx) { schedTimes.first() }
+    val canAddSlot: Boolean get() = addTimeLabel !in schedule[schedDay].orEmpty()
+    fun addSlot() { if (canAddSlot) schedule[schedDay] = byTime(schedule[schedDay].orEmpty() + addTimeLabel) }
+    fun removeSlot(t: String) { schedule[schedDay] = schedule[schedDay].orEmpty().filter { it != t } }
+    fun setDayOff() { schedule[schedDay] = emptyList() }
+
+    // -- packages editor --
+    val myPackages = mutableStateListOf(
+        CoachPkg("pk1", 1, 45), CoachPkg("pk2", 5, 203), CoachPkg("pk3", 12, 421),
+    )
+    var newPkgSessions by mutableStateOf(10)
+    var newPkgPrice by mutableStateOf(380)
+
+    fun updPkg(id: String, dSessions: Int = 0, dPrice: Int = 0) {
+        val idx = myPackages.indexOfFirst { it.id == id }
+        if (idx < 0) return
+        val p = myPackages[idx]
+        myPackages[idx] = p.copy(sessions = max(1, p.sessions + dSessions), price = max(5, p.price + dPrice))
+    }
+
+    fun removePkg(id: String) { myPackages.removeAll { it.id == id } }
+    fun addPackage() { myPackages.add(CoachPkg("pk${System.currentTimeMillis()}", newPkgSessions, newPkgPrice)) }
+
+    // -- coach promos --
+    var cPromoPct by mutableStateOf(15)
+    var cPromoCode by mutableStateOf<String?>(null)
+
+    fun genCoachPromo() {
+        val suffix = List(4) { "ABCDEFGHJKMNPQRSTUVWXYZ23456789".random() }.joinToString("")
+        cPromoCode = "ALEX-$suffix-$cPromoPct"
+    }
+
     // ---- number formatting (mirrors JS behavior) ----
     private fun round2(x: Double): Double = (x * 100).roundToLong() / 100.0
     private fun clampRound(x: Double): Double = round2(max(0.0, min(100.0, x)))
+}
+
+data class Cert(val id: String, val name: String, val issuer: String, val year: String, val verified: Boolean)
+
+data class CoachPkg(val id: String, val sessions: Int, val price: Int) {
+    val name: String get() = if (sessions == 1) "Single session" else "$sessions-session pack"
+    val per: String get() = "$${price / sessions} per session · 60 min each"
 }
 
 fun numStr(d: Double): String =
