@@ -13,6 +13,10 @@ import com.spotter.app.ui.overlays.AccountingExpenseOverlay
 import com.spotter.app.ui.overlays.AccountingHistoryOverlay
 import com.spotter.app.ui.overlays.AdminAccountingOverlay
 import com.spotter.app.ui.overlays.AdminApprovalsOverlay
+import com.spotter.app.ui.overlays.AdminCaseOverlay
+import com.spotter.app.ui.overlays.AdminLoyaltyOverlay
+import com.spotter.app.ui.overlays.AdminPromosOverlay
+import com.spotter.app.ui.overlays.AdminReportsOverlay
 import com.spotter.app.ui.overlays.BookingOverlay
 import com.spotter.app.ui.overlays.BookingsOverlay
 import com.spotter.app.ui.overlays.CommunityDetailOverlay
@@ -23,6 +27,7 @@ import com.spotter.app.ui.overlays.NotificationsOverlay
 import com.spotter.app.ui.overlays.PersonOverlay
 import com.spotter.app.ui.overlays.ReportOverlay
 import com.spotter.app.ui.overlays.RequestOverlay
+import com.spotter.app.ui.overlays.SafetyCaseOverlay
 import com.spotter.app.ui.overlays.ShopRegisterOverlay
 import com.spotter.app.ui.overlays.ShopStorefrontOverlay
 import com.spotter.app.ui.overlays.StartCommunityOverlay
@@ -44,6 +49,11 @@ fun OverlayRouter(vm: SpotterViewModel, overlayId: String) {
         "conversation" -> ConversationOverlay(vm)
         "notifications" -> NotificationsOverlay(vm)
         "adminApprovals" -> AdminApprovalsOverlay(vm)
+        "adminReports" -> AdminReportsOverlay(vm)
+        "adminCase" -> AdminCaseOverlay(vm)
+        "safetyCase" -> SafetyCaseOverlay(vm)
+        "adminPromos" -> AdminPromosOverlay(vm)
+        "adminLoyalty" -> AdminLoyaltyOverlay(vm)
         "adminAccounting" -> AdminAccountingOverlay(vm)
         "acctExpense" -> AccountingExpenseOverlay(vm)
         "acctHistory" -> AccountingHistoryOverlay(vm)

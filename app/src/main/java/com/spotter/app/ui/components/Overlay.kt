@@ -65,6 +65,7 @@ fun OverlayHeader(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
     trailing: @Composable (RowScope.() -> Unit)? = null,
 ) {
     val c = SpotterTheme.colors
@@ -94,7 +95,14 @@ fun OverlayHeader(
             )
         }
         Spacer(Modifier.width(12.dp))
-        Text(title, style = SpotterTheme.type.overlayTitle, color = c.txt)
+        if (subtitle != null) {
+            Column {
+                Text(title, style = SpotterTheme.type.overlayTitle, color = c.txt)
+                Text(subtitle, style = SpotterTheme.type.caption, color = c.txt3)
+            }
+        } else {
+            Text(title, style = SpotterTheme.type.overlayTitle, color = c.txt)
+        }
         if (trailing != null) {
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {

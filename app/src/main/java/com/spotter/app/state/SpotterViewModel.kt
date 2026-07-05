@@ -306,6 +306,35 @@ class SpotterViewModel : ViewModel() {
 
     fun payoutLabel(key: String): String = fmtMoney((net * effective().shares[key] / 100).roundToLong().toDouble()) + " / mo"
 
+    // ================= Admin: approvals =================
+    val hobbyDecisions = mutableStateMapOf<String, String>() // padel/salsa/chess-off -> Approved | Rejected
+
+    // ================= Admin: misconduct reports =================
+    val caseDecisions = mutableStateMapOf<String, String>() // report id -> ban | suspend | dismiss
+    var caseId by mutableStateOf("r1")
+    val flagVerdicts = mutableStateMapOf<String, String>() // flag id -> reinstated | suspended
+    var safetyCaseId by mutableStateOf("sf-demo1")
+
+    fun openCase(id: String) { caseId = id; overlay = "adminCase" }
+    fun openSafetyCase(id: String) { safetyCaseId = id; overlay = "safetyCase" }
+    fun backToReports() { overlay = "adminReports" }
+    fun decideCase(verdict: String) { caseDecisions[caseId] = verdict }
+    fun decideFlag(verdict: String) { flagVerdicts[safetyCaseId] = verdict }
+
+    // ================= Admin: promotions =================
+    var promoPct by mutableStateOf(15)
+    var promoAud by mutableStateOf("All users")
+    var promoCode by mutableStateOf<String?>(null)
+
+    fun genPromo() {
+        val suffix = List(4) { "ABCDEFGHJKMNPQRSTUVWXYZ23456789".random() }.joinToString("")
+        promoCode = "SPOT$promoPct-$suffix"
+    }
+
+    // ================= Admin: loyalty =================
+    val loyaltyPts = mutableStateMapOf("l1" to 500, "l2" to 900, "l3" to 1500)
+    fun loyaltyAdjust(key: String, delta: Int) { loyaltyPts[key] = max(100, (loyaltyPts[key] ?: 100) + delta) }
+
     // ---- number formatting (mirrors JS behavior) ----
     private fun round2(x: Double): Double = (x * 100).roundToLong() / 100.0
     private fun clampRound(x: Double): Double = round2(max(0.0, min(100.0, x)))

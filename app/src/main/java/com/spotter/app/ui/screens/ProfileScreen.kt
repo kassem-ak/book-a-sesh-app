@@ -19,7 +19,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.Loyalty
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Percent
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Verified
@@ -187,6 +190,12 @@ private fun AdminQueueCard(vm: SpotterViewModel) {
             SettingsRowInline(Icons.Rounded.AccountBalance, "Accounting", "Margins, expenses, profit shares") { vm.overlay = "adminAccounting" }
             Spacer(Modifier.height(13.dp))
             SettingsRowInline(Icons.Rounded.Person, "Approvals", "Hobby requests, communities and shop partners") { vm.overlay = "adminApprovals" }
+            Spacer(Modifier.height(13.dp))
+            SettingsRowInline(Icons.Rounded.Flag, "Misconduct reports", "Review evidence · ban or suspend") { vm.overlay = "adminReports" }
+            Spacer(Modifier.height(13.dp))
+            SettingsRowInline(Icons.Rounded.Percent, "Promotions & promo codes", "Create discounts · generate codes") { vm.overlay = "adminPromos" }
+            Spacer(Modifier.height(13.dp))
+            SettingsRowInline(Icons.Rounded.Loyalty, "Loyalty offers", "Edit rewards & point costs") { vm.overlay = "adminLoyalty" }
             Spacer(Modifier.height(13.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MicroBadge("Admins only", c.volt.copy(alpha = 0.12f), c.accent)
