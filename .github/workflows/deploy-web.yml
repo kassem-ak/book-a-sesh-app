@@ -1,0 +1,52 @@
+name: Deploy Spotter web
+
+# Builds the Expo web export and publishes it to GitHub Pages.
+# URL: https://kassem-ak.github.io/book-a-sesh-app/
+# Runs on pushes to main that touch expo-app/, or manually.
+
+on:
+  push:
+    branches: [main]
+    paths: ['expo-app/**', '.github/workflows/deploy-web.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: expo-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: expo-app/package-lock.json
+      - run: npm ci
+      - run: npx expo export --platform web
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: expo-app/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
