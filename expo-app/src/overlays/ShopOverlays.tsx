@@ -10,7 +10,7 @@ import { alpha, useTheme } from '../theme';
 export function ShopStorefrontOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
-  const sh = D.shopById(s.shopId);
+  const sh = s.shopById(s.shopId);
   const count = s.cartCount();
   return (
     <OverlayScaffold

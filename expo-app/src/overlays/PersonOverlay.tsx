@@ -10,7 +10,7 @@ import { alpha, useTheme } from '../theme';
 export function PersonOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
-  const p = D.personById(s.openId);
+  const p = s.personById(s.openId);
   return (
     <OverlayScaffold
       header={<OverlayHeader title={p.isCoach ? 'Coach' : 'Training partner'} onBack={s.closeOverlay} trailing={<Pressable onPress={() => s.openChat('m1')}><Icon name="message-square" size={22} color={c.txt2} /></Pressable>} />}

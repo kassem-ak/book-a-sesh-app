@@ -1,16 +1,101 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Segmented, Stars } from '../components/ui';
+import { fetchShops } from '../lib/queries';
 import { Shop, shopDistLabel } from '../state/models';
-import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
+
+type RemoteProduct = {
+  id: string;
+  name: string;
+  price_cents?: number | null;
+  image_url?: string | null;
+  is_featured?: boolean | null;
+  position?: number | null;
+  active?: boolean | null;
+};
+
+type RemoteShop = {
+  id: string;
+  slug?: string | null;
+  name: string;
+  initials?: string | null;
+  tint?: string | null;
+  category?: string | null;
+  deal_text?: string | null;
+  rating_avg?: number | string | null;
+  reviews_count?: number | null;
+  products?: RemoteProduct[] | null;
+};
+
+function toNumber(value: number | string | null | undefined) {
+  const num = typeof value === 'number' ? value : Number(value ?? 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function fallbackInitials(name: string) {
+  return name
+    .split(' ')
+    .map((word) => word[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
+function hashNumber(seed: string, min: number, max: number) {
+  const sum = Array.from(seed).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return min + (sum % (max - min + 1));
+}
+
+function fromRemoteShop(row: RemoteShop): Shop {
+  const products = [...(row.products ?? [])]
+    .filter((product) => product.active !== false)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .map((product) => ({
+      name: product.name,
+      price: Math.round((product.price_cents ?? 0) / 100),
+      ph: product.image_url ? product.name : `${product.name} shot`,
+    }));
+
+  return {
+    id: row.slug ?? row.id,
+    name: row.name,
+    initials: row.initials ?? fallbackInitials(row.name),
+    tint: row.tint ?? '#2A3A2E',
+    category: row.category ?? 'Sports gear',
+    dist: Math.round((0.5 + hashNumber(row.id, 0, 35) / 10) * 10) / 10,
+    rating: toNumber(row.rating_avg),
+    reviews: row.reviews_count ?? 0,
+    deal: row.deal_text ?? 'In-app checkout',
+    pinTop: hashNumber(`${row.id}:top`, 20, 72),
+    pinLeft: hashNumber(`${row.id}:left`, 24, 78),
+    products,
+  };
+}
 export function ShopScreen() {
   const { c, t } = useTheme();
   const s = useStore();
-  const shops = [...D.shops].sort((a, b) => a.dist - b.dist);
+  const setRemoteShops = useStore((state) => state.setRemoteShops);
+
+  useEffect(() => {
+    let active = true;
+    fetchShops()
+      .then((rows) => {
+        if (active && Array.isArray(rows)) setRemoteShops(rows.map((row) => fromRemoteShop(row as RemoteShop)));
+      })
+      .catch(() => {
+        if (active) setRemoteShops([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [setRemoteShops]);
+
+  const shops = [...s.shops()].sort((a, b) => a.dist - b.dist);
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>

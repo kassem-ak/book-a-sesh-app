@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
   Avatar,
@@ -11,12 +11,67 @@ import {
   Segmented,
   Stars,
 } from '../components/ui';
+import { DiscoverSort, fetchCoaches } from '../lib/queries';
 import { Person, initials, personMeta } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 import { DiscoverMap } from './DiscoverMap';
 
+
+type RelatedName = { name?: string | null } | { name?: string | null }[] | null;
+
+type RemoteCoach = {
+  user_id: string;
+  headline?: string | null;
+  bio?: string | null;
+  level?: string | null;
+  price_cents?: number | null;
+  reply_time?: string | null;
+  sessions_count?: number | null;
+  rating_avg?: number | string | null;
+  reviews_count?: number | null;
+  boosted?: boolean | null;
+  user?: RelatedName;
+  sport?: RelatedName;
+};
+
+function firstRelated<T>(value: T | T[] | null | undefined): T | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value ?? undefined;
+}
+
+function toNumber(value: number | string | null | undefined) {
+  const num = typeof value === 'number' ? value : Number(value ?? 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function pseudoDistance(id: string) {
+  const sum = Array.from(id).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return Math.round((0.6 + (sum % 36) / 10) * 10) / 10;
+}
+
+function fromRemoteCoach(row: RemoteCoach): Person {
+  const name = firstRelated(row.user)?.name ?? 'Coach';
+  const sport = firstRelated(row.sport)?.name ?? 'Coaching';
+  const headline = row.headline ?? row.level ?? 'Coach';
+  return {
+    id: row.user_id,
+    name,
+    sport,
+    rating: toNumber(row.rating_avg),
+    reviews: row.reviews_count ?? 0,
+    price: Math.round((row.price_cents ?? 0) / 100),
+    boosted: Boolean(row.boosted),
+    distance: pseudoDistance(row.user_id),
+    level: row.level ?? headline,
+    sessions: row.sessions_count ? `${row.sessions_count}+` : '0',
+    reply: row.reply_time ?? 'Today',
+    bio: row.bio ?? row.headline ?? `${name} is available for ${sport.toLowerCase()} sessions.`,
+    tags: [headline, sport].filter((tag): tag is string => Boolean(tag)),
+    isCoach: true,
+  };
+}
 function matchesSport(p: Person, sport: string) {
   if (sport === 'All') return true;
   return p.sport.toLowerCase().includes(sport.toLowerCase());
@@ -26,7 +81,24 @@ export function DiscoverScreen() {
   const { c, t } = useTheme();
   const s = useStore();
   const isCoaches = s.mode === 'coaches';
-  const base = (isCoaches ? D.coaches : D.partners).filter((p) => matchesSport(p, s.sport));
+  const setRemotePeople = useStore((state) => state.setRemotePeople);
+
+  useEffect(() => {
+    if (!isCoaches) return;
+    let active = true;
+    fetchCoaches(s.sortBy as DiscoverSort)
+      .then((rows) => {
+        if (active && Array.isArray(rows)) setRemotePeople(rows.map((row) => fromRemoteCoach(row as RemoteCoach)));
+      })
+      .catch(() => {
+        if (active) setRemotePeople([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isCoaches, s.sortBy, setRemotePeople]);
+
+  const base = s.people(isCoaches ? 'coaches' : 'partners').filter((p) => matchesSport(p, s.sport));
   const featured = base.filter((p) => p.boosted);
   const rest = base
     .filter((p) => !p.boosted)
@@ -140,7 +212,7 @@ export function DiscoverScreen() {
           )}
 
           {!adHidden && (
-            <Pressable onPress={() => {}} style={{ marginTop: 11 }}>
+            <Pressable onPress={() => s.set('tab', 'shop')} style={{ marginTop: 11 }}>
               <Card>
                 <Row style={{ padding: 14, alignItems: 'flex-start' }} gap={12}>
                   <Avatar initials={ad.logo} size={46} radius={13} fontSize={15} bg={ad.tint} />
