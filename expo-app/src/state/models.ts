@@ -38,6 +38,7 @@ export interface Review {
 }
 
 export interface Product {
+  id?: string;
   name: string;
   price: number;
   ph: string;

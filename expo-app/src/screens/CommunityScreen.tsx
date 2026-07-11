@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, StripedPlaceholder } from '../components/ui';
-import { Community, CommunityRole, EventItem, isMeetup } from '../state/models';
+import { Community, CommunityRole, EventItem, EventSuggestion, isMeetup } from '../state/models';
 import * as D from '../state/sampleData';
-import { fetchCommunities, fetchEvents } from '../lib/queries';
+import { fetchCommunities, fetchEvents, fetchEventSuggestions } from '../lib/queries';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -58,6 +58,29 @@ const fromRemoteEvent = (row: RemoteEvent): EventItem => ({
   attendees: row.attendees_count ?? 0,
   host: firstRelated(row.host)?.name ?? 'Community host',
 });
+
+type RemoteSuggestion = {
+  id: string;
+  community_id?: string | null;
+  type?: string | null;
+  title: string;
+  when_label?: string | null;
+  location?: string | null;
+  status?: string | null;
+  community?: RelatedSlug;
+  requester?: RelatedName;
+};
+
+const fromRemoteSuggestion = (row: RemoteSuggestion): EventSuggestion => ({
+  id: row.id,
+  communityId: firstRelated(row.community)?.slug ?? row.community_id ?? 'running',
+  type: row.type === 'event' ? 'Event' : 'Meetup',
+  title: row.title,
+  whenLabel: row.when_label ?? 'Upcoming',
+  loc: row.location ?? 'TBD',
+  requestedBy: firstRelated(row.requester)?.name ?? 'Member',
+  status: row.status === 'approved' ? 'APPROVED' : 'PENDING',
+});
 const fromRemoteCommunity = (row: RemoteCommunity): Community => ({
   id: row.slug ?? row.id,
   sport: row.name,
@@ -72,6 +95,7 @@ export function CommunityScreen() {
   const s = useStore();
   const setRemoteCommunities = useStore((state) => state.setRemoteCommunities);
   const setRemoteEvents = useStore((state) => state.setRemoteEvents);
+  const setRemoteEventSuggestions = useStore((state) => state.setRemoteEventSuggestions);
   const adHidden = s.adsHidden['community'];
   const ad = D.ads.community;
   const soon = s.allEvents().slice(0, 6);
@@ -93,10 +117,15 @@ export function CommunityScreen() {
       .catch(() => {
         if (active) setRemoteEvents([]);
       });
+    fetchEventSuggestions()
+      .then((rows) => {
+        if (active && Array.isArray(rows)) setRemoteEventSuggestions(rows.map((row) => fromRemoteSuggestion(row as RemoteSuggestion)));
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
-  }, [setRemoteCommunities, setRemoteEvents]);
+  }, [setRemoteCommunities, setRemoteEvents, setRemoteEventSuggestions]);
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>

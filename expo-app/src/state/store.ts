@@ -1,5 +1,20 @@
 import { create } from 'zustand';
 import {
+  approveSuggestion as approveSuggestionRemote,
+  checkoutShopOrder as checkoutShopOrderRemote,
+  createBooking as createBookingRemote,
+  createCommunity as createCommunityRemote,
+  createEvent as createEventRemote,
+  EventKind,
+  joinCommunity as joinCommunityRemote,
+  leaveCommunity as leaveCommunityRemote,
+  setEventAttendance,
+  submitShopRegistration as submitShopRegistrationRemote,
+  submitSportRequest as submitSportRequestRemote,
+  suggestEvent as suggestEventRemote,
+  updateCommunityAbout as updateCommunityAboutRemote,
+} from '../lib/queries';
+import {
   Cert,
   CoachPkg,
   Community,
@@ -79,12 +94,80 @@ const communityCode = (name: string) => {
 const marginGet = (m: Margins, k: string) => m[k as MarginKey];
 const shareGet = (s: Shares, k: string) => s[k as ShareKey];
 
+const errorState = (error: unknown) => ({
+  writeBusy: null,
+  writeError: error instanceof Error ? error.message : String(error),
+});
+
+const roleFromDb = (role: string | null | undefined): CommunityRole =>
+  role === 'owner' || role === 'admin' ? 'ADMIN' : role === 'moderator' ? 'MODERATOR' : 'MEMBER';
+
+const memberLabel = (count?: number | null) => {
+  const n = count ?? 0;
+  if (n >= 1000) return `${Math.round(n / 100) / 10}k`;
+  return String(n);
+};
+
+const communityFromRemote = (row: any): Community => ({
+  id: row.slug ?? row.id,
+  sport: row.name,
+  code: row.code ?? String(row.name ?? 'CM').slice(0, 2).toUpperCase(),
+  tint: row.tint ?? '#2F3A2A',
+  members: memberLabel(row.members_count),
+  about: row.about ?? '',
+  official: Boolean(row.official),
+  createdBy: CURRENT_USER_ID,
+});
+
+const eventFromRemote = (row: any, fallbackCommunity?: string): EventItem => ({
+  id: row.id,
+  communityId: row.community_slug ?? row.community_id ?? fallbackCommunity ?? 'running',
+  subId: row.subgroup_id ?? null,
+  type: row.type === 'event' ? 'Event' : 'Meetup',
+  title: row.title,
+  whenLabel: row.when_label ?? 'Upcoming',
+  loc: row.location ?? 'TBD',
+  attendees: row.attendees_count ?? 1,
+  host: row.host_name ?? CURRENT_USER_NAME,
+});
+
+const suggestionFromRemote = (row: any, fallbackCommunity?: string): EventSuggestion => ({
+  id: row.id,
+  communityId: row.community_slug ?? row.community_id ?? fallbackCommunity ?? 'running',
+  type: row.type === 'event' ? 'Event' : 'Meetup',
+  title: row.title,
+  whenLabel: row.when_label ?? 'Upcoming',
+  loc: row.location ?? 'TBD',
+  requestedBy: row.requested_by ?? CURRENT_USER_NAME,
+  status: row.status === 'approved' ? 'APPROVED' : 'PENDING',
+});
+
+const scheduledFor = (day: number, slot: string) => {
+  const match = slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  let hour = match ? Number(match[1]) : 12;
+  const minute = match ? Number(match[2]) : 0;
+  const meridiem = match?.[3]?.toUpperCase();
+  if (meridiem === 'PM' && hour < 12) hour += 12;
+  if (meridiem === 'AM' && hour === 12) hour = 0;
+  return `2026-07-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+03:00`;
+};
+
+const bookingPackage = (price: number, index: number) => {
+  const packages = [
+    { label: 'Single session', price },
+    { label: '5-session pack', price: price * 5 - 20 },
+    { label: 'Monthly plan', price: price * 10 },
+  ];
+  return packages[index] ?? packages[0];
+};
 export interface SpotterState {
   // top level
   tab: string;
   role: Role;
   isDark: boolean;
   overlay: string | null;
+  writeBusy: string | null;
+  writeError: string | null;
 
   // discover / shop
   mode: string;
@@ -137,6 +220,7 @@ export interface SpotterState {
   shopRegDoneName: string;
   shopRegDoneCat: string | null;
   shopRegDoneMeta: string;
+  shopOrderDone: boolean;
   shopDecisions: Record<string, string>;
 
   // communities
@@ -149,6 +233,7 @@ export interface SpotterState {
   communityMemberRoles: Record<string, Record<string, CommunityRole>>;
   communityAboutEdits: Record<string, string>;
   eventSuggestions: EventSuggestion[];
+  setRemoteEventSuggestions(suggestions: EventSuggestion[]): void;
 
   // community + event creation
   customEvents: EventItem[];
@@ -211,15 +296,17 @@ export interface SpotterState {
   set<K extends keyof SpotterState>(key: K, value: SpotterState[K]): void;
 
   // ---- actions ----
-  toggleCommunity(id: string): void;
+  toggleCommunity(id: string): Promise<void>;
   toggleSub(id: string): void;
-  toggleGoing(id: string): void;
+  toggleGoing(id: string): Promise<void>;
   people(mode?: string): Person[];
   setRemotePeople(people: Person[]): void;
   personById(id: string): Person;
   shops(): Shop[];
   setRemoteShops(shops: Shop[]): void;
   shopById(id: string): Shop;
+  submitShopRegistration(): Promise<void>;
+  checkoutCart(): Promise<void>;
   communities(): Community[];
   setRemoteCommunities(communities: Community[]): void;
   setRemoteEvents(events: EventItem[]): void;
@@ -230,16 +317,16 @@ export interface SpotterState {
   canModerateCommunity(id?: string): boolean;
   setCommunityMemberRole(communityId: string, memberId: string, role: CommunityRole): void;
   openEditCommunity(): void;
-  saveCommunityContent(): void;
+  saveCommunityContent(): Promise<void>;
   openStartCommunity(): void;
   openRequest(): void;
   openCreateEvent(): void;
   openSuggestEvent(): void;
-  submitEvent(): void;
-  submitEventSuggestion(): void;
-  approveEventSuggestion(id: string): void;
-  submitCommunity(): void;
-  submitRequest(): void;
+  submitEvent(): Promise<void>;
+  submitEventSuggestion(): Promise<void>;
+  approveEventSuggestion(id: string): Promise<void>;
+  submitCommunity(): Promise<void>;
+  submitRequest(): Promise<void>;
   allEvents(): EventItem[];
 
   toggleCartItem(key: string, price: number): void;
@@ -249,7 +336,7 @@ export interface SpotterState {
   openPerson(id: string): void;
   openBooking(): void;
   backToPerson(): void;
-  confirmBooking(): void;
+  confirmBooking(): Promise<void>;
   goToBookings(): void;
   openBookings(): void;
   openShop(id: string): void;
@@ -324,6 +411,8 @@ export const useStore = create<SpotterState>((set, get) => ({
   role: 'USER',
   isDark: true,
   overlay: null,
+  writeBusy: null,
+  writeError: null,
 
   mode: 'coaches',
   sport: 'All',
@@ -369,6 +458,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   shopRegDoneName: '',
   shopRegDoneCat: null,
   shopRegDoneMeta: '',
+  shopOrderDone: false,
   shopDecisions: {},
 
   joinedCommunities: ['running', 'strength'],
@@ -394,6 +484,8 @@ export const useStore = create<SpotterState>((set, get) => ({
       status: 'PENDING',
     },
   ],
+
+  setRemoteEventSuggestions: (suggestions) => set({ eventSuggestions: suggestions }),
 
   customEvents: [],
   remoteEvents: [],
@@ -462,23 +554,41 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   set: (key, value) => set({ [key]: value } as Partial<SpotterState>),
 
-  toggleCommunity: (id) =>
-    set((s) => {
-      const joined = s.joinedCommunities.includes(id);
-      if (joined) return { joinedCommunities: s.joinedCommunities.filter((x) => x !== id) };
-      return {
-        joinedCommunities: [...s.joinedCommunities, id],
-        communityRoles: { ...s.communityRoles, [id]: s.communityRoles[id] ?? 'MEMBER' },
-      };
-    }),
+  toggleCommunity: async (id) => {
+    const s = get();
+    const joined = s.joinedCommunities.includes(id);
+    set({ writeBusy: `community:${id}`, writeError: null });
+    try {
+      const role = joined ? await leaveCommunityRemote(id) : await joinCommunityRemote(id);
+      set((state) => ({
+        joinedCommunities: joined ? state.joinedCommunities.filter((x) => x !== id) : [...state.joinedCommunities, id],
+        communityRoles: joined ? state.communityRoles : { ...state.communityRoles, [id]: roleFromDb(role) },
+        writeBusy: null,
+      }));
+    } catch (error) {
+      set(errorState(error));
+    }
+  },
   toggleSub: (id) =>
     set((s) => ({
       joinedSubs: s.joinedSubs.includes(id) ? s.joinedSubs.filter((x) => x !== id) : [...s.joinedSubs, id],
     })),
-  toggleGoing: (id) =>
-    set((s) => ({
-      goingEvents: s.goingEvents.includes(id) ? s.goingEvents.filter((x) => x !== id) : [...s.goingEvents, id],
-    })),
+  toggleGoing: async (id) => {
+    const s = get();
+    const going = s.goingEvents.includes(id);
+    set({ writeBusy: `event:${id}`, writeError: null });
+    try {
+      const attendees = await setEventAttendance(id, !going);
+      set((state) => ({
+        goingEvents: going ? state.goingEvents.filter((x) => x !== id) : [...state.goingEvents, id],
+        customEvents: state.customEvents.map((event) => (event.id === id ? { ...event, attendees } : event)),
+        remoteEvents: state.remoteEvents.map((event) => (event.id === id ? { ...event, attendees } : event)),
+        writeBusy: null,
+      }));
+    } catch (error) {
+      set(errorState(error));
+    }
+  },
 
   people: (mode = get().mode) => {
     const remote = get().remotePeople;
@@ -493,6 +603,42 @@ export const useStore = create<SpotterState>((set, get) => ({
   },
   setRemoteShops: (shops) => set({ remoteShops: shops }),
   shopById: (id) => get().remoteShops.find((shop) => shop.id === id) ?? D.shopById(id),
+  submitShopRegistration: async () => {
+    const s = get();
+    const shopName = s.shopRegName.trim();
+    if (shopName.length === 0 || (s.shopRegPhone.trim().length === 0 && s.shopRegEmail.trim().length === 0)) return;
+    set({ writeBusy: 'shop-registration', writeError: null });
+    try {
+      await submitShopRegistrationRemote({
+        shopName,
+        category: s.shopRegCat,
+        categoryOther: s.shopRegCatOther.trim(),
+        phone: s.shopRegPhone.trim(),
+        email: s.shopRegEmail.trim(),
+        contactPref: s.shopRegMeans,
+        bestTime: s.shopRegTime.trim(),
+      });
+      const meta = [s.shopRegPhone && `Phone ${s.shopRegPhone}`, s.shopRegEmail && `Email ${s.shopRegEmail}`, s.shopRegMeans && `prefers ${s.shopRegMeans}`].filter(Boolean).join(' - ');
+      set({ shopRegDoneName: shopName, shopRegDoneMeta: meta, shopRegDone: true, writeBusy: null });
+    } catch (error) {
+      set(errorState(error));
+    }
+  },
+  checkoutCart: async () => {
+    const s = get();
+    const shop = s.shopById(s.shopId);
+    const items = shop.products
+      .filter((product) => product.id && `${shop.id}:${product.id}` in s.cart)
+      .map((product) => ({ product_id: product.id!, qty: 1 }));
+    if (items.length === 0) return;
+    set({ writeBusy: 'checkout', writeError: null });
+    try {
+      await checkoutShopOrderRemote(shop.id, items);
+      set({ cart: {}, shopOrderDone: true, writeBusy: null });
+    } catch (error) {
+      set(errorState(error));
+    }
+  },
   communities: () => {
     const remote = get().remoteCommunities;
     return [...get().customCommunities, ...(remote.length > 0 ? remote : D.communities)];
@@ -520,15 +666,21 @@ export const useStore = create<SpotterState>((set, get) => ({
     if (!s.canModerateCommunity(s.communityId)) return;
     set({ overlay: 'editCommunity', editCommunityAbout: s.communityAbout(s.communityId) });
   },
-  saveCommunityContent: () => {
+  saveCommunityContent: async () => {
     const s = get();
     const about = s.editCommunityAbout.trim();
     if (!s.canModerateCommunity(s.communityId) || about.length === 0 || isExplicit(about)) return;
-    set({ communityAboutEdits: { ...s.communityAboutEdits, [s.communityId]: about }, overlay: 'community' });
+    set({ writeBusy: 'community-edit', writeError: null });
+    try {
+      await updateCommunityAboutRemote(s.communityId, about);
+      set({ communityAboutEdits: { ...s.communityAboutEdits, [s.communityId]: about }, overlay: 'community', writeBusy: null });
+    } catch (error) {
+      set(errorState(error));
+    }
   },
 
-  openStartCommunity: () => set({ overlay: 'startCommunity', commCreated: false, commName: '' }),
-  openRequest: () => set({ overlay: 'request', reqSent: false, reqName: '', reqType: 'Hobby' }),
+  openStartCommunity: () => set({ overlay: 'startCommunity', commCreated: false, commName: '', writeError: null }),
+  openRequest: () => set({ overlay: 'request', reqSent: false, reqName: '', reqType: 'Hobby', writeError: null }),
   openCreateEvent: () => {
     const s = get();
     if (!s.canModerateCommunity(s.communityId)) {
@@ -541,6 +693,7 @@ export const useStore = create<SpotterState>((set, get) => ({
         newSub: null,
         newDay: 3,
         newTime: 1,
+        writeError: null,
       });
       return;
     }
@@ -553,6 +706,7 @@ export const useStore = create<SpotterState>((set, get) => ({
       newSub: null,
       newDay: 3,
       newTime: 1,
+      writeError: null,
     });
   },
   openSuggestEvent: () => {
@@ -566,92 +720,92 @@ export const useStore = create<SpotterState>((set, get) => ({
       newSub: null,
       newDay: 3,
       newTime: 1,
+      writeError: null,
     });
   },
 
-  submitEvent: () => {
+  submitEvent: async () => {
     const s = get();
     if (!s.canModerateCommunity(s.newSport) || s.newTitle.trim() === '' || isExplicit(s.newTitle)) return;
-    const ev: EventItem = {
-      id: `cust${Date.now()}`,
-      communityId: s.newSport,
-      subId: s.newSub,
-      type: s.newType as 'Meetup' | 'Event',
-      title: s.newTitle.trim(),
-      whenLabel: eventWhenLabel(s.newDay, s.newTime),
-      loc: 'TBD',
-      attendees: 1,
-      host: CURRENT_USER_NAME,
-    };
-    set({ customEvents: [ev, ...s.customEvents], goingEvents: [...s.goingEvents, ev.id], evtCreated: true, overlay: 'community' });
+    set({ writeBusy: 'event-create', writeError: null });
+    try {
+      const row = await createEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), 'TBD');
+      const ev = eventFromRemote(row, s.newSport);
+      set({ customEvents: [ev, ...s.customEvents], goingEvents: [...s.goingEvents, ev.id], evtCreated: true, overlay: 'community', writeBusy: null });
+    } catch (error) {
+      set(errorState(error));
+    }
   },
-  submitEventSuggestion: () => {
+  submitEventSuggestion: async () => {
     const s = get();
     if (s.newTitle.trim() === '' || isExplicit(s.newTitle)) return;
-    const suggestion: EventSuggestion = {
-      id: `sug${Date.now()}`,
-      communityId: s.newSport,
-      type: s.newType as 'Meetup' | 'Event',
-      title: s.newTitle.trim(),
-      whenLabel: eventWhenLabel(s.newDay, s.newTime),
-      loc: 'TBD',
-      requestedBy: `${CURRENT_USER_NAME} (you)`,
-      status: 'PENDING',
-    };
-    set({ eventSuggestions: [suggestion, ...s.eventSuggestions], eventSuggested: true });
+    set({ writeBusy: 'event-suggestion', writeError: null });
+    try {
+      const row = await suggestEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), 'TBD');
+      const suggestion = suggestionFromRemote(row, s.newSport);
+      set({ eventSuggestions: [suggestion, ...s.eventSuggestions], eventSuggested: true, writeBusy: null });
+    } catch (error) {
+      set(errorState(error));
+    }
   },
-  approveEventSuggestion: (id) => {
+  approveEventSuggestion: async (id) => {
     const s = get();
     const suggestion = s.eventSuggestions.find((item) => item.id === id);
     if (!suggestion || suggestion.status !== 'PENDING' || !s.canModerateCommunity(suggestion.communityId)) return;
-    const ev: EventItem = {
-      id: `approved${Date.now()}`,
-      communityId: suggestion.communityId,
-      subId: null,
-      type: suggestion.type,
-      title: suggestion.title,
-      whenLabel: suggestion.whenLabel,
-      loc: suggestion.loc,
-      attendees: 1,
-      host: suggestion.requestedBy,
-    };
-    set({
-      customEvents: [ev, ...s.customEvents],
-      eventSuggestions: s.eventSuggestions.map((item) => (item.id === id ? { ...item, status: 'APPROVED' } : item)),
-    });
+    set({ writeBusy: `suggestion:${id}`, writeError: null });
+    try {
+      const eventId = await approveSuggestionRemote(id);
+      const ev: EventItem = {
+        id: eventId,
+        communityId: suggestion.communityId,
+        subId: null,
+        type: suggestion.type,
+        title: suggestion.title,
+        whenLabel: suggestion.whenLabel,
+        loc: suggestion.loc,
+        attendees: 1,
+        host: CURRENT_USER_NAME,
+      };
+      set({
+        customEvents: [ev, ...s.customEvents],
+        eventSuggestions: s.eventSuggestions.map((item) => (item.id === id ? { ...item, status: 'APPROVED' } : item)),
+        writeBusy: null,
+      });
+    } catch (error) {
+      set(errorState(error));
+    }
   },
-  submitCommunity: () => {
+  submitCommunity: async () => {
     const s = get();
     const name = s.commName.trim();
     if (name === '' || isExplicit(name)) return;
-    const existing = new Set(s.communities().map((cm) => cm.id));
-    const base = communitySlug(name);
-    let id = base;
-    let suffix = 2;
-    while (existing.has(id)) id = `${base}-${suffix++}`;
-    const community: Community = {
-      id,
-      sport: name,
-      code: communityCode(name),
-      tint: '#2F3A2A',
-      members: '1',
-      about: `${name} community started by ${CURRENT_USER_NAME}. Share plans, create events, and grow the crew.`,
-      official: false,
-      createdBy: CURRENT_USER_ID,
-    };
-    set({
-      customCommunities: [community, ...s.customCommunities],
-      joinedCommunities: [...s.joinedCommunities, id],
-      communityRoles: { ...s.communityRoles, [id]: 'ADMIN' },
-      communityMemberRoles: { ...s.communityMemberRoles, [id]: {} },
-      communityId: id,
-      commCreated: true,
-    });
+    set({ writeBusy: 'community-create', writeError: null });
+    try {
+      const row = await createCommunityRemote(name);
+      const community = communityFromRemote(row);
+      set({
+        customCommunities: [community, ...s.customCommunities],
+        joinedCommunities: [...s.joinedCommunities, community.id],
+        communityRoles: { ...s.communityRoles, [community.id]: 'ADMIN' },
+        communityMemberRoles: { ...s.communityMemberRoles, [community.id]: {} },
+        communityId: community.id,
+        commCreated: true,
+        writeBusy: null,
+      });
+    } catch (error) {
+      set(errorState(error));
+    }
   },
-  submitRequest: () => {
+  submitRequest: async () => {
     const s = get();
     if (s.reqName.trim() === '' || isExplicit(s.reqName)) return;
-    set({ reqSent: true });
+    set({ writeBusy: 'sport-request', writeError: null });
+    try {
+      await submitSportRequestRemote(s.reqName.trim(), s.reqType);
+      set({ reqSent: true, writeBusy: null });
+    } catch (error) {
+      set(errorState(error));
+    }
   },
   allEvents: () => {
     const remote = get().remoteEvents;
@@ -663,24 +817,35 @@ export const useStore = create<SpotterState>((set, get) => ({
       const cart = { ...s.cart };
       if (key in cart) delete cart[key];
       else cart[key] = price;
-      return { cart };
+      return { cart, shopOrderDone: false };
     }),
   cartCount: () => Object.keys(get().cart).length,
   cartTotal: () => Object.values(get().cart).reduce((a, b) => a + b, 0),
 
   openPerson: (id) => set({ openId: id, overlay: 'person' }),
-  openBooking: () => set({ overlay: 'booking', booked: false }),
+  openBooking: () => set({ overlay: 'booking', booked: false, writeError: null }),
   backToPerson: () => set({ overlay: 'person', booked: false }),
-  confirmBooking: () => set({ booked: true }),
+  confirmBooking: async () => {
+    const s = get();
+    const person = s.personById(s.openId);
+    const slot = D.slotDefs[s.bookSlot] ?? D.slotDefs[0];
+    const pkg = bookingPackage(person.price ?? 30, s.bookPkg);
+    set({ writeBusy: 'booking', writeError: null });
+    try {
+      await createBookingRemote(person.id, scheduledFor(s.bookDay, slot), `${pkg.label} - Jul ${s.bookDay} - ${slot}`, pkg.price * 100);
+      set({ booked: true, writeBusy: null });
+    } catch (error) {
+      set(errorState(error));
+    }
+  },
   goToBookings: () => set({ overlay: 'bookings', booked: false }),
   openBookings: () => set({ overlay: 'bookings' }),
-  openShop: (id) => set({ shopId: id, overlay: 'shop' }),
+  openShop: (id) => set({ shopId: id, overlay: 'shop', shopOrderDone: false, writeError: null }),
   openChat: (id) => set({ chatId: id, overlay: 'conversation' }),
   openCommunity: (id) => set({ communityId: id, sportMenu: false, overlay: 'community' }),
   openEvent: (id, from) => set({ eventId: id, returnTo: from, overlay: 'event' }),
   openNotifs: () => set({ overlay: 'notifications', notifSeen: true }),
   closeOverlay: () => set({ overlay: null }),
-
   revenue: D.revenue,
   expTotal: () => get().acctExpItems.reduce((a, e) => a + e.amt, 0),
   net: () => round2(get().revenue - get().expTotal()),

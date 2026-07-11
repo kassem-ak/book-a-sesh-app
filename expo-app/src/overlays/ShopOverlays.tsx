@@ -12,15 +12,30 @@ export function ShopStorefrontOverlay() {
   const s = useStore();
   const sh = s.shopById(s.shopId);
   const count = s.cartCount();
+
+  if (s.shopOrderDone) {
+    return (
+      <OverlayScaffold header={<OverlayHeader title="Partner store" onBack={s.closeOverlay} />}>
+        <View style={{ paddingHorizontal: 18, alignItems: 'center', paddingTop: 70 }}>
+          <View style={{ width: 74, height: 74, borderRadius: 999, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="check" size={34} color={c.ink} />
+          </View>
+          <Text style={[t.overlayTitle, { fontSize: 24, color: c.txt, marginTop: 18 }]}>Order placed</Text>
+          <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>Your order was sent to {sh.name}. The store will prepare it for pickup or delivery.</Text>
+        </View>
+      </OverlayScaffold>
+    );
+  }
+
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Partner store" onBack={s.closeOverlay} />}
       bottomBar={
         count > 0 ? (
           <View style={{ padding: 16, backgroundColor: c.bg }}>
-            <View style={{ height: 56, borderRadius: 15, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable onPress={s.checkoutCart} style={{ height: 56, borderRadius: 15, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={[t.overlayTitle, { fontSize: 16, color: c.ink }]}>Checkout · {count} item{count > 1 ? 's' : ''} · ${s.cartTotal()}</Text>
-            </View>
+            </Pressable>
           </View>
         ) : undefined
       }
@@ -54,7 +69,7 @@ export function ShopStorefrontOverlay() {
         <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Popular items</SectionHeading>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 }}>
           {sh.products.map((prod) => {
-            const key = `${sh.id}:${prod.name}`;
+            const key = `${sh.id}:${prod.id ?? prod.name}`;
             const added = key in s.cart;
             return (
               <View key={prod.name} style={{ width: '48.5%' }}>
@@ -86,10 +101,7 @@ export function ShopRegisterOverlay() {
 
   const submit = () => {
     if (!canSubmit) return;
-    const meta = [s.shopRegPhone && `📞 ${s.shopRegPhone}`, s.shopRegEmail && `✉ ${s.shopRegEmail}`, s.shopRegMeans && `prefers ${s.shopRegMeans}`].filter(Boolean).join(' · ');
-    s.set('shopRegDoneName', s.shopRegName.trim());
-    s.set('shopRegDoneMeta', meta);
-    s.set('shopRegDone', true);
+    void s.submitShopRegistration();
   };
 
   if (s.shopRegDone) {
