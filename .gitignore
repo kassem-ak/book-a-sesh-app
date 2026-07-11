@@ -8,3 +8,7 @@
 /captures
 .externalNativeBuild
 .cxx
+
+# generated tooling
+node_modules/
+supabase/.temp/

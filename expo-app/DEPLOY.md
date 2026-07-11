@@ -48,5 +48,5 @@ command needed (build is already done). For Vercel: `npx vercel --prod` from
 
 ## Notes
 
-- The app is a **demo**: all data is in-memory, resets on refresh. No backend.
+- The web build reads Supabase config from EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY at build time. GitHub Pages gets these from repo variables/secrets.
 - Native builds (real iOS/Android apps) use `npx eas-cli build -p android|ios`.
