@@ -2,6 +2,7 @@ import {
   AdDef,
   Chat,
   Community,
+  CommunityMember,
   EventItem,
   Expense,
   HistoryEntry,
@@ -81,6 +82,14 @@ export const subGroups: Record<string, SubGroup[]> = {
 };
 export const subById = (id: string): SubGroup | undefined =>
   Object.values(subGroups).flat().find((s) => s.id === id);
+
+export const communityPeople: CommunityMember[] = [
+  { id: 'alex', name: 'Alex Morgan (you)', initials: 'AM' },
+  { id: 'rima', name: 'Rima Haddad', initials: 'RH' },
+  { id: 'karim', name: 'Karim Saleh', initials: 'KS' },
+  { id: 'jordan', name: 'Jordan K.', initials: 'JK' },
+  { id: 'mei', name: 'Mei Lin', initials: 'ML' },
+];
 
 export const events: EventItem[] = [
   { id: 'ev1', communityId: 'running', subId: 'run-downtown', type: 'Meetup', title: 'Saturday Long Run', whenLabel: 'Sat 05 · 7:00 AM', loc: 'Corniche, Ain El Mreisseh', attendees: 18, host: 'Jordan K.' },

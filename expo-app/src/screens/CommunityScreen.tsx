@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, StripedPlaceholder } from '../components/ui';
-import { Community, EventItem, isMeetup } from '../state/models';
+import { Community, CommunityRole, EventItem, isMeetup } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -12,6 +12,7 @@ export function CommunityScreen() {
   const adHidden = s.adsHidden['community'];
   const ad = D.ads.community;
   const soon = s.allEvents().slice(0, 6);
+  const communities = s.communities();
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>
@@ -58,8 +59,8 @@ export function CommunityScreen() {
         </Pressable>
       </Row>
       <View style={{ gap: 11 }}>
-        {D.communities.map((cm) => (
-          <CommunityCard key={cm.id} cm={cm} joined={s.joinedCommunities.includes(cm.id)} onOpen={() => s.openCommunity(cm.id)} onToggle={() => s.toggleCommunity(cm.id)} />
+        {communities.map((cm) => (
+          <CommunityCard key={cm.id} cm={cm} joined={s.joinedCommunities.includes(cm.id)} role={s.currentCommunityRole(cm.id)} onOpen={() => s.openCommunity(cm.id)} onToggle={() => s.toggleCommunity(cm.id)} />
         ))}
       </View>
     </ScrollView>
@@ -89,7 +90,9 @@ function EventCard({ ev, onPress }: { ev: EventItem; onPress: () => void }) {
   );
 }
 
-function CommunityCard({ cm, joined, onOpen, onToggle }: { cm: Community; joined: boolean; onOpen: () => void; onToggle: () => void }) {
+const roleLabel: Record<CommunityRole, string> = { ADMIN: 'Admin', MODERATOR: 'Moderator', MEMBER: 'Member' };
+
+function CommunityCard({ cm, joined, role, onOpen, onToggle }: { cm: Community; joined: boolean; role: CommunityRole; onOpen: () => void; onToggle: () => void }) {
   const { c, t } = useTheme();
   return (
     <Card onPress={onOpen}>
@@ -99,6 +102,7 @@ function CommunityCard({ cm, joined, onOpen, onToggle }: { cm: Community; joined
           <Row gap={8}>
             <Text style={[t.name, { color: c.txt }]}>{cm.sport}</Text>
             {cm.official && <MicroBadge label="Official" bg={alpha(c.volt, 0.14)} fg={c.accent} />}
+            {joined && <MicroBadge label={roleLabel[role]} bg={role === 'MEMBER' ? c.surface2 : alpha(c.amber, 0.2)} fg={role === 'MEMBER' ? c.txt2 : c.amberText} />}
           </Row>
           <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]} numberOfLines={2}>{cm.about}</Text>
           <Row gap={5} style={{ marginTop: 6 }}>

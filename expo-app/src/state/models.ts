@@ -76,6 +76,15 @@ export interface Community {
   members: string;
   about: string;
   official: boolean;
+  createdBy?: string;
+}
+
+export type CommunityRole = 'ADMIN' | 'MODERATOR' | 'MEMBER';
+
+export interface CommunityMember {
+  id: string;
+  name: string;
+  initials: string;
 }
 
 export interface EventItem {
@@ -91,6 +100,17 @@ export interface EventItem {
 }
 
 export const isMeetup = (e: EventItem) => e.type === 'Meetup';
+
+export interface EventSuggestion {
+  id: string;
+  communityId: string;
+  type: 'Meetup' | 'Event';
+  title: string;
+  whenLabel: string;
+  loc: string;
+  requestedBy: string;
+  status: 'PENDING' | 'APPROVED';
+}
 
 export interface Chat {
   id: string;

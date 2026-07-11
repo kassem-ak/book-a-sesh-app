@@ -10,6 +10,8 @@ import {
   CreateEventOverlay,
   StartCommunityOverlay,
   RequestOverlay,
+  CommunityEditOverlay,
+  EventSuggestionOverlay,
 } from '../overlays/CommunityOverlays';
 import {
   ConversationOverlay,
@@ -53,6 +55,10 @@ export function OverlayRouter({ id }: { id: string }) {
       return <EventDetailOverlay />;
     case 'createEvent':
       return <CreateEventOverlay />;
+    case 'suggestEvent':
+      return <EventSuggestionOverlay />;
+    case 'editCommunity':
+      return <CommunityEditOverlay />;
     case 'startCommunity':
       return <StartCommunityOverlay />;
     case 'request':
