@@ -2,7 +2,10 @@ import { create } from 'zustand';
 import {
   Cert,
   CoachPkg,
+  Community,
+  CommunityRole,
   EventItem,
+  EventSuggestion,
   Expense,
   HistoryEntry,
   MarginKey,
@@ -45,6 +48,31 @@ const byTime = (slots: string[]) => [...slots].sort((a, b) => SCHED_TIMES.indexO
 
 const randCode = () =>
   Array.from({ length: 4 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 30)]).join('');
+
+const CURRENT_USER_ID = 'alex';
+const CURRENT_USER_NAME = 'Alex Morgan';
+const EVENT_DAYS = [['WED', '02'], ['THU', '03'], ['FRI', '04'], ['SAT', '05'], ['SUN', '06'], ['MON', '07']];
+const canModerateRole = (role: CommunityRole) => role === 'ADMIN' || role === 'MODERATOR';
+const eventWhenLabel = (day: number, timeIdx: number) => {
+  const [dow, num] = EVENT_DAYS[day] ?? EVENT_DAYS[0];
+  const time = D.slotDefs[timeIdx] ?? D.slotDefs[0];
+  return `${dow} ${num} · ${time}`;
+};
+const communitySlug = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || `community-${Date.now()}`;
+const communityCode = (name: string) => {
+  const letters = name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .join('')
+    .toUpperCase();
+  return (letters || name.slice(0, 2).toUpperCase()).slice(0, 2);
+};
 
 const marginGet = (m: Margins, k: string) => m[k as MarginKey];
 const shareGet = (s: Shares, k: string) => s[k as ShareKey];
@@ -111,6 +139,11 @@ export interface SpotterState {
   joinedCommunities: string[];
   joinedSubs: string[];
   goingEvents: string[];
+  customCommunities: Community[];
+  communityRoles: Record<string, CommunityRole>;
+  communityMemberRoles: Record<string, Record<string, CommunityRole>>;
+  communityAboutEdits: Record<string, string>;
+  eventSuggestions: EventSuggestion[];
 
   // community + event creation
   customEvents: EventItem[];
@@ -121,8 +154,10 @@ export interface SpotterState {
   newTime: number;
   newTitle: string;
   evtCreated: boolean;
+  eventSuggested: boolean;
   commName: string;
   commCreated: boolean;
+  editCommunityAbout: string;
   reqName: string;
   reqType: string;
   reqSent: boolean;
@@ -173,10 +208,22 @@ export interface SpotterState {
   toggleCommunity(id: string): void;
   toggleSub(id: string): void;
   toggleGoing(id: string): void;
+  communities(): Community[];
+  communityById(id: string): Community;
+  communityAbout(id: string): string;
+  currentCommunityRole(id?: string): CommunityRole;
+  canAdminCommunity(id?: string): boolean;
+  canModerateCommunity(id?: string): boolean;
+  setCommunityMemberRole(communityId: string, memberId: string, role: CommunityRole): void;
+  openEditCommunity(): void;
+  saveCommunityContent(): void;
   openStartCommunity(): void;
   openRequest(): void;
   openCreateEvent(): void;
+  openSuggestEvent(): void;
   submitEvent(): void;
+  submitEventSuggestion(): void;
+  approveEventSuggestion(id: string): void;
   submitCommunity(): void;
   submitRequest(): void;
   allEvents(): EventItem[];
@@ -311,6 +358,25 @@ export const useStore = create<SpotterState>((set, get) => ({
   joinedCommunities: ['running', 'strength'],
   joinedSubs: ['run-downtown', 'str-iron'],
   goingEvents: ['ev1', 'ev3'],
+  customCommunities: [],
+  communityRoles: { running: 'ADMIN', strength: 'MODERATOR' },
+  communityMemberRoles: {
+    running: { rima: 'MODERATOR', karim: 'MEMBER', jordan: 'MEMBER', mei: 'MEMBER' },
+    strength: { rima: 'MEMBER', karim: 'ADMIN', jordan: 'MEMBER', mei: 'MEMBER' },
+  },
+  communityAboutEdits: {},
+  eventSuggestions: [
+    {
+      id: 'sg1',
+      communityId: 'running',
+      type: 'Meetup',
+      title: 'Recovery jog for new runners',
+      whenLabel: 'SAT 05 · 8:00 AM',
+      loc: 'TBD',
+      requestedBy: 'Jordan K.',
+      status: 'PENDING',
+    },
+  ],
 
   customEvents: [],
   newType: 'Meetup',
@@ -320,8 +386,10 @@ export const useStore = create<SpotterState>((set, get) => ({
   newTime: 1,
   newTitle: '',
   evtCreated: false,
+  eventSuggested: false,
   commName: '',
   commCreated: false,
+  editCommunityAbout: '',
   reqName: '',
   reqType: 'Hobby',
   reqSent: false,
@@ -377,11 +445,14 @@ export const useStore = create<SpotterState>((set, get) => ({
   set: (key, value) => set({ [key]: value } as Partial<SpotterState>),
 
   toggleCommunity: (id) =>
-    set((s) => ({
-      joinedCommunities: s.joinedCommunities.includes(id)
-        ? s.joinedCommunities.filter((x) => x !== id)
-        : [...s.joinedCommunities, id],
-    })),
+    set((s) => {
+      const joined = s.joinedCommunities.includes(id);
+      if (joined) return { joinedCommunities: s.joinedCommunities.filter((x) => x !== id) };
+      return {
+        joinedCommunities: [...s.joinedCommunities, id],
+        communityRoles: { ...s.communityRoles, [id]: s.communityRoles[id] ?? 'MEMBER' },
+      };
+    }),
   toggleSub: (id) =>
     set((s) => ({
       joinedSubs: s.joinedSubs.includes(id) ? s.joinedSubs.filter((x) => x !== id) : [...s.joinedSubs, id],
@@ -391,10 +462,52 @@ export const useStore = create<SpotterState>((set, get) => ({
       goingEvents: s.goingEvents.includes(id) ? s.goingEvents.filter((x) => x !== id) : [...s.goingEvents, id],
     })),
 
+  communities: () => [...get().customCommunities, ...D.communities],
+  communityById: (id) => get().customCommunities.find((cm) => cm.id === id) ?? D.communityById(id),
+  communityAbout: (id) => get().communityAboutEdits[id] ?? get().communityById(id).about,
+  currentCommunityRole: (id) => get().communityRoles[id ?? get().communityId] ?? 'MEMBER',
+  canAdminCommunity: (id) => get().currentCommunityRole(id) === 'ADMIN',
+  canModerateCommunity: (id) => canModerateRole(get().currentCommunityRole(id)),
+  setCommunityMemberRole: (communityId, memberId, role) => {
+    const s = get();
+    if (!s.canAdminCommunity(communityId) || memberId === CURRENT_USER_ID) return;
+    set({
+      communityMemberRoles: {
+        ...s.communityMemberRoles,
+        [communityId]: { ...(s.communityMemberRoles[communityId] ?? {}), [memberId]: role },
+      },
+    });
+  },
+  openEditCommunity: () => {
+    const s = get();
+    if (!s.canModerateCommunity(s.communityId)) return;
+    set({ overlay: 'editCommunity', editCommunityAbout: s.communityAbout(s.communityId) });
+  },
+  saveCommunityContent: () => {
+    const s = get();
+    const about = s.editCommunityAbout.trim();
+    if (!s.canModerateCommunity(s.communityId) || about.length === 0 || isExplicit(about)) return;
+    set({ communityAboutEdits: { ...s.communityAboutEdits, [s.communityId]: about }, overlay: 'community' });
+  },
+
   openStartCommunity: () => set({ overlay: 'startCommunity', commCreated: false, commName: '' }),
   openRequest: () => set({ overlay: 'request', reqSent: false, reqName: '', reqType: 'Hobby' }),
-  openCreateEvent: () =>
-    set((s) => ({
+  openCreateEvent: () => {
+    const s = get();
+    if (!s.canModerateCommunity(s.communityId)) {
+      set({
+        overlay: 'suggestEvent',
+        eventSuggested: false,
+        newTitle: '',
+        newType: 'Meetup',
+        newSport: s.communityId,
+        newSub: null,
+        newDay: 3,
+        newTime: 1,
+      });
+      return;
+    }
+    set({
       overlay: 'createEvent',
       evtCreated: false,
       newTitle: '',
@@ -403,31 +516,100 @@ export const useStore = create<SpotterState>((set, get) => ({
       newSub: null,
       newDay: 3,
       newTime: 1,
-    })),
+    });
+  },
+  openSuggestEvent: () => {
+    const s = get();
+    set({
+      overlay: 'suggestEvent',
+      eventSuggested: false,
+      newTitle: '',
+      newType: 'Meetup',
+      newSport: s.communityId,
+      newSub: null,
+      newDay: 3,
+      newTime: 1,
+    });
+  },
 
   submitEvent: () => {
     const s = get();
-    if (s.newTitle.trim() === '' || isExplicit(s.newTitle)) return;
-    const days = [['WED', '02'], ['THU', '03'], ['FRI', '04'], ['SAT', '05'], ['SUN', '06'], ['MON', '07']];
-    const [dow, num] = days[s.newDay];
-    const time = D.slotDefs[s.newTime];
+    if (!s.canModerateCommunity(s.newSport) || s.newTitle.trim() === '' || isExplicit(s.newTitle)) return;
     const ev: EventItem = {
       id: `cust${Date.now()}`,
       communityId: s.newSport,
       subId: s.newSub,
       type: s.newType as 'Meetup' | 'Event',
       title: s.newTitle.trim(),
-      whenLabel: `${dow} ${num} · ${time}`,
+      whenLabel: eventWhenLabel(s.newDay, s.newTime),
       loc: 'TBD',
       attendees: 1,
-      host: 'Alex Morgan',
+      host: CURRENT_USER_NAME,
     };
     set({ customEvents: [ev, ...s.customEvents], goingEvents: [...s.goingEvents, ev.id], evtCreated: true, overlay: 'community' });
   },
+  submitEventSuggestion: () => {
+    const s = get();
+    if (s.newTitle.trim() === '' || isExplicit(s.newTitle)) return;
+    const suggestion: EventSuggestion = {
+      id: `sug${Date.now()}`,
+      communityId: s.newSport,
+      type: s.newType as 'Meetup' | 'Event',
+      title: s.newTitle.trim(),
+      whenLabel: eventWhenLabel(s.newDay, s.newTime),
+      loc: 'TBD',
+      requestedBy: `${CURRENT_USER_NAME} (you)`,
+      status: 'PENDING',
+    };
+    set({ eventSuggestions: [suggestion, ...s.eventSuggestions], eventSuggested: true });
+  },
+  approveEventSuggestion: (id) => {
+    const s = get();
+    const suggestion = s.eventSuggestions.find((item) => item.id === id);
+    if (!suggestion || suggestion.status !== 'PENDING' || !s.canModerateCommunity(suggestion.communityId)) return;
+    const ev: EventItem = {
+      id: `approved${Date.now()}`,
+      communityId: suggestion.communityId,
+      subId: null,
+      type: suggestion.type,
+      title: suggestion.title,
+      whenLabel: suggestion.whenLabel,
+      loc: suggestion.loc,
+      attendees: 1,
+      host: suggestion.requestedBy,
+    };
+    set({
+      customEvents: [ev, ...s.customEvents],
+      eventSuggestions: s.eventSuggestions.map((item) => (item.id === id ? { ...item, status: 'APPROVED' } : item)),
+    });
+  },
   submitCommunity: () => {
     const s = get();
-    if (s.commName.trim() === '' || isExplicit(s.commName)) return;
-    set({ commCreated: true });
+    const name = s.commName.trim();
+    if (name === '' || isExplicit(name)) return;
+    const existing = new Set(s.communities().map((cm) => cm.id));
+    const base = communitySlug(name);
+    let id = base;
+    let suffix = 2;
+    while (existing.has(id)) id = `${base}-${suffix++}`;
+    const community: Community = {
+      id,
+      sport: name,
+      code: communityCode(name),
+      tint: '#2F3A2A',
+      members: '1',
+      about: `${name} community started by ${CURRENT_USER_NAME}. Share plans, create events, and grow the crew.`,
+      official: false,
+      createdBy: CURRENT_USER_ID,
+    };
+    set({
+      customCommunities: [community, ...s.customCommunities],
+      joinedCommunities: [...s.joinedCommunities, id],
+      communityRoles: { ...s.communityRoles, [id]: 'ADMIN' },
+      communityMemberRoles: { ...s.communityMemberRoles, [id]: {} },
+      communityId: id,
+      commCreated: true,
+    });
   },
   submitRequest: () => {
     const s = get();
