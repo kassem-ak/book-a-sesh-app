@@ -56,6 +56,7 @@ function fromRemoteShop(row: RemoteShop): Shop {
     .filter((product) => product.active !== false)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
     .map((product) => ({
+      id: product.id,
       name: product.name,
       price: Math.round((product.price_cents ?? 0) / 100),
       ph: product.image_url ? product.name : `${product.name} shot`,

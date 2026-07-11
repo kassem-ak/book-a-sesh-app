@@ -103,7 +103,7 @@ export function ProfileScreen() {
       {/* coach subscription + tools */}
       {role === 'COACH' && (
         <>
-          <RoleCard title="Coach subscription" badge="Active" body="Scheduling, payments and your public coach profile are active." buttonLabel="Manage" onPress={() => {}} />
+          <RoleCard title="Coach subscription" badge="Active" body="Scheduling, payments and your public coach profile are active." buttonLabel="Manage" onPress={() => s.set('overlay', 'coachPackages')} />
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Coach tools</SectionHeading>
           <Card>
             <View style={{ padding: 15, gap: 13 }}>

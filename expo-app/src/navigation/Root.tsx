@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ensureAppSession } from '../lib/session';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 import { ChatScreen } from '../screens/ChatScreen';
@@ -16,6 +17,11 @@ export function Root() {
   const insets = useSafeAreaInsets();
   const tab = useStore((s) => s.tab);
   const overlay = useStore((s) => s.overlay);
+
+  useEffect(() => {
+    ensureAppSession().catch((error) => console.warn('Supabase session unavailable', error));
+  }, []);
+
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={{ flex: 1, paddingTop: insets.top }}>
