@@ -1,6 +1,7 @@
-// Example data-access layer. Mirrors the schema; swap sampleData reads in the
-// store for these incrementally. Every write is additionally gated by RLS.
+// Data-access layer for Supabase. Public reads power browsing screens; writes are gated by RLS.
 import { supabase } from './supabase';
+
+export type DiscoverSort = 'rating' | 'price' | 'distance';
 
 // --- health check: confirms env + connectivity + a readable table ---
 export async function pingSupabase() {
@@ -10,16 +11,28 @@ export async function pingSupabase() {
   return { ok: !error, count: count ?? 0, error: error?.message };
 }
 
-// --- Discover: coaches ordered by rating (with joined name + sport) ---
-export async function fetchCoaches(sort: 'rating' | 'price' | 'distance' = 'rating') {
+// --- Discover: coaches ordered by rating or price, with joined name + sport ---
+export async function fetchCoaches(sort: DiscoverSort = 'rating') {
   const order =
     sort === 'price'
       ? { column: 'price_cents', ascending: true }
       : { column: 'rating_avg', ascending: false };
   const { data, error } = await supabase
     .from('coach_profiles')
-    .select('user_id, headline, level, price_cents, rating_avg, reviews_count, boosted, user:users(name), sport:sports(name)')
+    .select('user_id, headline, bio, level, price_cents, reply_time, sessions_count, rating_avg, reviews_count, boosted, user:users(name), sport:sports(name)')
     .order(order.column, { ascending: order.ascending });
+  if (error) throw error;
+  return data;
+}
+
+// --- Shop marketplace: approved partner shops with active catalog items ---
+export async function fetchShops() {
+  const { data, error } = await supabase
+    .from('shops')
+    .select('id, slug, name, initials, tint, category, deal_text, rating_avg, reviews_count, products(id, name, price_cents, image_url, is_featured, position, active)')
+    .eq('status', 'approved')
+    .eq('is_partner', true)
+    .order('rating_avg', { ascending: false });
   if (error) throw error;
   return data;
 }
@@ -29,6 +42,16 @@ export async function fetchCommunities() {
   const { data, error } = await supabase
     .from('communities')
     .select('id, slug, name, code, tint, about, official, members_count');
+  if (error) throw error;
+  return data;
+}
+
+// --- Public community events, joined to their community slug and host name ---
+export async function fetchEvents() {
+  const { data, error } = await supabase
+    .from('events')
+    .select('id, community_id, subgroup_id, type, title, starts_at, when_label, location, attendees_count, community:communities(slug), host:users!events_host_id_fkey(name)')
+    .order('starts_at', { ascending: true, nullsFirst: false });
   if (error) throw error;
   return data;
 }
@@ -51,7 +74,7 @@ export async function suggestEvent(communityId: string, title: string, whenLabel
   if (error) throw error;
 }
 
-// --- Manager approves a suggestion → real event (RLS: managers only) ---
+// --- Manager approves a suggestion -> real event (RLS: managers only) ---
 export async function approveSuggestion(suggestionId: string) {
   const { error } = await supabase.rpc('approve_event_suggestion', { p_suggestion: suggestionId });
   if (error) throw error;

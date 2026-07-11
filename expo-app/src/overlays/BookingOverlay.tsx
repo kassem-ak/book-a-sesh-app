@@ -19,7 +19,7 @@ function packagesFor(price: number) {
 export function BookingOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
-  const p = D.personById(s.openId);
+  const p = s.personById(s.openId);
   const full = D.fullDaysByCoach[p.id] ?? [];
   const pkgs = packagesFor(p.price ?? 30);
 

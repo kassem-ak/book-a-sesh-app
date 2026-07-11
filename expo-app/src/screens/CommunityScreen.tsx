@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, StripedPlaceholder } from '../components/ui';
 import { Community, CommunityRole, EventItem, isMeetup } from '../state/models';
 import * as D from '../state/sampleData';
-import { fetchCommunities } from '../lib/queries';
+import { fetchCommunities, fetchEvents } from '../lib/queries';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -24,6 +24,40 @@ const memberLabel = (count?: number | null) => {
   return String(n);
 };
 
+
+type RelatedSlug = { slug?: string | null } | { slug?: string | null }[] | null;
+type RelatedName = { name?: string | null } | { name?: string | null }[] | null;
+
+type RemoteEvent = {
+  id: string;
+  community_id?: string | null;
+  subgroup_id?: string | null;
+  type?: string | null;
+  title: string;
+  starts_at?: string | null;
+  when_label?: string | null;
+  location?: string | null;
+  attendees_count?: number | null;
+  community?: RelatedSlug;
+  host?: RelatedName;
+};
+
+function firstRelated<T>(value: T | T[] | null | undefined): T | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value ?? undefined;
+}
+
+const fromRemoteEvent = (row: RemoteEvent): EventItem => ({
+  id: row.id,
+  communityId: firstRelated(row.community)?.slug ?? row.community_id ?? 'running',
+  subId: row.subgroup_id ?? null,
+  type: row.type === 'event' ? 'Event' : 'Meetup',
+  title: row.title,
+  whenLabel: row.when_label ?? 'Upcoming',
+  loc: row.location ?? 'TBD',
+  attendees: row.attendees_count ?? 0,
+  host: firstRelated(row.host)?.name ?? 'Community host',
+});
 const fromRemoteCommunity = (row: RemoteCommunity): Community => ({
   id: row.slug ?? row.id,
   sport: row.name,
@@ -37,6 +71,7 @@ export function CommunityScreen() {
   const { c, t } = useTheme();
   const s = useStore();
   const setRemoteCommunities = useStore((state) => state.setRemoteCommunities);
+  const setRemoteEvents = useStore((state) => state.setRemoteEvents);
   const adHidden = s.adsHidden['community'];
   const ad = D.ads.community;
   const soon = s.allEvents().slice(0, 6);
@@ -51,10 +86,17 @@ export function CommunityScreen() {
       .catch(() => {
         if (active) setRemoteCommunities([]);
       });
+    fetchEvents()
+      .then((rows) => {
+        if (active && Array.isArray(rows)) setRemoteEvents(rows.map((row) => fromRemoteEvent(row as RemoteEvent)));
+      })
+      .catch(() => {
+        if (active) setRemoteEvents([]);
+      });
     return () => {
       active = false;
     };
-  }, [setRemoteCommunities]);
+  }, [setRemoteCommunities, setRemoteEvents]);
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>

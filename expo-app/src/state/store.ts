@@ -12,10 +12,12 @@ import {
   Margins,
   MarginsShares,
   Notif,
+  Person,
   Proposal,
   Role,
   ShareKey,
   Shares,
+  Shop,
   CalProvider,
 } from './models';
 import * as D from './sampleData';
@@ -91,6 +93,8 @@ export interface SpotterState {
   discoverView: string;
   shopView: string;
   sportMenu: boolean;
+  remotePeople: Person[];
+  remoteShops: Shop[];
 
   // selected ids
   openId: string;
@@ -148,6 +152,7 @@ export interface SpotterState {
 
   // community + event creation
   customEvents: EventItem[];
+  remoteEvents: EventItem[];
   newType: string;
   newSport: string;
   newSub: string | null;
@@ -209,8 +214,15 @@ export interface SpotterState {
   toggleCommunity(id: string): void;
   toggleSub(id: string): void;
   toggleGoing(id: string): void;
+  people(mode?: string): Person[];
+  setRemotePeople(people: Person[]): void;
+  personById(id: string): Person;
+  shops(): Shop[];
+  setRemoteShops(shops: Shop[]): void;
+  shopById(id: string): Shop;
   communities(): Community[];
   setRemoteCommunities(communities: Community[]): void;
+  setRemoteEvents(events: EventItem[]): void;
   communityById(id: string): Community;
   communityAbout(id: string): string;
   currentCommunityRole(id?: string): CommunityRole;
@@ -319,6 +331,8 @@ export const useStore = create<SpotterState>((set, get) => ({
   discoverView: 'cards',
   shopView: 'list',
   sportMenu: false,
+  remotePeople: [],
+  remoteShops: [],
 
   openId: 'c1',
   shopId: 's1',
@@ -382,6 +396,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   ],
 
   customEvents: [],
+  remoteEvents: [],
   newType: 'Meetup',
   newSport: 'running',
   newSub: null,
@@ -465,11 +480,25 @@ export const useStore = create<SpotterState>((set, get) => ({
       goingEvents: s.goingEvents.includes(id) ? s.goingEvents.filter((x) => x !== id) : [...s.goingEvents, id],
     })),
 
+  people: (mode = get().mode) => {
+    const remote = get().remotePeople;
+    if (mode === 'coaches') return remote.length > 0 ? remote : D.coaches;
+    return D.partners;
+  },
+  setRemotePeople: (people) => set({ remotePeople: people }),
+  personById: (id) => get().remotePeople.find((person) => person.id === id) ?? D.personById(id),
+  shops: () => {
+    const remote = get().remoteShops;
+    return remote.length > 0 ? remote : D.shops;
+  },
+  setRemoteShops: (shops) => set({ remoteShops: shops }),
+  shopById: (id) => get().remoteShops.find((shop) => shop.id === id) ?? D.shopById(id),
   communities: () => {
     const remote = get().remoteCommunities;
     return [...get().customCommunities, ...(remote.length > 0 ? remote : D.communities)];
   },
   setRemoteCommunities: (communities) => set({ remoteCommunities: communities }),
+  setRemoteEvents: (events) => set({ remoteEvents: events }),
   communityById: (id) =>
     get().customCommunities.find((cm) => cm.id === id) ?? get().remoteCommunities.find((cm) => cm.id === id) ?? D.communityById(id),
   communityAbout: (id) => get().communityAboutEdits[id] ?? get().communityById(id).about,
@@ -624,7 +653,10 @@ export const useStore = create<SpotterState>((set, get) => ({
     if (s.reqName.trim() === '' || isExplicit(s.reqName)) return;
     set({ reqSent: true });
   },
-  allEvents: () => [...get().customEvents, ...D.events],
+  allEvents: () => {
+    const remote = get().remoteEvents;
+    return [...get().customEvents, ...(remote.length > 0 ? remote : D.events)];
+  },
 
   toggleCartItem: (key, price) =>
     set((s) => {
