@@ -15,8 +15,7 @@ import {
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { Root } from './src/navigation/Root';
 import { useStore } from './src/state/store';
 
@@ -34,9 +33,11 @@ export default function App() {
     HankenGrotesk_800ExtraBold,
   });
   const isDark = useStore((s) => s.isDark);
-  if (!loaded) return <View style={{ flex: 1, backgroundColor: '#0D0E11' }} />;
+  // Render immediately; if the bundled Google Fonts are slow to register,
+  // native falls back to the system font and swaps them in when ready.
+  // (Do not hard-block on `loaded` — that can hang to a black screen.)
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Root />
     </SafeAreaProvider>
