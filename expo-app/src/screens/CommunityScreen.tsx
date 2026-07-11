@@ -1,18 +1,60 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, StripedPlaceholder } from '../components/ui';
 import { Community, CommunityRole, EventItem, isMeetup } from '../state/models';
 import * as D from '../state/sampleData';
+import { fetchCommunities } from '../lib/queries';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
+type RemoteCommunity = {
+  id: string;
+  slug?: string | null;
+  name: string;
+  code?: string | null;
+  tint?: string | null;
+  about?: string | null;
+  official?: boolean | null;
+  members_count?: number | null;
+};
+
+const memberLabel = (count?: number | null) => {
+  const n = count ?? 0;
+  if (n >= 1000) return `${Math.round(n / 100) / 10}k`;
+  return String(n);
+};
+
+const fromRemoteCommunity = (row: RemoteCommunity): Community => ({
+  id: row.slug ?? row.id,
+  sport: row.name,
+  code: row.code ?? row.name.slice(0, 2).toUpperCase(),
+  tint: row.tint ?? '#2F3A2A',
+  members: memberLabel(row.members_count),
+  about: row.about ?? '',
+  official: Boolean(row.official),
+});
 export function CommunityScreen() {
   const { c, t } = useTheme();
   const s = useStore();
+  const setRemoteCommunities = useStore((state) => state.setRemoteCommunities);
   const adHidden = s.adsHidden['community'];
   const ad = D.ads.community;
   const soon = s.allEvents().slice(0, 6);
   const communities = s.communities();
+
+  useEffect(() => {
+    let active = true;
+    fetchCommunities()
+      .then((rows) => {
+        if (active && Array.isArray(rows)) setRemoteCommunities(rows.map((row) => fromRemoteCommunity(row as RemoteCommunity)));
+      })
+      .catch(() => {
+        if (active) setRemoteCommunities([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [setRemoteCommunities]);
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>

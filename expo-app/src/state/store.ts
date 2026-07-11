@@ -140,6 +140,7 @@ export interface SpotterState {
   joinedSubs: string[];
   goingEvents: string[];
   customCommunities: Community[];
+  remoteCommunities: Community[];
   communityRoles: Record<string, CommunityRole>;
   communityMemberRoles: Record<string, Record<string, CommunityRole>>;
   communityAboutEdits: Record<string, string>;
@@ -209,6 +210,7 @@ export interface SpotterState {
   toggleSub(id: string): void;
   toggleGoing(id: string): void;
   communities(): Community[];
+  setRemoteCommunities(communities: Community[]): void;
   communityById(id: string): Community;
   communityAbout(id: string): string;
   currentCommunityRole(id?: string): CommunityRole;
@@ -359,6 +361,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   joinedSubs: ['run-downtown', 'str-iron'],
   goingEvents: ['ev1', 'ev3'],
   customCommunities: [],
+  remoteCommunities: [],
   communityRoles: { running: 'ADMIN', strength: 'MODERATOR' },
   communityMemberRoles: {
     running: { rima: 'MODERATOR', karim: 'MEMBER', jordan: 'MEMBER', mei: 'MEMBER' },
@@ -462,8 +465,13 @@ export const useStore = create<SpotterState>((set, get) => ({
       goingEvents: s.goingEvents.includes(id) ? s.goingEvents.filter((x) => x !== id) : [...s.goingEvents, id],
     })),
 
-  communities: () => [...get().customCommunities, ...D.communities],
-  communityById: (id) => get().customCommunities.find((cm) => cm.id === id) ?? D.communityById(id),
+  communities: () => {
+    const remote = get().remoteCommunities;
+    return [...get().customCommunities, ...(remote.length > 0 ? remote : D.communities)];
+  },
+  setRemoteCommunities: (communities) => set({ remoteCommunities: communities }),
+  communityById: (id) =>
+    get().customCommunities.find((cm) => cm.id === id) ?? get().remoteCommunities.find((cm) => cm.id === id) ?? D.communityById(id),
   communityAbout: (id) => get().communityAboutEdits[id] ?? get().communityById(id).about,
   currentCommunityRole: (id) => get().communityRoles[id ?? get().communityId] ?? 'MEMBER',
   canAdminCommunity: (id) => get().currentCommunityRole(id) === 'ADMIN',
