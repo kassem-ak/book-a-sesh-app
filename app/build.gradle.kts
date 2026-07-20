@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,8 +16,34 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
         vectorDrawables { useSupportLibrary = true }
+    }
+
+    // Release signing is wired through local.properties (gitignored) so the
+    // keystore + passwords never enter version control. If the signing props
+    // are absent (e.g. CI without the key), the release build falls back to
+    // the default unsigned configuration instead of failing.
+    val localProps = Properties().apply {
+        val f = rootProject.file("local.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    val storeFile = localProps.getProperty("RELEASE_STORE_FILE")
+    val storePassword = localProps.getProperty("RELEASE_STORE_PASSWORD")
+    val keyAlias = localProps.getProperty("RELEASE_KEY_ALIAS")
+    val keyPassword = localProps.getProperty("RELEASE_KEY_PASSWORD")
+    val hasReleaseKey =
+        storeFile != null && storePassword != null && keyAlias != null && keyPassword != null
+
+    if (hasReleaseKey) {
+        signingConfigs {
+            create("release") {
+                this.storeFile = file(storeFile)
+                this.storePassword = storePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -25,6 +53,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasReleaseKey) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
