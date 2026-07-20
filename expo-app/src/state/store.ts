@@ -168,6 +168,8 @@ export interface SpotterState {
   overlay: string | null;
   writeBusy: string | null;
   writeError: string | null;
+  authEmail: string | null; // signed-in real account email (null = guest)
+  authName: string | null;
 
   // discover / shop
   mode: string;
@@ -413,6 +415,8 @@ export const useStore = create<SpotterState>((set, get) => ({
   overlay: null,
   writeBusy: null,
   writeError: null,
+  authEmail: null,
+  authName: null,
 
   mode: 'coaches',
   sport: 'All',

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ensureAppSession } from '../lib/session';
+import { supabase } from '../lib/supabase';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 import { ChatScreen } from '../screens/ChatScreen';
@@ -20,6 +21,14 @@ export function Root() {
 
   useEffect(() => {
     ensureAppSession().catch((error) => console.warn('Supabase session unavailable', error));
+    // Mirror the real (non-anonymous) account into the store for the Profile UI.
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user;
+      const real = user && !user.is_anonymous;
+      useStore.getState().set('authEmail', real ? user.email ?? null : null);
+      useStore.getState().set('authName', real ? (user.user_metadata?.name as string | undefined) ?? null : null);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   return (

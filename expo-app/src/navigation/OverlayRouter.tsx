@@ -1,5 +1,6 @@
 import React from 'react';
 import { useStore } from '../state/store';
+import { AuthOverlay } from '../overlays/AuthOverlay';
 import { PersonOverlay } from '../overlays/PersonOverlay';
 import { BookingOverlay } from '../overlays/BookingOverlay';
 import { BookingsOverlay } from '../overlays/BookingsOverlay';
@@ -39,6 +40,8 @@ import {
 
 export function OverlayRouter({ id }: { id: string }) {
   switch (id) {
+    case 'auth':
+      return <AuthOverlay />;
     case 'person':
       return <PersonOverlay />;
     case 'booking':
