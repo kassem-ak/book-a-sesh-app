@@ -1,0 +1,30 @@
+name: Supabase keep-alive
+
+# Free-tier Supabase pauses projects after ~1 week without database activity.
+# This hits a real table through the REST API (counts as DB activity) twice a
+# week so the project stays awake. Runs only from the default branch.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1,4' # Mon + Thu 06:17 UTC (offset avoids top-of-hour congestion)
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query Supabase REST (touches Postgres)
+        env:
+          SUPABASE_URL: https://qievymkkprhbvxrsdukb.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /tmp/body -w '%{http_code}' --max-time 30 \
+            "$SUPABASE_URL/rest/v1/sports?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "HTTP $code"; cat /tmp/body; echo
+          if [ "$code" != "200" ]; then
+            echo "Keep-alive failed — project may be paused or key rotated." >&2
+            exit 1
+          fi
