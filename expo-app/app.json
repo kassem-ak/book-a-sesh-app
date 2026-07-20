@@ -2,6 +2,7 @@
   "expo": {
     "name": "Spotter",
     "slug": "expo-app",
+    "scheme": "spotter",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,7 +26,8 @@
       "output": "single"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "baseUrl": "/book-a-sesh-app"
