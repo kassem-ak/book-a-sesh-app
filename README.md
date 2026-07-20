@@ -9,19 +9,37 @@ This repository currently contains two things:
 
 ## Current Status
 
-The Android app builds successfully and now contains clickable prototype UI for all five tabs: Discover, Community, Shop, Chat, and Profile. The major state-backed overlays for booking, shops, communities, events, chat, notifications, admin approvals, and accounting are wired. The remaining work is mostly polish, test coverage, real search/filter depth, persistence, and backend integrations.
+**v1.0.0 — first official release.** The Android app builds successfully and is signed for distribution (see Releases). It contains all five tabs — Discover, Community, Shop, Chat, and Profile — with the major state-backed overlays for booking, shops, communities, events, chat, notifications, admin approvals, and accounting wired, plus per-role profiles and the Supabase read/write data layer behind a sample-data fallback. The remaining work (polish, deeper real search/filter, payment checkout, real auth, push/calendar integrations, and automated tests) is tracked under Not Yet Implemented.
 
-Last verified command:
+Last verified build command:
 
 ```powershell
-.\gradlew.bat assembleDebug
+.\gradlew.bat assembleRelease
 ```
 
 Output APK:
 
 ```text
-app/build/outputs/apk/debug/app-debug.apk
+app/build/outputs/apk/release/app-release.apk
 ```
+
+## Releases
+
+- **v1.0.0** — first official release (tag `v1.0.0`). Native Android app, signed
+  with the local `spotter` release keystore (`~/.android/spotter-release.keystore`).
+  versionCode 1, versionName `1.0.0`. Includes all five tabs, full overlay set,
+  admin accounting, per-role profiles, and the Supabase read/write data layer
+  wired behind the sample-data fallback.
+- Distribute `app-release.apk` for sideload installs. For Google Play, re-key
+  with an upload key and publish an App Bundle; the current self-signed dev
+  keystore is for local distribution only.
+
+## Versioning
+
+`versionName` / `versionCode` live in `app/build.gradle.kts`. Release signing
+reads `RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and
+`RELEASE_KEY_PASSWORD` from the gitignored `local.properties`; without those the
+release build still compiles but is unsigned.
 
 ## Product Scope From The Handoff
 
