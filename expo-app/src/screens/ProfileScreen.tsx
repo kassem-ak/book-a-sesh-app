@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Segmented, Toggle } from '../components/ui';
+import { signOutUser } from '../lib/session';
 import { calProviderLabel, CalProvider, Role } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -116,6 +117,25 @@ export function ProfileScreen() {
       )}
 
       {/* my training */}
+      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Account</SectionHeading>
+      {s.authEmail ? (
+        <SettingsRow
+          icon="log-out"
+          title={s.authName ?? 'Signed in'}
+          body={`${s.authEmail} · tap to sign out`}
+          onPress={() => {
+            void signOutUser().catch(() => {});
+          }}
+        />
+      ) : (
+        <SettingsRow
+          icon="log-in"
+          title="Sign in or create account"
+          body="Guest mode now · an account saves your activity"
+          onPress={() => s.set('overlay', 'auth')}
+        />
+      )}
+
       <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>My training</SectionHeading>
       <SettingsRow icon="clock" title="Bookings" body="Packages, upcoming sessions and past ratings" onPress={s.openBookings} />
       <View style={{ height: 10 }} />

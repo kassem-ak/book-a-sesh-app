@@ -223,6 +223,7 @@ export function Field({
   width,
   textColor,
   align = 'left',
+  secure = false,
 }: {
   value: string;
   onChange: (t: string) => void;
@@ -231,6 +232,7 @@ export function Field({
   width?: number;
   textColor?: string;
   align?: 'left' | 'center';
+  secure?: boolean;
 }) {
   const { c, t } = useTheme();
   return (
@@ -241,6 +243,8 @@ export function Field({
         placeholder={placeholder}
         placeholderTextColor={c.txt3}
         keyboardType={keyboardType}
+        secureTextEntry={secure}
+        autoCapitalize={secure || keyboardType === 'email-address' ? 'none' : 'sentences'}
         style={[t.body, { color: textColor ?? c.txt, textAlign: align, padding: 0 }]}
       />
     </View>
