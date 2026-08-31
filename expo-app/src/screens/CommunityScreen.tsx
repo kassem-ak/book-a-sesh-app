@@ -129,11 +129,18 @@ export function CommunityScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>
-      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flex: 1 }}>
           <Text style={[t.bodySm, { color: c.txt3 }]}>Train with people nearby</Text>
           <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Community</Text>
         </View>
+        {/* Board annotation: "My Communities" icon sits beside the volt + */}
+        <Pressable
+          onPress={() => s.set('overlay', 'myCommunities')}
+          style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
+        >
+          <Icon name="share-2" size={22} color={c.txt2} />
+        </Pressable>
         <Pressable onPress={s.openStartCommunity} style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="plus" size={24} color={c.ink} />
         </Pressable>

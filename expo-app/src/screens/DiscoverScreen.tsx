@@ -16,7 +16,6 @@ import { Person, initials, personMeta } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
-import { DiscoverMap } from './DiscoverMap';
 
 
 type RelatedName = { name?: string | null } | { name?: string | null }[] | null;
@@ -191,23 +190,8 @@ export function DiscoverScreen() {
         </Card>
       )}
 
-      {/* cards | map */}
-      <View style={{ marginTop: 11 }}>
-        <Segmented
-          options={[
-            { key: 'cards', label: 'Cards' },
-            { key: 'map', label: 'Map' },
-          ]}
-          selected={s.discoverView}
-          onSelect={(k) => s.set('discoverView', k)}
-        />
-      </View>
-
-      {s.discoverView === 'map' ? (
-        <View style={{ marginTop: 14 }}>
-          <DiscoverMap people={[...featured, ...rest]} />
-        </View>
-      ) : (
+      {/* Cards/Map toggle removed: Maps is its own tab on the redesign board. */}
+      <>
         <>
           {featured.length > 0 && (
             <>
@@ -261,7 +245,7 @@ export function DiscoverScreen() {
             ))}
           </View>
         </>
-      )}
+      </>
     </ScrollView>
   );
 }

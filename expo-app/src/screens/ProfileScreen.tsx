@@ -110,6 +110,7 @@ export function ProfileScreen() {
             <View style={{ padding: 15, gap: 13 }}>
               <ToolRow count="2" title="Appointment requests" body="Approve bookings & change requests" onPress={() => s.set('overlay', 'coachRequests')} />
               <ToolRow title="My schedule" body="Edit weekly timetable" onPress={() => s.set('overlay', 'coachSchedule')} />
+              <ToolRow title="Today's sessions" body="Day view - mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
               <ToolRow title="Packages, pricing & promos" body="Set prices · create discounts" onPress={() => s.set('overlay', 'coachPackages')} />
             </View>
           </Card>
