@@ -99,7 +99,7 @@ but drop Shop from the primary nav for this release.
 
 | Spec section | Status |
 |---|---|
-| 1.1 Get Started — Facebook + Google **icon buttons**, NEXT pill, animated gradient | Done |
+| 1.1 Get Started — Facebook + Google **icon buttons**, NEXT pill, animated gradient | Done (Apple SSO removed — board specifies Facebook + Google only) |
 | 1.2 Are you? / 1.3 Where are we looking? (radius slider) | Done |
 | 2 Discover — **Chosen Sport icon row**, segmented, dropdown, featured, AD | Done |
 | 3 Maps — search-this-area, chips (now filtering), **blinking marker**, boosted = filled amber | Done |
