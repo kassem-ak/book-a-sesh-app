@@ -78,10 +78,13 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
   return (
     <View>
       {/* SSO */}
-      {/* spec 1.1: Facebook + Google as icon buttons, side by side */}
-      <Row gap={12}>
+      {/* spec 1.1: SSO as icon buttons, side by side. Facebook + Google come
+          from the board; Apple is kept from main so a configured provider is
+          not dropped by the redesign. */}
+      <Row gap={10}>
         <SsoButton label="Facebook" icon="facebook" onPress={() => sso('facebook')} disabled={busy} />
         <SsoButton label="Google" icon="chrome" onPress={() => sso('google')} disabled={busy} />
+        <SsoButton label="Apple" icon="command" onPress={() => sso('apple')} disabled={busy} />
       </Row>
 
 
@@ -128,7 +131,7 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function SsoButton({ label, icon, onPress, disabled }: { label: string; icon: 'chrome' | 'facebook'; onPress: () => void; disabled: boolean }) {
+function SsoButton({ label, icon, onPress, disabled }: { label: string; icon: 'chrome' | 'facebook' | 'command'; onPress: () => void; disabled: boolean }) {
   const { c, t } = useTheme();
   return (
     <Pressable
