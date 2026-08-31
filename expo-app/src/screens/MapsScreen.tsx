@@ -13,7 +13,11 @@ export function MapsScreen() {
   const { c, t } = useTheme();
   const s = useStore();
   const [filter, setFilter] = React.useState<string | null>(null);
-  const people = s.mode === 'partners' ? D.partners : D.coaches;
+  const all = s.people(s.mode === 'partners' ? 'partners' : 'coaches');
+  // chips previously set state but never filtered the list
+  const people = filter
+    ? all.filter((p) => p.sport.toLowerCase().includes(filter.toLowerCase().replace(/'S$/i, '')))
+    : all;
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>

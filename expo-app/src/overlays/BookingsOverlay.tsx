@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading } from '../components/ui';
 import { useStore } from '../state/store';
@@ -61,6 +61,15 @@ export function BookingsOverlay() {
                 <Row gap={6} style={{ marginTop: 10 }}>
                   <Icon name="calendar" size={13} color={c.accent} />
                   <Text style={[t.caption, { color: c.accent }]}>In calendar ✓</Text>
+                  <View style={{ flex: 1 }} />
+                  <Pressable
+                    onPress={() => s.set('overlay', 'coachRequests')}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Request a change to ${u.what}`}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>Change</Text>
+                  </Pressable>
                 </Row>
               )}
             </Card>

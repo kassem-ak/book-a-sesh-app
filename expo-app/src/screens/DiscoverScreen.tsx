@@ -90,6 +90,19 @@ function matchesSport(p: Person, sport: string) {
   return p.sport.toLowerCase().includes(sport.toLowerCase());
 }
 
+// Spec section 2 sport row. Feather has no sport glyphs, so these are the
+// closest available stand-ins until custom icons land.
+const SPORT_ICONS: { name: string; icon: 'activity' | 'zap' | 'wind' | 'triangle' | 'heart' | 'music' | 'grid' | 'target' }[] = [
+  { name: 'Strength', icon: 'activity' },
+  { name: 'Boxing', icon: 'zap' },
+  { name: 'Running', icon: 'wind' },
+  { name: 'Climbing', icon: 'triangle' },
+  { name: 'Yoga', icon: 'heart' },
+  { name: 'Calisthenics', icon: 'target' },
+  { name: 'Music', icon: 'music' },
+  { name: 'Chess', icon: 'grid' },
+];
+
 export function DiscoverScreen() {
   const { c, t } = useTheme();
   const s = useStore();
@@ -158,6 +171,42 @@ export function DiscoverScreen() {
           </Pressable>
         </Row>
       </Row>
+
+      {/* Spec section 2: Chosen Sport row with small sport icons */}
+      <SectionHeading style={{ marginTop: 20, marginBottom: 10 }}>Chosen Sport</SectionHeading>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 8 }}>
+        {SPORT_ICONS.map(({ name, icon }) => {
+          const active = s.sport === name;
+          return (
+            <Pressable
+              key={name}
+              onPress={() => s.set('sport', active ? 'All' : name)}
+              accessibilityRole="button"
+              accessibilityLabel={`Filter by ${name}`}
+              accessibilityState={{ selected: active }}
+              style={{ alignItems: 'center', width: 62 }}
+            >
+              <View
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 16,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: active ? c.volt : c.surface,
+                  borderColor: active ? c.volt : c.line,
+                  borderWidth: 1,
+                }}
+              >
+                <Icon name={icon} size={20} color={active ? c.ink : c.txt2} />
+              </View>
+              <Text style={[t.caption, { color: active ? c.accent : c.txt3, marginTop: 5 }]} numberOfLines={1}>
+                {name}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       {/* search */}
       <View style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, gap: 10 }}>

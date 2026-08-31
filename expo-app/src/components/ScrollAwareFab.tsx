@@ -39,13 +39,16 @@ export function ScrollAwareFab({
   visible = true,
   label = 'Add',
 }: {
-  anim: Animated.Value;
+  anim?: Animated.Value;
   icon?: IconName;
   onPress?: () => void;
   visible?: boolean;
   label?: string;
 }) {
   const { c } = useTheme();
+  // tabs that do not hide the FAB pass no anim; fall back to a static value
+  const fallback = useRef(new Animated.Value(1)).current;
+  const value = anim ?? fallback;
   return (
     <Animated.View
       // a hidden (opacity 0) FAB must not keep stealing taps
@@ -54,8 +57,8 @@ export function ScrollAwareFab({
         position: 'absolute',
         right: 18,
         bottom: 18,
-        opacity: anim,
-        transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+        opacity: value,
+        transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
       }}
     >
       <Pressable

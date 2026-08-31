@@ -141,7 +141,7 @@ export function CommunityScreen() {
           accessibilityLabel="My communities"
           style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
         >
-          <Icon name="share-2" size={22} color={c.txt2} />
+          <Icon name="users" size={22} color={c.txt2} />
         </Pressable>
         <Pressable onPress={s.openStartCommunity} accessibilityRole="button" accessibilityLabel="Start a community" style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="plus" size={24} color={c.ink} />
@@ -182,7 +182,7 @@ export function CommunityScreen() {
       </Row>
       <View style={{ gap: 11 }}>
         {communities.map((cm) => (
-          <CommunityCard key={cm.id} cm={cm} joined={s.joinedCommunities.includes(cm.id)} role={s.currentCommunityRole(cm.id)} onOpen={() => s.openCommunity(cm.id)} onToggle={() => s.toggleCommunity(cm.id)} />
+          <CommunityCard key={cm.id} cm={cm} joined={s.joinedCommunities.includes(cm.id)} role={s.currentCommunityRole(cm.id)} onOpen={() => { s.set('communityId', cm.id); s.set('overlay', 'communityProfile'); }} onToggle={() => s.toggleCommunity(cm.id)} />
         ))}
       </View>
     </ScrollView>

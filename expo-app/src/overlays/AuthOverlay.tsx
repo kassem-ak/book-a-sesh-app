@@ -78,9 +78,12 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
   return (
     <View>
       {/* SSO */}
-      <SsoButton label="Continue with Google" icon="chrome" onPress={() => sso('google')} disabled={busy} />
-      <View style={{ height: 10 }} />
-      <SsoButton label="Continue with Apple" icon="command" onPress={() => sso('apple')} disabled={busy} />
+      {/* spec 1.1: Facebook + Google as icon buttons, side by side */}
+      <Row gap={12}>
+        <SsoButton label="Facebook" icon="facebook" onPress={() => sso('facebook')} disabled={busy} />
+        <SsoButton label="Google" icon="chrome" onPress={() => sso('google')} disabled={busy} />
+      </Row>
+
 
       <Row style={{ marginVertical: 20 }} gap={12}>
         <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
@@ -125,13 +128,16 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function SsoButton({ label, icon, onPress, disabled }: { label: string; icon: 'chrome' | 'command'; onPress: () => void; disabled: boolean }) {
+function SsoButton({ label, icon, onPress, disabled }: { label: string; icon: 'chrome' | 'facebook'; onPress: () => void; disabled: boolean }) {
   const { c, t } = useTheme();
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Continue with ${label}`}
       style={{
-        height: 50,
+        flex: 1,
+        height: 52,
         borderRadius: 15,
         backgroundColor: c.surface,
         borderColor: c.line,

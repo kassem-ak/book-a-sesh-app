@@ -92,3 +92,29 @@ Tabs `Courts | Events | Gallery`:
 ## 8. Shop — SECOND RELEASE
 Board stamps `SECOND RELEASE` across the Shop section. Keep the existing implementation
 but drop Shop from the primary nav for this release.
+
+---
+
+## Conformance status (updated after the gap-closure pass)
+
+| Spec section | Status |
+|---|---|
+| 1.1 Get Started — Facebook + Google **icon buttons**, NEXT pill, animated gradient | Done |
+| 1.2 Are you? / 1.3 Where are we looking? (radius slider) | Done |
+| 2 Discover — **Chosen Sport icon row**, segmented, dropdown, featured, AD | Done |
+| 3 Maps — search-this-area, chips (now filtering), **blinking marker**, boosted = filled amber | Done |
+| 4 Courts — ALL Courts, venue profile, Courts/Events/Gallery, RSVP, Load More, scroll FAB | Done |
+| 5 Community list — My Communities icon, Happening soon, AD, Join/Joined | Done |
+| 5 Community registration — official entity YES/NO + document upload | Done |
+| 5 **Community profile — News / Events / Gallery** (post feed, reactions, pager dots, album grid, FABs) | Done |
+| 6.2 Coach day view + 6.3 session-end modal | Done |
+| 6.1 Booking — **Confirm and pay** | Label done; **no payment step exists** |
+| 6.4 Booking confirmed — approval line, calendar sync lines | Done |
+| 6.5 Bookings — ACTIVE PACKAGE, UPCOMING (In calendar / **Change**), PAST (Rate) | Change done; Rate still non-interactive |
+| 7 Profile — title + "Alex Morgan - Beirut", bell + person icons, My Communities | Done |
+| 7 Coach profile — gallery, active hours, create package | Done |
+| 8 Shop | Intentionally untouched — board stamps SECOND RELEASE |
+
+Known remaining deviations: the search fields on Discover/Maps/Courts are still
+display-only `Text`, `Rate` on past bookings is not wired, and the News feed
+posts are local sample data rather than a `community_posts` table.

@@ -2,6 +2,7 @@ import React from 'react';
 import { useStore } from '../state/store';
 import { AuthOverlay } from '../overlays/AuthOverlay';
 import { MyCommunitiesOverlay } from '../overlays/MyCommunitiesOverlay';
+import { CommunityProfileOverlay } from '../overlays/CommunityProfileOverlay';
 import { CommunityRegisterOverlay } from '../overlays/CommunityRegisterOverlay';
 import { CoachDayViewOverlay } from '../overlays/CoachDayViewOverlay';
 import { PersonOverlay } from '../overlays/PersonOverlay';
@@ -45,6 +46,8 @@ export function OverlayRouter({ id }: { id: string }) {
   switch (id) {
     case 'auth':
       return <AuthOverlay />;
+    case 'communityProfile':
+      return <CommunityProfileOverlay />;
     case 'myCommunities':
       return <MyCommunitiesOverlay />;
     case 'communityRegister':
