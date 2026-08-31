@@ -224,6 +224,7 @@ export function Field({
   textColor,
   align = 'left',
   secure = false,
+  icon,
 }: {
   value: string;
   onChange: (t: string) => void;
@@ -233,10 +234,15 @@ export function Field({
   textColor?: string;
   align?: 'left' | 'center';
   secure?: boolean;
+  icon?: IconName;
 }) {
   const { c, t } = useTheme();
+  const [focused, setFocused] = React.useState(false);
+  // Board annotation: the leading icon switches to volt (#C6F24E) while typing.
+  const iconColor = focused || value.length > 0 ? c.accent : c.txt3;
   return (
-    <View style={{ width, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 }}>
+    <View style={{ width, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 }}>
+      {icon ? <Icon name={icon} size={17} color={iconColor} /> : null}
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -244,8 +250,10 @@ export function Field({
         placeholderTextColor={c.txt3}
         keyboardType={keyboardType}
         secureTextEntry={secure}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         autoCapitalize={secure || keyboardType === 'email-address' ? 'none' : 'sentences'}
-        style={[t.body, { color: textColor ?? c.txt, textAlign: align, padding: 0 }]}
+        style={[t.body, { flex: 1, color: textColor ?? c.txt, textAlign: align, padding: 0 }]}
       />
     </View>
   );

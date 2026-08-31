@@ -6,12 +6,15 @@ import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
+// Board nav: Discover · Maps · Courts · Community · Chat.
+// Maps is promoted from a Discover subview to its own tab, Courts is new,
+// Shop drops out (SECOND RELEASE) and Profile moves to the header person icon.
 const TABS: { key: string; label: string; icon: IconName }[] = [
   { key: 'discover', label: 'Discover', icon: 'search' },
-  { key: 'community', label: 'Community', icon: 'users' },
-  { key: 'shop', label: 'Shop', icon: 'shopping-bag' },
+  { key: 'maps', label: 'Maps', icon: 'map' },
+  { key: 'courts', label: 'Courts', icon: 'grid' },
+  { key: 'community', label: 'Community', icon: 'share-2' },
   { key: 'chat', label: 'Chat', icon: 'message-square' },
-  { key: 'profile', label: 'Profile', icon: 'user' },
 ];
 
 export function TabBar() {

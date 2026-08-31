@@ -140,6 +140,14 @@ export function ProfileScreen() {
       <SettingsRow icon="clock" title="Bookings" body="Packages, upcoming sessions and past ratings" onPress={s.openBookings} />
       <View style={{ height: 10 }} />
       <SettingsRow icon="bell" title="Notifications" body="Platform updates and daily plan briefing" onPress={s.openNotifs} />
+      <View style={{ height: 10 }} />
+      {/* Board annotation: "Add my Communities" */}
+      <SettingsRow
+        icon="users"
+        title="My Communities"
+        body="Crews you own, moderate or follow"
+        onPress={() => s.set('tab', 'community')}
+      />
 
       {/* prefs */}
       <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Notification preferences</SectionHeading>

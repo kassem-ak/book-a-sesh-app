@@ -122,15 +122,24 @@ export function DiscoverScreen() {
             <Text style={[t.bodySm, { color: c.txt2 }]}>Beirut, Lebanon</Text>
           </Row>
         </View>
-        <Pressable
-          onPress={s.openNotifs}
-          style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Icon name="bell" size={20} color={c.txt2} />
-          {!s.notifSeen && (
-            <View style={{ position: 'absolute', top: 10, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: c.volt }} />
-          )}
-        </Pressable>
+        <Row gap={10}>
+          <Pressable
+            onPress={s.openNotifs}
+            style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name="bell" size={20} color={c.txt2} />
+            {!s.notifSeen && (
+              <View style={{ position: 'absolute', top: 10, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: c.volt }} />
+            )}
+          </Pressable>
+          {/* Profile left the nav on the redesign board; this is its entry point. */}
+          <Pressable
+            onPress={() => s.set('tab', 'profile')}
+            style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name="user" size={20} color={c.txt2} />
+          </Pressable>
+        </Row>
       </Row>
 
       {/* search */}

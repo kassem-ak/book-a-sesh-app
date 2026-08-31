@@ -96,10 +96,10 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
         </>
       )}
       <SectionHeading style={{ marginBottom: 11 }}>Email</SectionHeading>
-      <Field value={email} onChange={setEmail} placeholder="you@email.com" keyboardType="email-address" />
+      <Field value={email} onChange={setEmail} placeholder="you@email.com" keyboardType="email-address" icon="at-sign" />
       <View style={{ height: 20 }} />
       <SectionHeading style={{ marginBottom: 11 }}>Password</SectionHeading>
-      <Field value={password} onChange={setPassword} placeholder="6+ characters" secure />
+      <Field value={password} onChange={setPassword} placeholder="6+ characters" secure icon="lock" />
 
       {error && <Text style={[t.bodySm, { color: c.danger, marginTop: 14 }]}>{error}</Text>}
 
