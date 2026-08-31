@@ -1,4 +1,9 @@
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 import { supabase, isSupabaseConfigured } from './supabase';
+
+WebBrowser.maybeCompleteAuthSession();
 
 let pendingSession: Promise<string> | null = null;
 
@@ -63,4 +68,39 @@ export async function signUpEmail(name: string, email: string, password: string)
 export async function signOutUser() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
+}
+
+// ---- SSO (Google / Apple) ---------------------------------------------------
+// Web: full-page redirect to the provider and back (PKCE code parsed by the
+// client via detectSessionInUrl). Native: system browser session that returns
+// through the spotter:// deep link, then we exchange the code manually.
+export type SsoProvider = 'google' | 'apple';
+
+export async function signInWithProvider(provider: SsoProvider) {
+  // Drop any anonymous guest session so the SSO account is a clean identity.
+  const { data: existing } = await supabase.auth.getSession();
+  if (existing.session?.user?.is_anonymous) await supabase.auth.signOut();
+
+  if (Platform.OS === 'web') {
+    const redirectTo = typeof window !== 'undefined' ? window.location.origin + window.location.pathname : undefined;
+    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+    if (error) throw error;
+    return; // browser navigates away
+  }
+
+  const redirectTo = Linking.createURL('auth-callback');
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo, skipBrowserRedirect: true },
+  });
+  if (error) throw error;
+  if (!data.url) throw new Error('No auth URL returned');
+
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+  if (result.type !== 'success') return; // user cancelled
+
+  const code = new URL(result.url).searchParams.get('code');
+  if (!code) throw new Error('No auth code in callback');
+  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+  if (exchangeError) throw exchangeError;
 }

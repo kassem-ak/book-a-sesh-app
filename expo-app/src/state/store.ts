@@ -170,6 +170,7 @@ export interface SpotterState {
   writeError: string | null;
   authEmail: string | null; // signed-in real account email (null = guest)
   authName: string | null;
+  guestMode: boolean; // user chose "Continue as guest" on the landing gate
 
   // discover / shop
   mode: string;
@@ -417,6 +418,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   writeError: null,
   authEmail: null,
   authName: null,
+  guestMode: false,
 
   mode: 'coaches',
   sport: 'All',

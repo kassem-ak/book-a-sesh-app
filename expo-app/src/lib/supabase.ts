@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 
 // Values come from env (EXPO_PUBLIC_* are inlined at build time).
 // Set them in expo-app/.env (see .env.example). The anon key is publishable
@@ -15,6 +16,9 @@ export const supabase = createClient(url ?? 'http://localhost', anon ?? 'anon', 
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false, // no OAuth redirect handling in the app shell
+    flowType: 'pkce',
+    // Web: parse the OAuth code from the redirect URL after SSO round-trips.
+    // Native: the deep-link callback is handled manually in session.ts.
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
