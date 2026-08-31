@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Stars, VoltButton } from '../components/ui';
+import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Stars, StripedPlaceholder, VoltButton } from '../components/ui';
 import { initials, personMeta } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
@@ -78,6 +78,52 @@ export function PersonOverlay() {
                 </Card>
               ))}
             </View>
+          </>
+        )}
+
+        {/* Board annotations on the coach profile: gallery images, an active
+            hours setting page, and creating a new package. */}
+        {p.isCoach && (
+          <>
+            <Row style={{ marginTop: 22, marginBottom: 11, justifyContent: 'space-between' }}>
+              <SectionHeading>Gallery</SectionHeading>
+              <Pressable onPress={() => s.set('overlay', 'coachPackages')}>
+                <Text style={[t.label, { color: c.accent }]}>Add images</Text>
+              </Pressable>
+            </Row>
+            <Row gap={10}>
+              {['Session 1', 'Session 2', 'Session 3'].map((g) => (
+                <View key={g} style={{ flex: 1 }}>
+                  <StripedPlaceholder caption={g} height={86} />
+                </View>
+              ))}
+            </Row>
+
+            <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Active hours</SectionHeading>
+            <Card>
+              <Pressable onPress={() => s.set('overlay', 'coachSchedule')}>
+                <Row style={{ padding: 15 }} gap={12}>
+                  <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="clock" size={19} color={c.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[t.name, { color: c.txt }]}>Weekly availability</Text>
+                    <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>Set the hours clients can book</Text>
+                  </View>
+                  <Icon name="chevron-right" size={20} color={c.txt3} />
+                </Row>
+              </Pressable>
+            </Card>
+
+            <Pressable onPress={() => s.set('overlay', 'coachPackages')} style={{ marginTop: 12 }}>
+              <Row
+                style={{ borderRadius: 16, borderColor: c.line, borderWidth: 1.5, borderStyle: 'dashed', paddingVertical: 15, justifyContent: 'center' }}
+                gap={8}
+              >
+                <Icon name="plus" size={17} color={c.accent} />
+                <Text style={[t.labelSm, { color: c.strong }]}>Create a new package</Text>
+              </Row>
+            </Pressable>
           </>
         )}
 

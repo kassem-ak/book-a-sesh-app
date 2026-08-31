@@ -16,3 +16,9 @@
 - Calendar: CoachDayViewOverlay (week strip, capacity chips, Mark as Done,
   session-end confirmation modal).
 - Verified: tsc --noEmit clean, web export succeeds.
+
+## 2026-07-20 — Claude, phase 3 (no failover triggered)
+- Coach profile: gallery strip with "Add images", Active hours row linking to
+  the schedule editor, and a "Create a new package" action — the three red
+  annotations on the Coach profile artboard.
+- Verified: tsc --noEmit clean, web export succeeds.
