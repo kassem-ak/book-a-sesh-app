@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Stars, StripedPlaceholder, VoltButton } from '../components/ui';
-import { initials, personMeta } from '../state/models';
+import { coachPackageOptions, initials, personMeta } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -11,6 +11,7 @@ export function PersonOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const p = s.personById(s.openId);
+  const packageOptions = coachPackageOptions(p);
   return (
     <OverlayScaffold
       header={<OverlayHeader title={p.isCoach ? 'Coach' : 'Training partner'} onBack={s.closeOverlay} trailing={<Pressable onPress={() => s.openChat('m1')}><Icon name="message-square" size={22} color={c.txt2} /></Pressable>} />}
@@ -66,14 +67,14 @@ export function PersonOverlay() {
           <>
             <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Packages</SectionHeading>
             <View style={{ gap: 10 }}>
-              {[['Single session', `$${p.price}`, '60 min'], ['5-session pack', `$${(p.price ?? 0) * 5 - 20}`, 'Save $20'], ['Monthly plan', `$${(p.price ?? 0) * 10}`, '12 sessions']].map(([name, price, note]) => (
-                <Card key={name} style={{ padding: 14 }}>
+              {packageOptions.map((pkg) => (
+                <Card key={pkg.packageId ?? pkg.name} style={{ padding: 14 }}>
                   <Row style={{ justifyContent: 'space-between' }}>
                     <View>
-                      <Text style={[t.name, { color: c.txt }]}>{name}</Text>
-                      <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{note}</Text>
+                      <Text style={[t.name, { color: c.txt }]}>{pkg.name}</Text>
+                      <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{pkg.note}</Text>
                     </View>
-                    <Text style={[t.price, { color: c.accent }]}>{price}</Text>
+                    <Text style={[t.price, { color: c.accent }]}>${pkg.price}</Text>
                   </Row>
                 </Card>
               ))}

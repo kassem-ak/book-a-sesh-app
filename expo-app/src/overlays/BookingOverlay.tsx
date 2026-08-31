@@ -2,26 +2,20 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import { coachPackageOptions } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-function packagesFor(price: number) {
-  return [
-    { name: 'Single session', price, note: '60 min' },
-    { name: '5-session pack', price: price * 5 - 20, note: 'Save $20' },
-    { name: 'Monthly plan', price: price * 10, note: '12 sessions' },
-  ];
-}
-
 export function BookingOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const p = s.personById(s.openId);
   const full = D.fullDaysByCoach[p.id] ?? [];
-  const pkgs = packagesFor(p.price ?? 30);
+  const pkgs = coachPackageOptions(p);
+  const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
 
   if (s.booked) {
     return (
@@ -32,7 +26,7 @@ export function BookingOverlay() {
           </View>
           <Text style={[t.overlayTitle, { fontSize: 24, color: c.txt, marginTop: 18 }]}>You're booked!</Text>
           <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
-            {pkgs[s.bookPkg].name} with {p.name.split(' ')[0]} · July {s.bookDay} · {D.slotDefs[s.bookSlot]}
+            {selectedPkg.name} with {p.name.split(' ')[0]} · {D.bookingMonthName} {s.bookDay} · {D.slotDefs[s.bookSlot]}
           </Text>
           {s.calSyncOn && (
             <Row gap={8} style={{ marginTop: 16 }}>
@@ -56,7 +50,7 @@ export function BookingOverlay() {
         <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
           <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
             <Text style={[t.body, { color: c.txt2 }]}>Total</Text>
-            <Text style={[t.price, { color: c.accent }]}>${pkgs[s.bookPkg].price}</Text>
+            <Text style={[t.price, { color: c.accent }]}>${selectedPkg.price}</Text>
           </Row>
           <VoltButton label="Confirm booking" onPress={s.confirmBooking} />
         </View>

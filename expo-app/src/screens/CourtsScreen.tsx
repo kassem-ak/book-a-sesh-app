@@ -79,7 +79,9 @@ function VenueProfile({ id, onBack }: { id: string; onBack: () => void }) {
   const { c, t } = useTheme();
   const v = venueById(id);
   const [tab, setTab] = useState<Tab>('courts');
-  const { anim, onScroll } = useScrollAwareFab();
+  const [rsvps, setRsvps] = useState<Record<string, boolean>>({});
+  const [shown, setShown] = useState(6);
+  const { anim, onScroll, visible } = useScrollAwareFab();
 
   return (
     <View style={{ flex: 1 }}>
@@ -120,9 +122,7 @@ function VenueProfile({ id, onBack }: { id: string; onBack: () => void }) {
                       <Text style={[t.caption, { color: c.txt2, marginTop: 2 }]}>{court.players}</Text>
                     </View>
                     <Text style={[t.priceSm, { color: c.accent, marginRight: 10 }]}>{court.price}</Text>
-                    <View style={{ borderRadius: 999, backgroundColor: c.volt, paddingHorizontal: 14, paddingVertical: 7 }}>
-                      <Text style={[t.caption, { fontFamily: t.microBadge.fontFamily, color: c.ink }]}>RSVP</Text>
-                    </View>
+                    <RsvpButton id={court.id} done={rsvps[court.id]} onPress={() => setRsvps({ ...rsvps, [court.id]: true })} />
                   </Row>
                 </Card>
               ))}
@@ -143,9 +143,7 @@ function VenueProfile({ id, onBack }: { id: string; onBack: () => void }) {
                       <Text style={[t.caption, { color: c.txt2, marginTop: 2 }]}>{ev.dates}</Text>
                     </View>
                     <Text style={[t.priceSm, { color: c.accent, marginRight: 10 }]}>{ev.price}</Text>
-                    <View style={{ borderRadius: 999, backgroundColor: c.volt, paddingHorizontal: 14, paddingVertical: 7 }}>
-                      <Text style={[t.caption, { fontFamily: t.microBadge.fontFamily, color: c.ink }]}>RSVP</Text>
-                    </View>
+                    <RsvpButton id={ev.id} done={rsvps[ev.id]} onPress={() => setRsvps({ ...rsvps, [ev.id]: true })} />
                   </Row>
                 </Card>
               ))}
@@ -155,23 +153,54 @@ function VenueProfile({ id, onBack }: { id: string; onBack: () => void }) {
           {tab === 'gallery' && (
             <View style={{ marginTop: 14 }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 }}>
-                {v.albums.map((a) => (
+                {v.albums.slice(0, shown).map((a) => (
                   <View key={a} style={{ width: '31.5%' }}>
                     <StripedPlaceholder caption={a} height={92} />
                     <Text style={[t.caption, { color: c.txt2, marginTop: 6, textAlign: 'center' }]}>{a}</Text>
                   </View>
                 ))}
               </View>
-              <Pressable style={{ marginTop: 16, alignItems: 'center' }}>
-                <Text style={[t.labelSm, { color: c.txt2 }]}>Load More</Text>
-                <Icon name="chevron-down" size={18} color={c.txt3} />
-              </Pressable>
+              {shown < v.albums.length && (
+                <Pressable
+                  onPress={() => setShown(shown + 6)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Load more albums"
+                  style={{ marginTop: 16, alignItems: 'center', paddingVertical: 8 }}
+                >
+                  <Text style={[t.labelSm, { color: c.txt2 }]}>Load More</Text>
+                  <Icon name="chevron-down" size={18} color={c.txt3} />
+                </Pressable>
+              )}
             </View>
           )}
         </View>
       </ScrollView>
 
-      {tab === 'gallery' ? <ScrollAwareFab anim={anim} icon="image" /> : null}
+      {tab === 'gallery' ? (
+        <ScrollAwareFab anim={anim} visible={visible} icon="image" label="Add photo to gallery" />
+      ) : null}
     </View>
+  );
+}
+
+function RsvpButton({ id, done, onPress }: { id: string; done?: boolean; onPress: () => void }) {
+  const { c, t } = useTheme();
+  return (
+    <Pressable
+      onPress={done ? undefined : onPress}
+      accessibilityRole="button"
+      accessibilityLabel={done ? 'Reserved' : 'Reserve this slot'}
+      accessibilityState={{ disabled: Boolean(done) }}
+      style={{
+        borderRadius: 999,
+        backgroundColor: done ? c.surface2 : c.volt,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+      }}
+    >
+      <Text style={[t.caption, { fontFamily: t.microBadge.fontFamily, color: done ? c.txt2 : c.ink }]}>
+        {done ? 'RESERVED' : 'RSVP'}
+      </Text>
+    </Pressable>
   );
 }

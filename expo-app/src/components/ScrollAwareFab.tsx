@@ -11,6 +11,7 @@ export function useScrollAwareFab() {
   const anim = useRef(new Animated.Value(1)).current;
   const lastY = useRef(0);
   const shown = useRef(true);
+  const [visible, setVisible] = React.useState(true);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
@@ -19,29 +20,36 @@ export function useScrollAwareFab() {
     lastY.current = y;
     if (goingDown && shown.current) {
       shown.current = false;
+      setVisible(false);
       Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true }).start();
     } else if (goingUp && !shown.current) {
       shown.current = true;
+      setVisible(true);
       Animated.timing(anim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
     }
   };
 
-  return { anim, onScroll };
+  return { anim, onScroll, visible };
 }
 
 export function ScrollAwareFab({
   anim,
   icon = 'plus',
   onPress,
+  visible = true,
+  label = 'Add',
 }: {
   anim: Animated.Value;
   icon?: IconName;
   onPress?: () => void;
+  visible?: boolean;
+  label?: string;
 }) {
   const { c } = useTheme();
   return (
     <Animated.View
-      pointerEvents="box-none"
+      // a hidden (opacity 0) FAB must not keep stealing taps
+      pointerEvents={visible ? 'box-none' : 'none'}
       style={{
         position: 'absolute',
         right: 18,
@@ -52,6 +60,8 @@ export function ScrollAwareFab({
     >
       <Pressable
         onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={label}
         style={{
           width: 52,
           height: 52,

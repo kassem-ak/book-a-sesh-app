@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -42,7 +43,7 @@ export function CoachDayViewOverlay() {
       }
     >
       <View style={{ paddingHorizontal: 18 }}>
-        <SectionHeading style={{ marginBottom: 11 }}>July 2026</SectionHeading>
+        <SectionHeading style={{ marginBottom: 11 }}>{D.monthLabel}</SectionHeading>
         <Row gap={6}>
           <Icon name="chevron-left" size={18} color={c.txt3} />
           {WEEK.map((d) => {

@@ -137,11 +137,13 @@ export function CommunityScreen() {
         {/* Board annotation: "My Communities" icon sits beside the volt + */}
         <Pressable
           onPress={() => s.set('overlay', 'myCommunities')}
+          accessibilityRole="button"
+          accessibilityLabel="My communities"
           style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
         >
           <Icon name="share-2" size={22} color={c.txt2} />
         </Pressable>
-        <Pressable onPress={s.openStartCommunity} style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable onPress={s.openStartCommunity} accessibilityRole="button" accessibilityLabel="Start a community" style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="plus" size={24} color={c.ink} />
         </Pressable>
       </Row>
@@ -161,7 +163,7 @@ export function CommunityScreen() {
               <Row style={{ justifyContent: 'space-between' }}>
                 <Text style={[t.name, { color: c.txt, flex: 1 }]}>{ad.brand}</Text>
                 <MicroBadge label="AD" bg={c.surface2} fg={c.txt2} />
-                <Pressable onPress={() => s.set('adsHidden', { ...s.adsHidden, community: true })} style={{ marginLeft: 8 }}>
+                <Pressable onPress={() => s.set('adsHidden', { ...s.adsHidden, community: true })} accessibilityRole="button" accessibilityLabel="Dismiss ad" hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ marginLeft: 8 }}>
                   <Icon name="x" size={16} color={c.txt3} />
                 </Pressable>
               </Row>

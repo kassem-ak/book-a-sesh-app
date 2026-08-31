@@ -12,13 +12,20 @@ import {
   Stars,
 } from '../components/ui';
 import { DiscoverSort, fetchCoaches } from '../lib/queries';
-import { Person, initials, personMeta } from '../state/models';
+import { CoachPkg, Person, initials, personMeta } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 
 type RelatedName = { name?: string | null } | { name?: string | null }[] | null;
+
+type RemotePackage = {
+  id: string;
+  sessions?: number | null;
+  price_cents?: number | null;
+  active?: boolean | null;
+};
 
 type RemoteCoach = {
   user_id: string;
@@ -33,6 +40,7 @@ type RemoteCoach = {
   boosted?: boolean | null;
   user?: RelatedName;
   sport?: RelatedName;
+  packages?: RemotePackage[] | null;
 };
 
 function firstRelated<T>(value: T | T[] | null | undefined): T | undefined {
@@ -53,6 +61,11 @@ function pseudoDistance(id: string) {
 function fromRemoteCoach(row: RemoteCoach): Person {
   const name = firstRelated(row.user)?.name ?? 'Coach';
   const sport = firstRelated(row.sport)?.name ?? 'Coaching';
+  const packages: CoachPkg[] = (row.packages ?? [])
+    .filter((pkg) => pkg.active !== false && (pkg.sessions ?? 0) > 0)
+    .map((pkg) => ({ id: pkg.id, sessions: pkg.sessions ?? 1, price: Math.round((pkg.price_cents ?? 0) / 100) }))
+    .filter((pkg) => pkg.id && pkg.price >= 0)
+    .sort((a, b) => a.sessions - b.sessions);
   const headline = row.headline ?? row.level ?? 'Coach';
   return {
     id: row.user_id,
@@ -69,6 +82,7 @@ function fromRemoteCoach(row: RemoteCoach): Person {
     bio: row.bio ?? row.headline ?? `${name} is available for ${sport.toLowerCase()} sessions.`,
     tags: [headline, sport].filter((tag): tag is string => Boolean(tag)),
     isCoach: true,
+    packages,
   };
 }
 function matchesSport(p: Person, sport: string) {
@@ -124,6 +138,8 @@ export function DiscoverScreen() {
         <Row gap={10}>
           <Pressable
             onPress={s.openNotifs}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
             style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
           >
             <Icon name="bell" size={20} color={c.txt2} />
@@ -134,6 +150,8 @@ export function DiscoverScreen() {
           {/* Profile left the nav on the redesign board; this is its entry point. */}
           <Pressable
             onPress={() => s.set('tab', 'profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Your profile"
             style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
           >
             <Icon name="user" size={20} color={c.txt2} />
@@ -213,7 +231,7 @@ export function DiscoverScreen() {
                     <Row style={{ justifyContent: 'space-between' }}>
                       <Text style={[t.name, { color: c.txt, flex: 1 }]}>{ad.brand}</Text>
                       <MicroBadge label="AD" bg={c.surface2} fg={c.txt2} />
-                      <Pressable onPress={() => s.set('adsHidden', { ...s.adsHidden, discover: true })} style={{ marginLeft: 8 }}>
+                      <Pressable onPress={() => s.set('adsHidden', { ...s.adsHidden, discover: true })} accessibilityRole="button" accessibilityLabel="Dismiss ad" hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ marginLeft: 8 }}>
                         <Icon name="x" size={16} color={c.txt3} />
                       </Pressable>
                     </Row>

@@ -5,6 +5,7 @@ import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
+import { ErrorBanner } from '../components/ErrorBanner';
 import { AuthLanding } from '../screens/AuthLanding';
 import { ChatScreen } from '../screens/ChatScreen';
 import { CourtsScreen } from '../screens/CourtsScreen';
@@ -56,6 +57,7 @@ export function Root() {
       </View>
       <TabBar />
       {overlay ? <OverlayRouter id={overlay} /> : null}
+      <ErrorBanner />
     </View>
   );
 }

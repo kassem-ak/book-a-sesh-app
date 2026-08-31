@@ -134,11 +134,15 @@ export function Toggle({ value, onChange }: { value: boolean; onChange: (v: bool
   return (
     <Pressable
       onPress={() => onChange(!value)}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       style={{
         width: 46,
         height: 26,
         borderRadius: 999,
-        backgroundColor: value ? c.volt : '#3A3F47',
+        // was hardcoded dark-theme values; broke in light theme
+        backgroundColor: value ? c.volt : c.mono,
         justifyContent: 'center',
       }}
     >
@@ -147,7 +151,7 @@ export function Toggle({ value, onChange }: { value: boolean; onChange: (v: bool
           width: 20,
           height: 20,
           borderRadius: 10,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: c.nav,
           marginLeft: value ? 23 : 3,
         }}
       />

@@ -119,11 +119,20 @@ export const messages: Message[] = [
   { text: 'Bring your A-game. 🔥', me: false },
 ];
 
-// booking calendar (July 2026)
-export const monthLabel = 'July 2026';
-export const firstDow = 3;
-export const daysInMonth = 31;
-export const todayNum = 1;
+// booking calendar: keep demo slots ahead of the real current date.
+const bookingMonthDate = (() => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 1, 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+})();
+export const bookingYear = bookingMonthDate.getFullYear();
+export const bookingMonthNumber = bookingMonthDate.getMonth() + 1;
+export const bookingMonthName = bookingMonthDate.toLocaleString('en-US', { month: 'long' });
+export const monthLabel = bookingMonthDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+export const firstDow = bookingMonthDate.getDay();
+export const daysInMonth = new Date(bookingYear, bookingMonthNumber, 0).getDate();
+export const todayNum = 0;
 export const slotDefs = ['6:30 AM', '8:00 AM', '12:00 PM', '5:30 PM', '6:30 PM', '7:30 PM'];
 export const fullDaysByCoach: Record<string, number[]> = {
   c1: [3, 10, 17, 24], c2: [6, 7, 20], c3: [4, 11, 18, 25], c4: [8, 22], c5: [13, 27], c6: [5, 19],

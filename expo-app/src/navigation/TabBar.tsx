@@ -36,7 +36,14 @@ export function TabBar() {
       {TABS.map((item) => {
         const active = tab === item.key;
         return (
-          <Pressable key={item.key} onPress={() => setKey('tab', item.key)} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+          <Pressable
+            key={item.key}
+            onPress={() => setKey('tab', item.key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={item.label}
+            style={{ flex: 1, alignItems: 'center', gap: 4 }}
+          >
             <Feather name={item.icon} size={23} color={active ? c.volt : c.txt3} />
             <Text style={[t.navLabel, { color: active ? c.volt : c.txt3 }]}>{item.label}</Text>
           </Pressable>
