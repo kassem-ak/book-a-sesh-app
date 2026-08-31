@@ -62,6 +62,8 @@ export function OverlayHeader({
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12 }}>
       <Pressable
         onPress={onBack}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
         style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
       >
         <Icon name="chevron-left" size={22} color={c.txt2} />

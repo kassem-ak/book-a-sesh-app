@@ -78,9 +78,12 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
   return (
     <View>
       {/* SSO */}
-      <SsoButton label="Continue with Google" icon="chrome" onPress={() => sso('google')} disabled={busy} />
-      <View style={{ height: 10 }} />
-      <SsoButton label="Continue with Apple" icon="command" onPress={() => sso('apple')} disabled={busy} />
+      {/* spec 1.1: Facebook + Google as icon buttons, side by side */}
+      <Row gap={12}>
+        <SsoButton label="Facebook" icon="facebook" onPress={() => sso('facebook')} disabled={busy} />
+        <SsoButton label="Google" icon="chrome" onPress={() => sso('google')} disabled={busy} />
+      </Row>
+
 
       <Row style={{ marginVertical: 20 }} gap={12}>
         <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
@@ -96,10 +99,10 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
         </>
       )}
       <SectionHeading style={{ marginBottom: 11 }}>Email</SectionHeading>
-      <Field value={email} onChange={setEmail} placeholder="you@email.com" keyboardType="email-address" />
+      <Field value={email} onChange={setEmail} placeholder="you@email.com" keyboardType="email-address" icon="at-sign" />
       <View style={{ height: 20 }} />
       <SectionHeading style={{ marginBottom: 11 }}>Password</SectionHeading>
-      <Field value={password} onChange={setPassword} placeholder="6+ characters" secure />
+      <Field value={password} onChange={setPassword} placeholder="6+ characters" secure icon="lock" />
 
       {error && <Text style={[t.bodySm, { color: c.danger, marginTop: 14 }]}>{error}</Text>}
 
@@ -125,13 +128,16 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function SsoButton({ label, icon, onPress, disabled }: { label: string; icon: 'chrome' | 'command'; onPress: () => void; disabled: boolean }) {
+function SsoButton({ label, icon, onPress, disabled }: { label: string; icon: 'chrome' | 'facebook'; onPress: () => void; disabled: boolean }) {
   const { c, t } = useTheme();
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Continue with ${label}`}
       style={{
-        height: 50,
+        flex: 1,
+        height: 52,
         borderRadius: 15,
         backgroundColor: c.surface,
         borderColor: c.line,

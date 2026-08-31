@@ -5,8 +5,11 @@ import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
+import { ErrorBanner } from '../components/ErrorBanner';
 import { AuthLanding } from '../screens/AuthLanding';
 import { ChatScreen } from '../screens/ChatScreen';
+import { CourtsScreen } from '../screens/CourtsScreen';
+import { MapsScreen } from '../screens/MapsScreen';
 import { CommunityScreen } from '../screens/CommunityScreen';
 import { DiscoverScreen } from '../screens/DiscoverScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
@@ -43,13 +46,18 @@ export function Root() {
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={{ flex: 1, paddingTop: insets.top }}>
         {tab === 'discover' && <DiscoverScreen />}
+        {tab === 'maps' && <MapsScreen />}
+        {tab === 'courts' && <CourtsScreen />}
         {tab === 'community' && <CommunityScreen />}
-        {tab === 'shop' && <ShopScreen />}
         {tab === 'chat' && <ChatScreen />}
+        {/* Off-nav destinations: Profile opens from the header person icon,
+            Shop is retained for the second release. */}
         {tab === 'profile' && <ProfileScreen />}
+        {tab === 'shop' && <ShopScreen />}
       </View>
       <TabBar />
       {overlay ? <OverlayRouter id={overlay} /> : null}
+      <ErrorBanner />
     </View>
   );
 }

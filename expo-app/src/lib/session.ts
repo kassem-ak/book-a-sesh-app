@@ -70,11 +70,11 @@ export async function signOutUser() {
   if (error) throw error;
 }
 
-// ---- SSO (Google / Apple) ---------------------------------------------------
+// ---- SSO (Facebook / Google, per redesign spec 1.1) ---------------------------------------------------
 // Web: full-page redirect to the provider and back (PKCE code parsed by the
 // client via detectSessionInUrl). Native: system browser session that returns
 // through the spotter:// deep link, then we exchange the code manually.
-export type SsoProvider = 'google' | 'apple';
+export type SsoProvider = 'google' | 'facebook';
 
 export async function signInWithProvider(provider: SsoProvider) {
   // Drop any anonymous guest session so the SSO account is a clean identity.

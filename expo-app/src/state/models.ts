@@ -14,6 +14,7 @@ export interface Person {
   tags: string[];
   goal?: string;
   isCoach: boolean;
+  packages?: CoachPkg[];
 }
 
 export const initials = (name: string) =>
@@ -196,3 +197,24 @@ export interface CoachPkg {
   sessions: number;
   price: number;
 }
+
+export interface BookingPackageOption {
+  name: string;
+  price: number;
+  note: string;
+  packageId: string | null;
+}
+
+export const coachPackageOptions = (p: Person): BookingPackageOption[] => {
+  const realPackages = (p.packages ?? [])
+    .filter((pkg) => pkg.id && pkg.sessions > 0)
+    .sort((a, b) => a.sessions - b.sessions)
+    .map((pkg) => ({
+      name: pkg.sessions === 1 ? 'Single session' : `${pkg.sessions}-session pack`,
+      price: pkg.price,
+      note: pkg.sessions === 1 ? '60 min' : `${pkg.sessions} sessions`,
+      packageId: pkg.id,
+    }));
+  if (realPackages.length > 0) return realPackages;
+  return [{ name: 'Single session', price: p.price ?? 30, note: '60 min', packageId: null }];
+};

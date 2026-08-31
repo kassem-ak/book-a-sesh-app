@@ -35,6 +35,14 @@ export async function pingSupabase() {
 }
 
 // --- Discover: coaches ordered by rating or price, with joined name + sport ---
+type CoachPackageRow = {
+  id: string;
+  coach_id: string;
+  sessions: number;
+  price_cents: number;
+  active: boolean;
+};
+
 export async function fetchCoaches(sort: DiscoverSort = 'rating') {
   const order =
     sort === 'price'
@@ -45,7 +53,26 @@ export async function fetchCoaches(sort: DiscoverSort = 'rating') {
     .select('user_id, headline, bio, level, price_cents, reply_time, sessions_count, rating_avg, reviews_count, boosted, user:users(name), sport:sports(name)')
     .order(order.column, { ascending: order.ascending });
   if (error) throw error;
-  return data;
+
+  const coachIds = (data ?? []).map((row) => row.user_id).filter(Boolean);
+  if (coachIds.length === 0) return data;
+
+  const { data: packageRows, error: packageError } = await supabase
+    .from('packages')
+    .select('id, coach_id, sessions, price_cents, active')
+    .in('coach_id', coachIds)
+    .eq('active', true)
+    .order('sessions', { ascending: true });
+  if (packageError) throw packageError;
+
+  const packagesByCoach = new Map<string, CoachPackageRow[]>();
+  for (const pkg of (packageRows ?? []) as CoachPackageRow[]) {
+    const list = packagesByCoach.get(pkg.coach_id) ?? [];
+    list.push(pkg);
+    packagesByCoach.set(pkg.coach_id, list);
+  }
+
+  return data?.map((row) => ({ ...row, packages: packagesByCoach.get(row.user_id) ?? [] })) ?? data;
 }
 
 // --- Shop marketplace: approved partner shops with active catalog items ---
@@ -158,12 +185,12 @@ export async function submitSportRequest(name: string, kind: string) {
   return callRpc<string>('submit_sport_request', { p_name: name, p_kind: kind });
 }
 
-export async function createBooking(coachId: string, scheduledFor: string, slotLabel: string, totalCents: number) {
+export async function createBooking(coachId: string, scheduledFor: string, slotLabel: string, packageId?: string | null) {
   return callRpc<string>('create_booking_for_coach', {
     p_coach: coachId,
     p_scheduled_for: scheduledFor,
     p_slot_label: slotLabel,
-    p_total_cents: totalCents,
+    p_package_id: packageId ?? null,
   });
 }
 

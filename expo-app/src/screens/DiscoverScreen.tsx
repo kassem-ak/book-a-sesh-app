@@ -12,14 +12,20 @@ import {
   Stars,
 } from '../components/ui';
 import { DiscoverSort, fetchCoaches } from '../lib/queries';
-import { Person, initials, personMeta } from '../state/models';
+import { CoachPkg, Person, initials, personMeta } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
-import { DiscoverMap } from './DiscoverMap';
 
 
 type RelatedName = { name?: string | null } | { name?: string | null }[] | null;
+
+type RemotePackage = {
+  id: string;
+  sessions?: number | null;
+  price_cents?: number | null;
+  active?: boolean | null;
+};
 
 type RemoteCoach = {
   user_id: string;
@@ -34,6 +40,7 @@ type RemoteCoach = {
   boosted?: boolean | null;
   user?: RelatedName;
   sport?: RelatedName;
+  packages?: RemotePackage[] | null;
 };
 
 function firstRelated<T>(value: T | T[] | null | undefined): T | undefined {
@@ -54,6 +61,11 @@ function pseudoDistance(id: string) {
 function fromRemoteCoach(row: RemoteCoach): Person {
   const name = firstRelated(row.user)?.name ?? 'Coach';
   const sport = firstRelated(row.sport)?.name ?? 'Coaching';
+  const packages: CoachPkg[] = (row.packages ?? [])
+    .filter((pkg) => pkg.active !== false && (pkg.sessions ?? 0) > 0)
+    .map((pkg) => ({ id: pkg.id, sessions: pkg.sessions ?? 1, price: Math.round((pkg.price_cents ?? 0) / 100) }))
+    .filter((pkg) => pkg.id && pkg.price >= 0)
+    .sort((a, b) => a.sessions - b.sessions);
   const headline = row.headline ?? row.level ?? 'Coach';
   return {
     id: row.user_id,
@@ -70,12 +82,26 @@ function fromRemoteCoach(row: RemoteCoach): Person {
     bio: row.bio ?? row.headline ?? `${name} is available for ${sport.toLowerCase()} sessions.`,
     tags: [headline, sport].filter((tag): tag is string => Boolean(tag)),
     isCoach: true,
+    packages,
   };
 }
 function matchesSport(p: Person, sport: string) {
   if (sport === 'All') return true;
   return p.sport.toLowerCase().includes(sport.toLowerCase());
 }
+
+// Spec section 2 sport row. Feather has no sport glyphs, so these are the
+// closest available stand-ins until custom icons land.
+const SPORT_ICONS: { name: string; icon: 'activity' | 'zap' | 'wind' | 'triangle' | 'heart' | 'music' | 'grid' | 'target' }[] = [
+  { name: 'Strength', icon: 'activity' },
+  { name: 'Boxing', icon: 'zap' },
+  { name: 'Running', icon: 'wind' },
+  { name: 'Climbing', icon: 'triangle' },
+  { name: 'Yoga', icon: 'heart' },
+  { name: 'Calisthenics', icon: 'target' },
+  { name: 'Music', icon: 'music' },
+  { name: 'Chess', icon: 'grid' },
+];
 
 export function DiscoverScreen() {
   const { c, t } = useTheme();
@@ -122,16 +148,65 @@ export function DiscoverScreen() {
             <Text style={[t.bodySm, { color: c.txt2 }]}>Beirut, Lebanon</Text>
           </Row>
         </View>
-        <Pressable
-          onPress={s.openNotifs}
-          style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Icon name="bell" size={20} color={c.txt2} />
-          {!s.notifSeen && (
-            <View style={{ position: 'absolute', top: 10, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: c.volt }} />
-          )}
-        </Pressable>
+        <Row gap={10}>
+          <Pressable
+            onPress={s.openNotifs}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+            style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name="bell" size={20} color={c.txt2} />
+            {!s.notifSeen && (
+              <View style={{ position: 'absolute', top: 10, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: c.volt }} />
+            )}
+          </Pressable>
+          {/* Profile left the nav on the redesign board; this is its entry point. */}
+          <Pressable
+            onPress={() => s.set('tab', 'profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Your profile"
+            style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name="user" size={20} color={c.txt2} />
+          </Pressable>
+        </Row>
       </Row>
+
+      {/* Spec section 2: Chosen Sport row with small sport icons */}
+      <SectionHeading style={{ marginTop: 20, marginBottom: 10 }}>Chosen Sport</SectionHeading>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 8 }}>
+        {SPORT_ICONS.map(({ name, icon }) => {
+          const active = s.sport === name;
+          return (
+            <Pressable
+              key={name}
+              onPress={() => s.set('sport', active ? 'All' : name)}
+              accessibilityRole="button"
+              accessibilityLabel={`Filter by ${name}`}
+              accessibilityState={{ selected: active }}
+              style={{ alignItems: 'center', width: 62 }}
+            >
+              <View
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 16,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: active ? c.volt : c.surface,
+                  borderColor: active ? c.volt : c.line,
+                  borderWidth: 1,
+                }}
+              >
+                <Icon name={icon} size={20} color={active ? c.ink : c.txt2} />
+              </View>
+              <Text style={[t.caption, { color: active ? c.accent : c.txt3, marginTop: 5 }]} numberOfLines={1}>
+                {name}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       {/* search */}
       <View style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, gap: 10 }}>
@@ -182,23 +257,8 @@ export function DiscoverScreen() {
         </Card>
       )}
 
-      {/* cards | map */}
-      <View style={{ marginTop: 11 }}>
-        <Segmented
-          options={[
-            { key: 'cards', label: 'Cards' },
-            { key: 'map', label: 'Map' },
-          ]}
-          selected={s.discoverView}
-          onSelect={(k) => s.set('discoverView', k)}
-        />
-      </View>
-
-      {s.discoverView === 'map' ? (
-        <View style={{ marginTop: 14 }}>
-          <DiscoverMap people={[...featured, ...rest]} />
-        </View>
-      ) : (
+      {/* Cards/Map toggle removed: Maps is its own tab on the redesign board. */}
+      <>
         <>
           {featured.length > 0 && (
             <>
@@ -220,7 +280,7 @@ export function DiscoverScreen() {
                     <Row style={{ justifyContent: 'space-between' }}>
                       <Text style={[t.name, { color: c.txt, flex: 1 }]}>{ad.brand}</Text>
                       <MicroBadge label="AD" bg={c.surface2} fg={c.txt2} />
-                      <Pressable onPress={() => s.set('adsHidden', { ...s.adsHidden, discover: true })} style={{ marginLeft: 8 }}>
+                      <Pressable onPress={() => s.set('adsHidden', { ...s.adsHidden, discover: true })} accessibilityRole="button" accessibilityLabel="Dismiss ad" hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ marginLeft: 8 }}>
                         <Icon name="x" size={16} color={c.txt3} />
                       </Pressable>
                     </Row>
@@ -252,7 +312,7 @@ export function DiscoverScreen() {
             ))}
           </View>
         </>
-      )}
+      </>
     </ScrollView>
   );
 }

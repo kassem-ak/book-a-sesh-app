@@ -34,6 +34,7 @@ import {
   Shares,
   Shop,
   CalProvider,
+  coachPackageOptions,
 } from './models';
 import * as D from './sampleData';
 
@@ -149,17 +150,9 @@ const scheduledFor = (day: number, slot: string) => {
   const meridiem = match?.[3]?.toUpperCase();
   if (meridiem === 'PM' && hour < 12) hour += 12;
   if (meridiem === 'AM' && hour === 12) hour = 0;
-  return `2026-07-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+03:00`;
+  return new Date(D.bookingYear, D.bookingMonthNumber - 1, day, hour, minute, 0, 0).toISOString();
 };
 
-const bookingPackage = (price: number, index: number) => {
-  const packages = [
-    { label: 'Single session', price },
-    { label: '5-session pack', price: price * 5 - 20 },
-    { label: 'Monthly plan', price: price * 10 },
-  ];
-  return packages[index] ?? packages[0];
-};
 export interface SpotterState {
   // top level
   tab: string;
@@ -440,7 +433,7 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   bookDay: 9,
   bookSlot: 4,
-  bookPkg: 2,
+  bookPkg: 0,
   booked: false,
   bookingChange: false,
 
@@ -467,12 +460,12 @@ export const useStore = create<SpotterState>((set, get) => ({
   shopOrderDone: false,
   shopDecisions: {},
 
-  joinedCommunities: ['running', 'strength'],
-  joinedSubs: ['run-downtown', 'str-iron'],
+  joinedCommunities: [],
+  joinedSubs: [],
   goingEvents: ['ev1', 'ev3'],
   customCommunities: [],
   remoteCommunities: [],
-  communityRoles: { running: 'ADMIN', strength: 'MODERATOR' },
+  communityRoles: {},
   communityMemberRoles: {
     running: { rima: 'MODERATOR', karim: 'MEMBER', jordan: 'MEMBER', mei: 'MEMBER' },
     strength: { rima: 'MEMBER', karim: 'ADMIN', jordan: 'MEMBER', mei: 'MEMBER' },
@@ -566,11 +559,16 @@ export const useStore = create<SpotterState>((set, get) => ({
     set({ writeBusy: `community:${id}`, writeError: null });
     try {
       const role = joined ? await leaveCommunityRemote(id) : await joinCommunityRemote(id);
-      set((state) => ({
-        joinedCommunities: joined ? state.joinedCommunities.filter((x) => x !== id) : [...state.joinedCommunities, id],
-        communityRoles: joined ? state.communityRoles : { ...state.communityRoles, [id]: roleFromDb(role) },
-        writeBusy: null,
-      }));
+      set((state) => {
+        const communityRoles = { ...state.communityRoles };
+        if (joined) delete communityRoles[id];
+        else communityRoles[id] = roleFromDb(role);
+        return {
+          joinedCommunities: joined ? state.joinedCommunities.filter((x) => x !== id) : [...state.joinedCommunities, id],
+          communityRoles,
+          writeBusy: null,
+        };
+      });
     } catch (error) {
       set(errorState(error));
     }
@@ -636,7 +634,10 @@ export const useStore = create<SpotterState>((set, get) => ({
     const items = shop.products
       .filter((product) => product.id && `${shop.id}:${product.id}` in s.cart)
       .map((product) => ({ product_id: product.id!, qty: 1 }));
-    if (items.length === 0) return;
+    if (items.length === 0) {
+      set({ writeError: 'Add an item before checking out.' });
+      return;
+    }
     set({ writeBusy: 'checkout', writeError: null });
     try {
       await checkoutShopOrderRemote(shop.id, items);
@@ -749,7 +750,11 @@ export const useStore = create<SpotterState>((set, get) => ({
     try {
       const row = await suggestEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), 'TBD');
       const suggestion = suggestionFromRemote(row, s.newSport);
-      set({ eventSuggestions: [suggestion, ...s.eventSuggestions], eventSuggested: true, writeBusy: null });
+      set({
+        eventSuggestions: [suggestion, ...s.eventSuggestions.filter((item) => item.id !== suggestion.id && item.id !== 'sg1')],
+        eventSuggested: true,
+        writeBusy: null,
+      });
     } catch (error) {
       set(errorState(error));
     }
@@ -828,17 +833,17 @@ export const useStore = create<SpotterState>((set, get) => ({
   cartCount: () => Object.keys(get().cart).length,
   cartTotal: () => Object.values(get().cart).reduce((a, b) => a + b, 0),
 
-  openPerson: (id) => set({ openId: id, overlay: 'person' }),
-  openBooking: () => set({ overlay: 'booking', booked: false, writeError: null }),
+  openPerson: (id) => set({ openId: id, overlay: 'person', bookPkg: 0 }),
+  openBooking: () => set({ overlay: 'booking', booked: false, bookPkg: 0, writeError: null }),
   backToPerson: () => set({ overlay: 'person', booked: false }),
   confirmBooking: async () => {
     const s = get();
     const person = s.personById(s.openId);
     const slot = D.slotDefs[s.bookSlot] ?? D.slotDefs[0];
-    const pkg = bookingPackage(person.price ?? 30, s.bookPkg);
+    const pkg = coachPackageOptions(person)[s.bookPkg] ?? coachPackageOptions(person)[0];
     set({ writeBusy: 'booking', writeError: null });
     try {
-      await createBookingRemote(person.id, scheduledFor(s.bookDay, slot), `${pkg.label} - Jul ${s.bookDay} - ${slot}`, pkg.price * 100);
+      await createBookingRemote(person.id, scheduledFor(s.bookDay, slot), `${pkg.name} - ${D.bookingMonthName} ${s.bookDay} - ${slot}`, pkg.packageId);
       set({ booked: true, writeBusy: null });
     } catch (error) {
       set(errorState(error));

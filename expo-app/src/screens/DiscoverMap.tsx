@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Pressable, Text, View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 import { Avatar, Card, Icon, MicroBadge, Row } from '../components/ui';
 import { Person, initials, personMeta } from '../state/models';
@@ -38,8 +38,10 @@ export function DiscoverMap({ people }: { people: Person[] }) {
     <View>
       <View style={{ height: MAP_H, borderRadius: 18, backgroundColor: c.mapBg, borderColor: c.line, borderWidth: 1, overflow: 'hidden' }}>
         <Grid color={c.grid} />
-        {/* user location */}
-        <View style={{ position: 'absolute', top: '48%', left: '50%', width: 16, height: 16, marginLeft: -8, marginTop: -8, borderRadius: 8, backgroundColor: c.volt, borderColor: alpha(c.volt, 0.3), borderWidth: 4 }} />
+        {/* user location — board annotation: "blinking marker" */}
+        <View style={{ position: 'absolute', top: '48%', left: '50%', marginLeft: -17, marginTop: -17 }}>
+          <BlinkingMarker />
+        </View>
         {people.slice(0, 6).map((p, i) => {
           const pos = POS[i];
           return (
@@ -49,7 +51,16 @@ export function DiscoverMap({ people }: { people: Person[] }) {
               style={{ position: 'absolute', top: `${pos.top}%`, left: `${pos.left}%`, alignItems: 'center' }}
             >
               <View style={{ position: 'relative' }}>
-                <View style={{ borderRadius: 999, borderWidth: 2, borderColor: p.boosted ? c.amber : c.volt }}>
+                <View
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 2,
+                    // spec: boosted = filled amber, others = volt outline
+                    borderColor: p.boosted ? c.amber : c.volt,
+                    backgroundColor: p.boosted ? c.amber : 'transparent',
+                    padding: p.boosted ? 2 : 0,
+                  }}
+                >
                   <Avatar initials={initials(p.name)} size={44} radius={999} />
                 </View>
                 {p.boosted && (
@@ -85,6 +96,38 @@ export function DiscoverMap({ people }: { people: Person[] }) {
           </Card>
         </View>
       )}
+    </View>
+  );
+}
+
+// Board annotation: "blinking marker" on the user's location.
+export function BlinkingMarker() {
+  const { c } = useTheme();
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+      <Animated.View
+        style={{
+          position: 'absolute',
+          width: 34,
+          height: 34,
+          borderRadius: 999,
+          backgroundColor: c.volt,
+          opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0] }),
+          transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.6] }) }],
+        }}
+      />
+      <View style={{ width: 14, height: 14, borderRadius: 999, backgroundColor: c.volt, borderWidth: 3, borderColor: alpha(c.volt, 0.3) }} />
     </View>
   );
 }

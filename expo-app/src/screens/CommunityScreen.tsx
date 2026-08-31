@@ -129,12 +129,21 @@ export function CommunityScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>
-      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flex: 1 }}>
           <Text style={[t.bodySm, { color: c.txt3 }]}>Train with people nearby</Text>
           <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Community</Text>
         </View>
-        <Pressable onPress={s.openStartCommunity} style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
+        {/* Board annotation: "My Communities" icon sits beside the volt + */}
+        <Pressable
+          onPress={() => s.set('overlay', 'myCommunities')}
+          accessibilityRole="button"
+          accessibilityLabel="My communities"
+          style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
+        >
+          <Icon name="users" size={22} color={c.txt2} />
+        </Pressable>
+        <Pressable onPress={s.openStartCommunity} accessibilityRole="button" accessibilityLabel="Start a community" style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="plus" size={24} color={c.ink} />
         </Pressable>
       </Row>
@@ -154,7 +163,7 @@ export function CommunityScreen() {
               <Row style={{ justifyContent: 'space-between' }}>
                 <Text style={[t.name, { color: c.txt, flex: 1 }]}>{ad.brand}</Text>
                 <MicroBadge label="AD" bg={c.surface2} fg={c.txt2} />
-                <Pressable onPress={() => s.set('adsHidden', { ...s.adsHidden, community: true })} style={{ marginLeft: 8 }}>
+                <Pressable onPress={() => s.set('adsHidden', { ...s.adsHidden, community: true })} accessibilityRole="button" accessibilityLabel="Dismiss ad" hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ marginLeft: 8 }}>
                   <Icon name="x" size={16} color={c.txt3} />
                 </Pressable>
               </Row>
@@ -173,7 +182,7 @@ export function CommunityScreen() {
       </Row>
       <View style={{ gap: 11 }}>
         {communities.map((cm) => (
-          <CommunityCard key={cm.id} cm={cm} joined={s.joinedCommunities.includes(cm.id)} role={s.currentCommunityRole(cm.id)} onOpen={() => s.openCommunity(cm.id)} onToggle={() => s.toggleCommunity(cm.id)} />
+          <CommunityCard key={cm.id} cm={cm} joined={s.joinedCommunities.includes(cm.id)} role={s.currentCommunityRole(cm.id)} onOpen={() => { s.set('communityId', cm.id); s.set('overlay', 'communityProfile'); }} onToggle={() => s.toggleCommunity(cm.id)} />
         ))}
       </View>
     </ScrollView>

@@ -2,26 +2,20 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import { coachPackageOptions } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-function packagesFor(price: number) {
-  return [
-    { name: 'Single session', price, note: '60 min' },
-    { name: '5-session pack', price: price * 5 - 20, note: 'Save $20' },
-    { name: 'Monthly plan', price: price * 10, note: '12 sessions' },
-  ];
-}
-
 export function BookingOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const p = s.personById(s.openId);
   const full = D.fullDaysByCoach[p.id] ?? [];
-  const pkgs = packagesFor(p.price ?? 30);
+  const pkgs = coachPackageOptions(p);
+  const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
 
   if (s.booked) {
     return (
@@ -30,15 +24,24 @@ export function BookingOverlay() {
           <View style={{ width: 74, height: 74, borderRadius: 999, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="check" size={34} color={c.ink} />
           </View>
-          <Text style={[t.overlayTitle, { fontSize: 24, color: c.txt, marginTop: 18 }]}>You're booked!</Text>
+          <Text style={[t.overlayTitle, { fontSize: 24, color: c.txt, marginTop: 18 }]}>You are booked!</Text>
           <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
-            {pkgs[s.bookPkg].name} with {p.name.split(' ')[0]} · July {s.bookDay} · {D.slotDefs[s.bookSlot]}
+            {selectedPkg.name} with {p.name.split(' ')[0]} · {D.bookingMonthName} {s.bookDay} · {D.slotDefs[s.bookSlot]}
+          </Text>
+          {/* spec 6.4: approval line, then the calendar-sync lines */}
+          <Text style={[t.bodySm, { color: c.txt2, marginTop: 10, textAlign: 'center' }]}>
+            Waiting for the coach to approve — you will be notified.
           </Text>
           {s.calSyncOn && (
-            <Row gap={8} style={{ marginTop: 16 }}>
-              <Icon name="calendar" size={16} color={c.accent} />
-              <Text style={[t.labelSm, { color: c.accent }]}>Added to your {s.calProvider === 'GOOGLE' ? 'Google' : s.calProvider === 'APPLE' ? 'Apple' : 'Outlook'} Calendar</Text>
-            </Row>
+            <>
+              <Row gap={8} style={{ marginTop: 16 }}>
+                <Icon name="calendar" size={16} color={c.accent} />
+                <Text style={[t.labelSm, { color: c.accent }]}>
+                  Added to your {s.calProvider === 'GOOGLE' ? 'Google' : s.calProvider === 'APPLE' ? 'Apple' : 'Outlook'} Calendar
+                </Text>
+              </Row>
+              <Text style={[t.caption, { color: c.txt3, marginTop: 6 }]}>Changes sync automatically</Text>
+            </>
           )}
           <View style={{ height: 24 }} />
           <View style={{ width: '100%' }}>
@@ -56,9 +59,9 @@ export function BookingOverlay() {
         <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
           <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
             <Text style={[t.body, { color: c.txt2 }]}>Total</Text>
-            <Text style={[t.price, { color: c.accent }]}>${pkgs[s.bookPkg].price}</Text>
+            <Text style={[t.price, { color: c.accent }]}>${selectedPkg.price}</Text>
           </Row>
-          <VoltButton label="Confirm booking" onPress={s.confirmBooking} />
+          <VoltButton label="Confirm and pay" onPress={s.confirmBooking} />
         </View>
       }
     >

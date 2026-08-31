@@ -20,8 +20,31 @@ export function ProfileScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 26 }}>
-      <Text style={[t.bodySm, { color: c.txt3 }]}>Your training home</Text>
-      <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Profile</Text>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <View style={{ flex: 1 }}>
+          <Text style={[t.pageTitle, { color: c.txt }]}>Profile</Text>
+          {/* spec: "Alex Morgan - Beirut" under the title */}
+          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
+            {s.authName ?? 'Alex Morgan'} - Beirut
+          </Text>
+        </View>
+        <Row gap={10}>
+          <Pressable
+            onPress={s.openNotifs}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+            style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name="bell" size={20} color={c.txt2} />
+            {!s.notifSeen && (
+              <View style={{ position: 'absolute', top: 10, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: c.volt }} />
+            )}
+          </Pressable>
+          <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="user" size={20} color={c.accent} />
+          </View>
+        </Row>
+      </Row>
 
       <Card style={{ marginTop: 18 }}>
         <Row style={{ padding: 15 }} gap={14}>
@@ -110,6 +133,7 @@ export function ProfileScreen() {
             <View style={{ padding: 15, gap: 13 }}>
               <ToolRow count="2" title="Appointment requests" body="Approve bookings & change requests" onPress={() => s.set('overlay', 'coachRequests')} />
               <ToolRow title="My schedule" body="Edit weekly timetable" onPress={() => s.set('overlay', 'coachSchedule')} />
+              <ToolRow title="Today's sessions" body="Day view - mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
               <ToolRow title="Packages, pricing & promos" body="Set prices · create discounts" onPress={() => s.set('overlay', 'coachPackages')} />
             </View>
           </Card>
@@ -140,6 +164,14 @@ export function ProfileScreen() {
       <SettingsRow icon="clock" title="Bookings" body="Packages, upcoming sessions and past ratings" onPress={s.openBookings} />
       <View style={{ height: 10 }} />
       <SettingsRow icon="bell" title="Notifications" body="Platform updates and daily plan briefing" onPress={s.openNotifs} />
+      <View style={{ height: 10 }} />
+      {/* Board annotation: "Add my Communities" */}
+      <SettingsRow
+        icon="users"
+        title="My Communities"
+        body="Crews you own, moderate or follow"
+        onPress={() => s.set('tab', 'community')}
+      />
 
       {/* prefs */}
       <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Notification preferences</SectionHeading>

@@ -240,7 +240,7 @@ export function CommunityEditOverlay() {
 }
 
 export function StartCommunityOverlay() {
-  const { c } = useTheme();
+  const { c, t } = useTheme();
   const s = useStore();
   const blocked = isExplicit(s.commName);
   const canCreate = s.commName.trim().length > 0 && !blocked;
@@ -259,6 +259,9 @@ export function StartCommunityOverlay() {
       <View style={{ paddingHorizontal: 18 }}>
         <SectionHeading style={{ marginBottom: 11 }}>Community name</SectionHeading>
         <Field value={s.commName} onChange={(v) => s.set('commName', v)} placeholder="Downtown Padel Crew..." />
+        <Pressable onPress={() => s.set('overlay', 'communityRegister')} style={{ marginTop: 16 }}>
+          <Text style={[t.label, { color: c.accent }]}>Registering an official entity? Use the full form</Text>
+        </Pressable>
       </View>
     </OverlayScaffold>
   );

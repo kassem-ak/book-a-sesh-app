@@ -134,11 +134,15 @@ export function Toggle({ value, onChange }: { value: boolean; onChange: (v: bool
   return (
     <Pressable
       onPress={() => onChange(!value)}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       style={{
         width: 46,
         height: 26,
         borderRadius: 999,
-        backgroundColor: value ? c.volt : '#3A3F47',
+        // was hardcoded dark-theme values; broke in light theme
+        backgroundColor: value ? c.volt : c.mono,
         justifyContent: 'center',
       }}
     >
@@ -147,7 +151,7 @@ export function Toggle({ value, onChange }: { value: boolean; onChange: (v: bool
           width: 20,
           height: 20,
           borderRadius: 10,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: c.nav,
           marginLeft: value ? 23 : 3,
         }}
       />
@@ -224,6 +228,7 @@ export function Field({
   textColor,
   align = 'left',
   secure = false,
+  icon,
 }: {
   value: string;
   onChange: (t: string) => void;
@@ -233,10 +238,15 @@ export function Field({
   textColor?: string;
   align?: 'left' | 'center';
   secure?: boolean;
+  icon?: IconName;
 }) {
   const { c, t } = useTheme();
+  const [focused, setFocused] = React.useState(false);
+  // Board annotation: the leading icon switches to volt (#C6F24E) while typing.
+  const iconColor = focused || value.length > 0 ? c.accent : c.txt3;
   return (
-    <View style={{ width, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 }}>
+    <View style={{ width, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 }}>
+      {icon ? <Icon name={icon} size={17} color={iconColor} /> : null}
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -244,8 +254,10 @@ export function Field({
         placeholderTextColor={c.txt3}
         keyboardType={keyboardType}
         secureTextEntry={secure}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         autoCapitalize={secure || keyboardType === 'email-address' ? 'none' : 'sentences'}
-        style={[t.body, { color: textColor ?? c.txt, textAlign: align, padding: 0 }]}
+        style={[t.body, { flex: 1, color: textColor ?? c.txt, textAlign: align, padding: 0 }]}
       />
     </View>
   );
