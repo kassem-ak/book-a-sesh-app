@@ -981,12 +981,15 @@ export const useStore = create<SpotterState>((set, get) => ({
   },
   // Courts bill per hour; tournament entry is a flat per-team fee, so hours and
   // hourly equipment hire do not apply to it.
+  // Court charge only. "Add a coach" is a routing flag, not a line item: the
+  // coach's real rate depends on which coach and package you pick on the next
+  // screen, so folding a flat $45 in here billed the coach twice.
   rsvpTotal: () => {
     const st = get();
-    if (!st.rsvpPerHour) return st.rsvpPricePerHour + (st.rsvpCoach ? 45 : 0);
+    if (!st.rsvpPerHour) return st.rsvpPricePerHour;
     const base = st.rsvpPricePerHour * st.rsvpHours;
     const gear = st.rsvpGear ? 6 * st.rsvpHours : 0;
-    return base + gear + (st.rsvpCoach ? 45 : 0);
+    return base + gear;
   },
   confirmRsvp: () => {
     const st = get();

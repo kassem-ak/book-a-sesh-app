@@ -272,7 +272,7 @@ export function DiscoverScreen() {
           )}
 
           {!adHidden && (
-            <Pressable onPress={() => s.set('tab', 'shop')} style={{ marginTop: 11 }}>
+            <View style={{ marginTop: 11 }}>
               <Card>
                 <Row style={{ padding: 14, alignItems: 'flex-start' }} gap={12}>
                   <Avatar initials={ad.logo} size={46} radius={13} fontSize={15} bg={ad.tint} />
@@ -289,7 +289,7 @@ export function DiscoverScreen() {
                   </View>
                 </Row>
               </Card>
-            </Pressable>
+            </View>
           )}
 
           <Row style={{ marginTop: 22, marginBottom: 11, justifyContent: 'space-between' }}>

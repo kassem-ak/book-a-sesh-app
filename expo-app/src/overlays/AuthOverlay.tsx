@@ -168,8 +168,8 @@ export function AuthOverlay() {
       <View style={{ paddingHorizontal: 18 }}>
         <AuthForm onDone={s.closeOverlay} />
         <Text style={[t.bodySm, { color: c.txt3, marginTop: 18 }]}>
-          You can keep browsing as a guest — an account saves your bookings, communities and shop
-          orders under your own name.
+          You can keep browsing as a guest — an account saves your bookings
+          and communities under your own name.
         </Text>
       </View>
     </OverlayScaffold>

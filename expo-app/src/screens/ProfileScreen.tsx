@@ -242,13 +242,6 @@ export function ProfileScreen() {
           value={s.isDark}
           onToggle={(v) => s.set('isDark', v)}
         />
-        <RowDivider />
-        <GroupRow
-          icon="shopping-bag"
-          title="Shop"
-          body="Partner sports and hobby stores"
-          onPress={() => s.set('tab', 'shop')}
-        />
       </Card>
 
       {/* admin console — admins only, sits inside SETTINGS per spec 6 */}
@@ -258,7 +251,7 @@ export function ProfileScreen() {
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
               <ToolRow icon="credit-card" title="Accounting" body="Margins, expenses, profit shares" onPress={() => s.set('overlay', 'adminAccounting')} />
-              <ToolRow icon="user-check" title="Approvals" body="Hobby requests, communities and shop partners" onPress={() => s.set('overlay', 'adminApprovals')} />
+              <ToolRow icon="user-check" title="Approvals" body="Hobby requests, communities and venues" onPress={() => s.set('overlay', 'adminApprovals')} />
               <ToolRow icon="flag" title="Misconduct reports" body="Review evidence · ban or suspend" onPress={() => s.set('overlay', 'adminReports')} />
               <ToolRow icon="percent" title="Promotions & promo codes" body="Create discounts · generate codes" onPress={() => s.set('overlay', 'adminPromos')} />
               <ToolRow icon="tag" title="Loyalty offers" body="Edit rewards & point costs" onPress={() => s.set('overlay', 'adminLoyalty')} />

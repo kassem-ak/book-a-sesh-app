@@ -8,7 +8,6 @@ import { CoachDayViewOverlay } from '../overlays/CoachDayViewOverlay';
 import { PersonOverlay } from '../overlays/PersonOverlay';
 import { BookingOverlay } from '../overlays/BookingOverlay';
 import { BookingsOverlay } from '../overlays/BookingsOverlay';
-import { ShopStorefrontOverlay, ShopRegisterOverlay } from '../overlays/ShopOverlays';
 import {
   CommunityDetailOverlay,
   EventDetailOverlay,
@@ -62,10 +61,6 @@ export function OverlayRouter({ id }: { id: string }) {
       return <BookingOverlay />;
     case 'bookings':
       return <BookingsOverlay />;
-    case 'shop':
-      return <ShopStorefrontOverlay />;
-    case 'shopRegister':
-      return <ShopRegisterOverlay />;
     case 'community':
       return <CommunityDetailOverlay />;
     case 'event':

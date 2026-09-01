@@ -13,7 +13,6 @@ import { MapsScreen } from '../screens/MapsScreen';
 import { CommunityScreen } from '../screens/CommunityScreen';
 import { DiscoverScreen } from '../screens/DiscoverScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
-import { ShopScreen } from '../screens/ShopScreen';
 import { OverlayRouter } from './OverlayRouter';
 import { SheetRouter } from './SheetRouter';
 import { TabBar } from './TabBar';
@@ -52,10 +51,10 @@ export function Root() {
         {tab === 'courts' && <CourtsScreen />}
         {tab === 'community' && <CommunityScreen />}
         {tab === 'chat' && <ChatScreen />}
-        {/* Off-nav destinations: Profile opens from the header person icon,
-            Shop is retained for the second release. */}
+        {/* Off-nav destination: Profile opens from the header person icon.
+            The Shop section is parked — its screens and overlays are still
+            in the tree, just unreachable until it comes back. */}
         {tab === 'profile' && <ProfileScreen />}
-        {tab === 'shop' && <ShopScreen />}
       </View>
       <TabBar />
       {overlay ? <OverlayRouter id={overlay} /> : null}

@@ -7,19 +7,13 @@ import { fmtMoney, useStore } from '../state/store';
 import { radii, useTheme } from '../theme';
 
 // Delta section C. Booking type, hours stepper, equipment rent (+$6/h),
-// add-a-coach (+$45 flat, routes into the coach calendar), live total.
+// add-a-coach (routes into the coach calendar), live total.
 export const RSVP_TYPES = ['Single', 'Teams', 'Member of team'] as const;
 export type RsvpType = (typeof RSVP_TYPES)[number];
 
 export const GEAR_PER_HOUR = 6;
-export const COACH_FLAT = 45;
 const MIN_HOURS = 1;
 const MAX_HOURS = 6;
-
-/** Live total, per delta section C. */
-export function rsvpTotal(pricePerHour: number, hours: number, gear: boolean, coach: boolean): number {
-  return pricePerHour * hours + (gear ? GEAR_PER_HOUR * hours : 0) + (coach ? COACH_FLAT : 0);
-}
 
 export function RsvpSheet() {
   const { c, t } = useTheme();
@@ -113,7 +107,7 @@ export function RsvpSheet() {
       )}
       <ToggleRow
         title="Add a coach"
-        subtitle={"Opens the coach's calendar next · +" + fmtMoney(COACH_FLAT)}
+        subtitle="Opens the coach's calendar next · billed with the coach"
         value={coach}
         onChange={(v) => s.set('rsvpCoach', v)}
         style={{ marginTop: 11 }}
