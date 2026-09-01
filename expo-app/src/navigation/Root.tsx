@@ -27,7 +27,9 @@ export function Root() {
   const guestMode = useStore((s) => s.guestMode);
 
   useEffect(() => {
-    ensureAppSession().catch((error) => console.warn('Supabase session unavailable', error));
+    ensureAppSession()
+      .then(() => useStore.getState().refreshRole())
+      .catch((error) => console.warn('Supabase session unavailable', error));
     // Mirror the real (non-anonymous) account into the store for the Profile UI.
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const user = session?.user;
@@ -36,6 +38,8 @@ export function Root() {
       useStore.getState().set('authName', real ? (user.user_metadata?.name as string | undefined) ?? null : null);
       // Signing out of a real account returns to the landing gate.
       if (event === 'SIGNED_OUT') useStore.getState().set('guestMode', false);
+      // Signing in or out changes which account we are, so re-resolve the role.
+      useStore.getState().refreshRole();
     });
     return () => sub.subscription.unsubscribe();
   }, []);

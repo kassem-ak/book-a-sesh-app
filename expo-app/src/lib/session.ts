@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured, supabaseUrl } from './supabase';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -76,7 +76,42 @@ export async function signOutUser() {
 // through the spotter:// deep link, then we exchange the code manually.
 export type SsoProvider = 'google' | 'facebook';
 
+/** Thrown when the provider is switched off in Supabase Auth. */
+export class ProviderDisabledError extends Error {
+  constructor(public provider: SsoProvider) {
+    super(
+      `${provider === 'google' ? 'Google' : 'Facebook'} sign-in is not set up yet. ` +
+        'Use your email and password for now.',
+    );
+    this.name = 'ProviderDisabledError';
+  }
+}
+
+// GoTrue only reports a disabled provider when the authorize URL is actually
+// requested, so handing that URL straight to the browser showed the raw
+// {"msg":"Unsupported provider..."} JSON in a tab. Probe the plain authorize
+// endpoint first and fail with something a person can read. Cached per
+// session; a network failure falls through so the real flow reports it.
+const providerChecked = new Set<SsoProvider>();
+
+async function assertProviderEnabled(provider: SsoProvider) {
+  if (providerChecked.has(provider)) return;
+  let disabled = false;
+  try {
+    const res = await fetch(`${supabaseUrl}/auth/v1/authorize?provider=${provider}`);
+    if (res.status === 400) {
+      const body = (await res.json().catch(() => null)) as { msg?: string } | null;
+      disabled = /not enabled|unsupported provider/i.test(body?.msg ?? '');
+    }
+  } catch {
+    return; // offline or blocked — let the normal flow surface it
+  }
+  if (disabled) throw new ProviderDisabledError(provider);
+  providerChecked.add(provider);
+}
+
 export async function signInWithProvider(provider: SsoProvider) {
+  await assertProviderEnabled(provider);
   // Drop any anonymous guest session so the SSO account is a clean identity.
   const { data: existing } = await supabase.auth.getSession();
   if (existing.session?.user?.is_anonymous) await supabase.auth.signOut();

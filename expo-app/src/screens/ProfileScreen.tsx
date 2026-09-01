@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Segmented, Toggle } from '../components/ui';
 import { signOutUser } from '../lib/session';
-import { calProviderLabel, CalProvider, Role } from '../state/models';
+import { calProviderLabel, CalProvider } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -132,7 +132,7 @@ export function ProfileScreen() {
 
       {/* become a coach (user) */}
       {role === 'USER' && (
-        <RoleCard title="Become a coach" body="List your services, get booked, and earn. Subscription unlocks scheduling, payments & a public coach profile." buttonLabel="Start coaching" onPress={() => s.set('role', 'COACH')} />
+        <RoleCard title="Become a coach" body="List your services, get booked, and earn. Subscription unlocks scheduling, payments & a public coach profile." buttonLabel="Start coaching" onPress={() => s.set('writeError', 'Coach subscriptions are not open yet.')} />
       )}
 
       {/* coach subscription + tools */}
@@ -150,20 +150,6 @@ export function ProfileScreen() {
           </Card>
         </>
       )}
-
-      {/* demo role pills — User | Coach | Admin */}
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Demo role</SectionHeading>
-      <Segmented
-        options={[
-          { key: 'USER', label: 'User' },
-          { key: 'COACH', label: 'Coach' },
-          { key: 'ADMIN', label: 'Admin' },
-        ]}
-        selected={s.role}
-        onSelect={(k) => s.set('role', k as Role)}
-        fontSize={13}
-        pad={8}
-      />
 
       {/* ---------------------------- TRAINING ---------------------------- */}
       <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Training</SectionHeading>

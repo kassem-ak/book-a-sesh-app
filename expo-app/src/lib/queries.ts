@@ -187,21 +187,13 @@ export async function submitSportRequest(name: string, kind: string) {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// The demo directory carries local ids ('c1'…) while `create_booking_for_coach`
-// expects a users.id uuid. The seeded coaches share their display name with the
-// demo rows, so resolve through that once per session.
-const coachIdCache = new Map<string, string>();
-
+// `create_booking_for_coach` expects a users.id uuid. Coaches loaded from the
+// database already carry one; the offline sample rows ('c1'…) do not, and the
+// client cannot read public.users to translate them, so those are simply not
+// bookable.
 async function resolveCoachId(coach: { id: string; name: string }) {
   if (UUID_RE.test(coach.id)) return coach.id;
-  const cached = coachIdCache.get(coach.name);
-  if (cached) return cached;
-  const { data, error } = await supabase.from('users').select('id').eq('name', coach.name).limit(1);
-  if (error) throw error;
-  const id = data?.[0]?.id as string | undefined;
-  if (!id) throw new Error(`${coach.name} is not bookable yet.`);
-  coachIdCache.set(coach.name, id);
-  return id;
+  throw new Error(`${coach.name} is not bookable yet.`);
 }
 
 export async function createBooking(
@@ -249,4 +241,17 @@ export async function addCoupon(shopId: string, code: string, pct: number) {
     .from('shop_coupons')
     .insert({ shop_id: shopId, code, kind: 'percent', value: pct });
   if (error) throw error;
+}
+// ---- account role -----------------------------------------------------------
+// The role is a property of the account, not a demo switch: a designated
+// platform admin outranks everything, otherwise an active coach subscription
+// makes you a coach, and everyone else is a regular user.
+export type AccountRole = 'USER' | 'COACH' | 'ADMIN';
+
+export async function fetchAccountRole(): Promise<AccountRole> {
+  await ensureAppSession();
+  // Read through the RPC, not the table: the client has no SELECT on
+  // public.users (it holds emails and is_admin), and must not get one.
+  const role = await callRpc<string>('my_account_role');
+  return role === 'ADMIN' || role === 'COACH' ? role : 'USER';
 }

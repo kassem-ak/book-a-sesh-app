@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   approveSuggestion as approveSuggestionRemote,
+  fetchAccountRole,
   checkoutShopOrder as checkoutShopOrderRemote,
   createBooking as createBookingRemote,
   createCommunity as createCommunityRemote,
@@ -403,6 +404,7 @@ export interface SpotterState {
   openSheet(id: string): void;
   closeSheet(): void;
   openRsvp(ref: { venueId: string; kind: 'court' | 'event'; id: string }): boolean;
+  refreshRole(): Promise<void>;
   rsvpTotal(): number;
   confirmRsvp(): void;
   openRegistration(kind: 'community' | 'venue' | 'shop'): void;
@@ -923,6 +925,15 @@ export const useStore = create<SpotterState>((set, get) => ({
   cartTotal: () => Object.values(get().cart).reduce((a, b) => a + b, 0),
 
   openPerson: (id) => set({ openId: id, overlay: 'person', bookPkg: 0 }),
+  // Role follows the account, so it is read from the server rather than
+  // chosen in the UI. Failures leave the current value alone.
+  refreshRole: async () => {
+    try {
+      set({ role: await fetchAccountRole() });
+    } catch {
+      /* offline or unauthenticated - keep whatever we already had */
+    }
+  },
   openBooking: () => set({ overlay: 'booking', booked: false, bookPkg: 0, writeError: null }),
   backToPerson: () => set({ overlay: 'person', booked: false }),
   confirmBooking: async () => {

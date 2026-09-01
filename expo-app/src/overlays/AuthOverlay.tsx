@@ -52,7 +52,16 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
       // Web redirects away; native resolves here once the deep link returns.
       onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sign-in failed');
+      const raw = e instanceof Error ? e.message : '';
+      // Until the provider is turned on in Supabase Auth, GoTrue answers
+      // "Unsupported provider: provider is not enabled" — not something to
+      // show a person.
+      const label = provider === 'google' ? 'Google' : 'Facebook';
+      setError(
+        /provider is not enabled|unsupported provider/i.test(raw)
+          ? `${label} sign-in is not set up yet. Use your email and password for now.`
+          : raw || 'Sign-in failed',
+      );
     } finally {
       setBusy(false);
     }
