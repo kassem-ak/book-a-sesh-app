@@ -75,7 +75,13 @@ export function VoltButton({
         justifyContent: 'center',
       }}
     >
-      <Text style={[t.overlayTitle, { fontSize: 16, color: enabled ? c.ink : c.txt3 }]}>{label}</Text>
+      {/* Android clips shrink-to-fit Text with custom fonts; stretch instead. */}
+      <Text
+        numberOfLines={1}
+        style={[t.overlayTitle, { fontSize: 16, color: enabled ? c.ink : c.txt3, alignSelf: 'stretch', textAlign: 'center' }]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -195,7 +201,7 @@ export function Segmented({
             onPress={() => onSelect(o.key)}
             style={{ flex: 1, alignItems: 'center', paddingVertical: pad, borderRadius: inner, backgroundColor: active ? c.volt : 'transparent' }}
           >
-            <Text style={[t.label, { fontSize, color: active ? c.ink : c.txt2 }]}>{o.label}</Text>
+            <Text numberOfLines={1} style={[t.label, { fontSize, color: active ? c.ink : c.txt2, alignSelf: 'stretch', textAlign: 'center' }]}>{o.label}</Text>
           </Pressable>
         );
       })}
@@ -220,7 +226,7 @@ export function Chip({ label, active, onPress, fill }: { label: string; active: 
         paddingVertical: 9,
       }}
     >
-      <Text style={[t.labelSm, { color: active ? c.ink : c.txt2 }]}>{label}</Text>
+      <Text numberOfLines={1} style={[t.labelSm, { color: active ? c.ink : c.txt2, textAlign: fill ? 'center' : 'auto', alignSelf: fill ? 'stretch' : 'auto' }]}>{label}</Text>
     </Pressable>
   );
 }

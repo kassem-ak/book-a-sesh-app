@@ -185,7 +185,32 @@ export async function submitSportRequest(name: string, kind: string) {
   return callRpc<string>('submit_sport_request', { p_name: name, p_kind: kind });
 }
 
-export async function createBooking(coachId: string, scheduledFor: string, slotLabel: string, packageId?: string | null) {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The demo directory carries local ids ('c1'…) while `create_booking_for_coach`
+// expects a users.id uuid. The seeded coaches share their display name with the
+// demo rows, so resolve through that once per session.
+const coachIdCache = new Map<string, string>();
+
+async function resolveCoachId(coach: { id: string; name: string }) {
+  if (UUID_RE.test(coach.id)) return coach.id;
+  const cached = coachIdCache.get(coach.name);
+  if (cached) return cached;
+  const { data, error } = await supabase.from('users').select('id').eq('name', coach.name).limit(1);
+  if (error) throw error;
+  const id = data?.[0]?.id as string | undefined;
+  if (!id) throw new Error(`${coach.name} is not bookable yet.`);
+  coachIdCache.set(coach.name, id);
+  return id;
+}
+
+export async function createBooking(
+  coach: { id: string; name: string },
+  scheduledFor: string,
+  slotLabel: string,
+  packageId?: string | null,
+) {
+  const coachId = await resolveCoachId(coach);
   return callRpc<string>('create_booking_for_coach', {
     p_coach: coachId,
     p_scheduled_for: scheduledFor,

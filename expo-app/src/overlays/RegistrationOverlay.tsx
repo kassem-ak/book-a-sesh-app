@@ -138,7 +138,9 @@ export function RegistrationOverlay() {
             {copy.sentLine}
           </Text>
           <Text style={[t.caption, { color: c.txt3, marginTop: 14, textAlign: 'center' }]}>
-            Tracked as an admin approval item.
+            {kind === 'shop'
+              ? 'Tracked as an admin approval item.'
+              : 'Queued for admin review on this device — it is not sent to a server yet.'}
           </Text>
           <View style={{ width: '100%', maxWidth: 260, marginTop: 26 }}>
             <TapTarget label="Done, close registration" onPress={s.closeOverlay}>

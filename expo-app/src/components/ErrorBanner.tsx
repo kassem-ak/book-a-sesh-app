@@ -33,9 +33,11 @@ export function ErrorBanner() {
         position: 'absolute',
         left: 14,
         right: 14,
-        bottom: insets.bottom + 86,
+        // Docked under the header rather than above the tab bar: overlays with
+        // a sticky total/CTA footer (booking, checkout) drew straight over it.
+        top: insets.top + 72,
         opacity: anim,
-        transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+        transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-16, 0] }) }],
       }}
     >
       <Pressable

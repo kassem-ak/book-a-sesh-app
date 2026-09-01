@@ -182,7 +182,7 @@ export function ProfileScreen() {
           title="My communities"
           body="Crews you own, moderate or follow"
           badge={joinedCount > 0 ? String(joinedCount) : undefined}
-          onPress={() => s.set('tab', 'community')}
+          onPress={() => s.set('overlay', 'myCommunities')}
         />
         <RowDivider />
         <GroupRow

@@ -118,9 +118,9 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
           setMode(mode === 'in' ? 'up' : 'in');
           setError(null);
         }}
-        style={{ marginTop: 18, alignItems: 'center' }}
+        style={{ marginTop: 18 }}
       >
-        <Text style={[t.label, { color: c.accent }]}>
+        <Text style={[t.label, { color: c.accent, textAlign: 'center' }]}>
           {mode === 'in' ? 'New here? Create an account' : 'Already have an account? Sign in'}
         </Text>
       </Pressable>
@@ -145,12 +145,16 @@ function SsoButton({ label, icon, onPress, disabled }: { label: string; icon: 'c
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 10,
+        gap: 8,
+        paddingHorizontal: 10,
         opacity: disabled ? 0.6 : 1,
       }}
     >
       <Icon name={icon} size={18} color={c.txt} />
-      <Text style={[t.label, { color: c.txt }]}>{label}</Text>
+      {/* flexShrink:0 + trailing pad: Android clips custom-font labels laid
+          out in a row when it measures them a hair too narrow. */}
+      {/* No line clamp: clamping made Android ellipsize these short labels. */}
+      <Text style={[t.label, { color: c.txt, flexShrink: 0, paddingRight: 2 }]}>{label}</Text>
     </Pressable>
   );
 }

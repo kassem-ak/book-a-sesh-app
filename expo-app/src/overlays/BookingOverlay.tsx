@@ -19,7 +19,7 @@ export function BookingOverlay() {
 
   if (s.booked) {
     return (
-      <OverlayScaffold header={<OverlayHeader title="Confirmed" onBack={s.closeOverlay} />}>
+      <OverlayScaffold header={<OverlayHeader title="Booking confirmed" onBack={s.closeOverlay} />}>
         <View style={{ paddingHorizontal: 18, alignItems: 'center', paddingTop: 60 }}>
           <View style={{ width: 74, height: 74, borderRadius: 999, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="check" size={34} color={c.ink} />
@@ -27,10 +27,6 @@ export function BookingOverlay() {
           <Text style={[t.overlayTitle, { fontSize: 24, color: c.txt, marginTop: 18 }]}>You are booked!</Text>
           <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
             {selectedPkg.name} with {p.name.split(' ')[0]} · {D.bookingMonthName} {s.bookDay} · {D.slotDefs[s.bookSlot]}
-          </Text>
-          {/* spec 6.4: approval line, then the calendar-sync lines */}
-          <Text style={[t.bodySm, { color: c.txt2, marginTop: 10, textAlign: 'center' }]}>
-            Waiting for the coach to approve — you will be notified.
           </Text>
           {s.calSyncOn && (
             <>
@@ -45,7 +41,7 @@ export function BookingOverlay() {
           )}
           <View style={{ height: 24 }} />
           <View style={{ width: '100%' }}>
-            <VoltButton label="View my bookings" onPress={s.goToBookings} />
+            <VoltButton label="View in bookings" onPress={s.goToBookings} />
           </View>
         </View>
       </OverlayScaffold>

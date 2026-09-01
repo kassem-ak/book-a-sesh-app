@@ -36,6 +36,7 @@ import {
   CalProvider,
   coachPackageOptions,
 } from './models';
+import { rsvpSubject } from './courtsData';
 import * as D from './sampleData';
 
 // ---- number helpers (mirror the Kotlin/JS behavior) ----
@@ -95,9 +96,31 @@ const communityCode = (name: string) => {
 const marginGet = (m: Margins, k: string) => m[k as MarginKey];
 const shareGet = (s: Shares, k: string) => s[k as ShareKey];
 
+// PostgREST rejects with a plain `{ message, details, hint, code }` object
+// rather than an Error, so `String(error)` rendered "[object Object]" in the
+// banner. Pull the message out of whatever shape actually arrives.
+export const errorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object') {
+    const e = error as Record<string, unknown>;
+    // Postgres constraint violations are accurate but unreadable — the raw
+    // "duplicate key value violates unique constraint" text reached the banner.
+    if (e.code === '23505') return 'That slot is already booked. Pick another time.';
+    if (e.code === '23503') return 'That item is no longer available.';
+    if (e.code === '42501') return 'You do not have permission to do that.';
+    const text = [e.message, e.error_description, e.details, e.hint].find(
+      (part): part is string => typeof part === 'string' && part.trim().length > 0,
+    );
+    if (text) return text;
+    if (typeof e.code === 'string') return `Request failed (${e.code}).`;
+  }
+  return 'Something went wrong. Please try again.';
+};
+
 const errorState = (error: unknown) => ({
   writeBusy: null,
-  writeError: error instanceof Error ? error.message : String(error),
+  writeError: errorMessage(error),
 });
 
 const roleFromDb = (role: string | null | undefined): CommunityRole =>
@@ -174,8 +197,16 @@ export interface SpotterState {
   searchRadius: number;
 
   // --- court RSVP (handoff v2 section C) ---
-  rsvpTarget: string | null;
-  rsvpPricePerHour: number;
+  rsvpTarget: string | null;      // display title, for copy only
+  rsvpRef: { venueId: string; kind: 'court' | 'event'; id: string } | null;
+  rsvpPricePerHour: number;       // per-hour for courts, flat fee for events
+  rsvpPerHour: boolean;
+  // Confirmed court reservations. There is no court_reservations table yet, so
+  // these live in the session and are surfaced in Bookings.
+  courtReservations: {
+    id: string; title: string; venue: string; kind: string;
+    type: string; hours: number; gear: boolean; coach: boolean; total: number;
+  }[];
   rsvpType: string;
   rsvpHours: number;
   rsvpGear: boolean;
@@ -371,8 +402,9 @@ export interface SpotterState {
   closeOverlay(): void;
   openSheet(id: string): void;
   closeSheet(): void;
-  openRsvp(target: string, pricePerHour: number): void;
+  openRsvp(ref: { venueId: string; kind: 'court' | 'event'; id: string }): boolean;
   rsvpTotal(): number;
+  confirmRsvp(): void;
   openRegistration(kind: 'community' | 'venue' | 'shop'): void;
   recordRegistration(kind: string, name: string, meta: string): void;
   decideRegistration(id: string, decision: string): void;
@@ -454,7 +486,10 @@ export const useStore = create<SpotterState>((set, get) => ({
   searchRadius: 12,
 
   rsvpTarget: null,
+  rsvpRef: null,
   rsvpPricePerHour: 40,
+  rsvpPerHour: true,
+  courtReservations: [],
   rsvpType: 'Single',
   rsvpHours: 1,
   rsvpGear: false,
@@ -897,7 +932,12 @@ export const useStore = create<SpotterState>((set, get) => ({
     const pkg = coachPackageOptions(person)[s.bookPkg] ?? coachPackageOptions(person)[0];
     set({ writeBusy: 'booking', writeError: null });
     try {
-      await createBookingRemote(person.id, scheduledFor(s.bookDay, slot), `${pkg.name} - ${D.bookingMonthName} ${s.bookDay} - ${slot}`, pkg.packageId);
+      await createBookingRemote(
+        { id: person.id, name: person.name },
+        scheduledFor(s.bookDay, slot),
+        `${pkg.name} - ${D.bookingMonthName} ${s.bookDay} - ${slot}`,
+        pkg.packageId,
+      );
       set({ booked: true, writeBusy: null });
     } catch (error) {
       set(errorState(error));
@@ -918,30 +958,70 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   // Court RSVP. The per-hour price is captured when the sheet opens so the
   // total is computed from venue data, never from a client-typed number.
-  openRsvp: (target, pricePerHour) =>
+  // Opening resolves the price from venue data by id. Returns false when the
+  // target cannot be priced, so the caller refuses rather than guesses.
+  openRsvp: (ref) => {
+    const subject = rsvpSubject(ref);
+    if (!subject) {
+      set({ writeError: 'That slot is unavailable right now.' });
+      return false;
+    }
     set({
       sheet: 'rsvp',
-      rsvpTarget: target,
-      rsvpPricePerHour: pricePerHour,
+      rsvpRef: ref,
+      rsvpTarget: subject.title,
+      rsvpPricePerHour: subject.price,
+      rsvpPerHour: subject.perHour,
       rsvpType: 'Single',
       rsvpHours: 1,
       rsvpGear: false,
       rsvpCoach: false,
-    }),
-  // total = court rate x hours + equipment (6/h) + coach (45 flat)
+    });
+    return true;
+  },
+  // Courts bill per hour; tournament entry is a flat per-team fee, so hours and
+  // hourly equipment hire do not apply to it.
   rsvpTotal: () => {
-    const s = get();
-    const base = s.rsvpPricePerHour * s.rsvpHours;
-    const gear = s.rsvpGear ? 6 * s.rsvpHours : 0;
-    const coach = s.rsvpCoach ? 45 : 0;
-    return base + gear + coach;
+    const st = get();
+    if (!st.rsvpPerHour) return st.rsvpPricePerHour + (st.rsvpCoach ? 45 : 0);
+    const base = st.rsvpPricePerHour * st.rsvpHours;
+    const gear = st.rsvpGear ? 6 * st.rsvpHours : 0;
+    return base + gear + (st.rsvpCoach ? 45 : 0);
+  },
+  confirmRsvp: () => {
+    const st = get();
+    const subject = rsvpSubject(st.rsvpRef);
+    if (!subject) {
+      set({ sheet: null, writeError: 'That slot is unavailable right now.' });
+      return;
+    }
+    set({
+      courtReservations: [
+        ...st.courtReservations,
+        {
+          id: `rsvp-${st.courtReservations.length}-${Date.now()}`,
+          title: subject.title,
+          venue: subject.venue.name,
+          kind: subject.ref.kind,
+          type: st.rsvpType,
+          hours: st.rsvpPerHour ? st.rsvpHours : 1,
+          gear: st.rsvpGear,
+          coach: st.rsvpCoach,
+          total: st.rsvpTotal(),
+        },
+      ],
+      sheet: null,
+    });
+    // "Add a coach" routes into the coach calendar; go through openBooking so a
+    // previous confirmation screen is cleared first.
+    if (st.rsvpCoach) get().openBooking();
   },
 
   recordRegistration: (kind, name, meta) =>
     set((state) => ({
       pendingRegistrations: [
         ...state.pendingRegistrations,
-        { id: `reg-${Date.now()}`, kind, name, meta },
+        { id: `reg-${state.pendingRegistrations.length}-${Date.now()}`, kind, name, meta },
       ],
     })),
   decideRegistration: (id, decision) =>

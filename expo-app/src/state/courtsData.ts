@@ -108,30 +108,53 @@ export const venues: Venue[] = [
 export const venueById = (id: string) => venues.find((v) => v.id === id) ?? venues[0];
 
 /**
- * Pull the integer out of a price string ("$40/h" -> 40), per delta section C.
- * Falls back to the prototype's default of 40 when nothing parses.
+ * Pull the integer out of a price string ("$40/h" -> 40, "$40/TEAM" -> 40).
+ * Returns null when nothing sensible parses — callers must not invent a price.
  */
-export const parsePrice = (price: string | null | undefined): number => {
-  const n = parseInt(String(price ?? '').replace(/[^0-9]/g, ''), 10);
-  return Number.isFinite(n) && n > 0 ? n : 40;
+export const parsePrice = (price: string | null | undefined): number | null => {
+  const match = String(price ?? '').match(/(\d[\d,]*)/);
+  if (!match) return null;
+  const n = parseInt(match[1].replace(/,/g, ''), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
 };
 
-/** The venue that owns a court/event with this name. */
-export const venueForTarget = (target: string | null | undefined): Venue | undefined => {
-  if (!target) return undefined;
-  return venues.find(
-    (v) => v.courts.some((c) => c.name === target) || v.events.some((e) => e.title === target),
-  );
+/** A specific court or event, addressed by ids rather than a display name. */
+export type RsvpRef = {
+  venueId: string;
+  kind: 'court' | 'event';
+  id: string;
 };
 
-/** Per-hour base price used by the RSVP maths, keyed by court/event name. */
-export const priceForTarget = (target: string | null | undefined): number => {
-  if (!target) return 40;
-  for (const v of venues) {
-    const court = v.courts.find((c) => c.name === target);
-    if (court) return parsePrice(court.price);
-    const event = v.events.find((e) => e.title === target);
-    if (event) return parsePrice(event.price);
+export type RsvpSubject = {
+  ref: RsvpRef;
+  venue: Venue;
+  title: string;
+  /** Per-hour for courts; a flat entry fee for events. */
+  price: number;
+  perHour: boolean;
+  detail: string;
+};
+
+/**
+ * Resolve a court/event to its venue and price. Ids are only unique within a
+ * venue, so both parts are required — matching on display name alone mispriced
+ * same-named courts across venues.
+ */
+export const rsvpSubject = (ref: RsvpRef | null | undefined): RsvpSubject | null => {
+  if (!ref) return null;
+  const venue = venues.find((v) => v.id === ref.venueId);
+  if (!venue) return null;
+
+  if (ref.kind === 'court') {
+    const court = venue.courts.find((c) => c.id === ref.id);
+    const price = parsePrice(court?.price);
+    if (!court || price === null) return null;
+    return { ref, venue, title: court.name, price, perHour: true, detail: court.players };
   }
-  return 40;
+
+  const event = venue.events.find((e) => e.id === ref.id);
+  const price = parsePrice(event?.price);
+  if (!event || price === null) return null;
+  // Tournaments are a flat per-team entry fee, not an hourly rate.
+  return { ref, venue, title: event.title, price, perHour: false, detail: event.dates };
 };

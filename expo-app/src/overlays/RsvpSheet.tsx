@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Sheet } from '../components/Sheet';
 import { Row, Segmented, SectionHeading, Toggle, VoltButton } from '../components/ui';
-import { priceForTarget, venueForTarget } from '../state/courtsData';
+import { rsvpSubject } from '../state/courtsData';
 import { fmtMoney, useStore } from '../state/store';
 import { radii, useTheme } from '../theme';
 
@@ -21,44 +21,36 @@ export function rsvpTotal(pricePerHour: number, hours: number, gear: boolean, co
   return pricePerHour * hours + (gear ? GEAR_PER_HOUR * hours : 0) + (coach ? COACH_FLAT : 0);
 }
 
-// `rsvpTarget/rsvpType/rsvpHours/rsvpGear/rsvpCoach` and `sheet` are added to
-// the store by the integrator in this same round — read them loosely.
-type LooseState = {
-  set: (key: string, value: unknown) => void;
-  rsvpTarget?: string | null;
-  rsvpType?: string;
-  rsvpHours?: number;
-  rsvpGear?: boolean;
-  rsvpCoach?: boolean;
-};
-
 export function RsvpSheet() {
   const { c, t } = useTheme();
-  const s = useStore() as unknown as LooseState;
+  const s = useStore();
 
-  const target = s.rsvpTarget ?? null;
-  const type = (s.rsvpType ?? 'Single') as RsvpType;
-  const hours = Math.max(MIN_HOURS, Math.round(Number(s.rsvpHours ?? MIN_HOURS)) || MIN_HOURS);
-  const gear = Boolean(s.rsvpGear);
-  const coach = Boolean(s.rsvpCoach);
+  const subject = rsvpSubject(s.rsvpRef);
+  const target = subject?.title ?? s.rsvpTarget ?? null;
+  const type = s.rsvpType as RsvpType;
+  const hours = Math.max(MIN_HOURS, Math.round(Number(s.rsvpHours)) || MIN_HOURS);
+  const gear = s.rsvpGear;
+  const coach = s.rsvpCoach;
 
-  const venue = venueForTarget(target);
-  const perHour = priceForTarget(target);
-  const total = rsvpTotal(perHour, hours, gear, coach);
+  const venue = subject?.venue;
+  const perHour = s.rsvpPerHour;
+  // One source of truth for the money: the store computes what gets recorded.
+  const total = s.rsvpTotal();
 
   const close = () => s.set('sheet', null);
   const setHours = (n: number) => s.set('rsvpHours', Math.min(MAX_HOURS, Math.max(MIN_HOURS, n)));
 
-  const confirm = () => {
-    s.set('sheet', null);
-    // "Add a coach" routes into the coach calendar flow (delta section E).
-    if (coach) s.set('overlay', 'booking');
-  };
+  // Records the reservation and routes into the coach calendar when asked.
+  const confirm = () => s.confirmRsvp();
 
   return (
     <Sheet
       title={target ? 'RSVP · ' + target : 'RSVP'}
-      subtitle={(venue ? venue.name + ' · ' : '') + fmtMoney(perHour) + ' / hour'}
+      subtitle={
+        (venue ? venue.name + ' · ' : '') +
+        fmtMoney(s.rsvpPricePerHour) +
+        (perHour ? ' / hour' : ' entry')
+      }
       onClose={close}
       footer={
         <VoltButton label={coach ? 'Continue to coach calendar' : 'Confirm RSVP'} onPress={confirm} />
@@ -73,6 +65,10 @@ export function RsvpSheet() {
         pad={11}
       />
 
+      {/* A tournament is a flat per-team entry fee, so hours and hourly
+          equipment hire do not apply to it. */}
+      {perHour && (
+        <>
       <SectionHeading style={{ color: c.txt3, marginTop: 20, marginBottom: 9 }}>Number of hours</SectionHeading>
       <Row
         style={{
@@ -113,6 +109,8 @@ export function RsvpSheet() {
         onChange={(v) => s.set('rsvpGear', v)}
         style={{ marginTop: 20 }}
       />
+        </>
+      )}
       <ToggleRow
         title="Add a coach"
         subtitle={"Opens the coach's calendar next · +" + fmtMoney(COACH_FLAT)}

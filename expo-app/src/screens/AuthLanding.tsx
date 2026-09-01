@@ -97,7 +97,7 @@ export function AuthLanding() {
             <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Are you?</Text>
             <Row style={{ marginTop: 46, justifyContent: 'center' }} gap={12}>
               <RolePill label="Coach/Teacher" active={kind === 'coach'} onPress={() => setKind('coach')} />
-              <RolePill label="Trainee/ Student" active={kind === 'trainee'} onPress={() => setKind('trainee')} />
+              <RolePill label="Trainee/Student" active={kind === 'trainee'} onPress={() => setKind('trainee')} />
             </Row>
             <View style={{ height: 40 }} />
             <VoltButton
@@ -200,7 +200,7 @@ function NextButton({
         gap: 10,
       }}
     >
-      <Text style={[t.label, { color: c.txt }]}>{label}</Text>
+      <Text numberOfLines={1} style={[t.label, { color: c.txt, flexShrink: 0, paddingRight: 2 }]}>{label}</Text>
       <Icon name="chevron-right" size={15} color={c.txt2} />
     </Pressable>
   );

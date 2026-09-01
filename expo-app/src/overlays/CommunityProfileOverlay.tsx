@@ -107,7 +107,9 @@ export function CommunityProfileOverlay() {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Row gap={8} style={{ alignItems: 'flex-start' }}>
                   <Text style={[t.overlayTitle, { color: c.txt, flex: 1 }]}>{cm.sport}</Text>
-                  <Icon name="check-circle" size={17} color={c.accent} />
+                  {/* Verified check belongs to official communities only — it
+                      was rendering unconditionally, next to a missing badge. */}
+                  {cm.official && <Icon name="check-circle" size={17} color={c.accent} />}
                   {canManage && (
                     <Pressable
                       onPress={() => s.openEditCommunity()}

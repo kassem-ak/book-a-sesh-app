@@ -25,16 +25,10 @@ const store = () => useStore.getState() as unknown as LooseSetter;
 // Board note on the venue avatar: "Stories can be added" -> sheet: 'story'.
 const openAddStory = () => store().set('sheet', 'story');
 
-// Court / event RSVP -> seed the RSVP sheet state, then raise the sheet.
-const openRsvp = (target: string) => {
-  const s = store();
-  s.set('rsvpTarget', target);
-  s.set('rsvpType', 'Single');
-  s.set('rsvpHours', 1);
-  s.set('rsvpGear', false);
-  s.set('rsvpCoach', false);
-  s.set('sheet', 'rsvp');
-};
+// Court / event RSVP. The store resolves the price from venue data by id and
+// refuses to open when the target cannot be priced.
+const openRsvp = (venueId: string, kind: 'court' | 'event', id: string) =>
+  useStore.getState().openRsvp({ venueId, kind, id });
 
 export function CourtsScreen() {
   const [venueId, setVenueId] = useState<string | null>(null);
@@ -316,7 +310,7 @@ function VenueProfile({ id, entryTab, onBack }: { id: string; entryTab: Tab; onB
                       <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]}>{court.players}</Text>
                     </View>
                     <Text style={[t.price, { fontSize: 16, color: c.accent }]}>{court.price}</Text>
-                    <RsvpButton target={court.name} />
+                    <RsvpButton venueId={v.id} kind="court" id={court.id} title={court.name} />
                   </Row>
                 </Card>
               ))}
@@ -344,7 +338,7 @@ function VenueProfile({ id, entryTab, onBack }: { id: string; entryTab: Tab; onB
                       <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]}>{ev.dates}</Text>
                     </View>
                     <Text style={[t.priceSm, { color: c.accent }]}>{ev.price}</Text>
-                    <RsvpButton target={ev.title} />
+                    <RsvpButton venueId={v.id} kind="event" id={ev.id} title={ev.title} />
                   </Row>
                 </Card>
               ))}
@@ -378,19 +372,29 @@ function VenueProfile({ id, entryTab, onBack }: { id: string; entryTab: Tab; onB
       </ScrollView>
 
       {tab === 'gallery' ? (
-        <ScrollAwareFab anim={anim} visible={visible} icon="image" label="Add photo to gallery" />
+        <ScrollAwareFab anim={anim} visible={visible} icon="image" label="Add photo to gallery" onPress={openAddStory} />
       ) : null}
     </View>
   );
 }
 
-function RsvpButton({ target }: { target: string }) {
+function RsvpButton({
+  venueId,
+  kind,
+  id,
+  title,
+}: {
+  venueId: string;
+  kind: 'court' | 'event';
+  id: string;
+  title: string;
+}) {
   const { c, t } = useTheme();
   return (
     <Pressable
-      onPress={() => openRsvp(target)}
+      onPress={() => openRsvp(venueId, kind, id)}
       accessibilityRole="button"
-      accessibilityLabel={'RSVP for ' + target}
+      accessibilityLabel={'RSVP for ' + title}
       hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
       style={{
         borderRadius: radii.pill,
