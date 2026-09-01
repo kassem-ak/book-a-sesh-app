@@ -6,10 +6,15 @@ import { calProviderLabel, CalProvider, Role } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
+// Mirrors the sample "Upcoming" list rendered by BookingsOverlay — the store has
+// no bookings collection yet, so the badge count is pinned to that sample data.
+const UPCOMING_SESSIONS = 2;
+
 export function ProfileScreen() {
   const { c, t } = useTheme();
   const s = useStore();
   const role = s.role;
+  const joinedCount = s.joinedCommunities.length;
 
   const stats: [string, string][] =
     role === 'COACH'
@@ -105,7 +110,13 @@ export function ProfileScreen() {
                     <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{cert.issuer} · {cert.year}</Text>
                   </View>
                   <MicroBadge label={cert.verified ? 'Verified' : 'Pending'} bg={cert.verified ? alpha(c.volt, 0.12) : alpha(c.amber, 0.16)} fg={cert.verified ? c.accent : c.amberText} />
-                  <Pressable onPress={() => s.removeCert(cert.id)} style={{ marginLeft: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                  <Pressable
+                    onPress={() => s.removeCert(cert.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${cert.name}`}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    style={{ marginLeft: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}
+                  >
                     <Icon name="x" size={11} color={c.txt2} />
                   </Pressable>
                 </Row>
@@ -140,46 +151,72 @@ export function ProfileScreen() {
         </>
       )}
 
-      {/* my training */}
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Account</SectionHeading>
-      {s.authEmail ? (
-        <SettingsRow
-          icon="log-out"
-          title={s.authName ?? 'Signed in'}
-          body={`${s.authEmail} · tap to sign out`}
-          onPress={() => {
-            void signOutUser().catch(() => {});
-          }}
-        />
-      ) : (
-        <SettingsRow
-          icon="log-in"
-          title="Sign in or create account"
-          body="Guest mode now · an account saves your activity"
-          onPress={() => s.set('overlay', 'auth')}
-        />
-      )}
-
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>My training</SectionHeading>
-      <SettingsRow icon="clock" title="Bookings" body="Packages, upcoming sessions and past ratings" onPress={s.openBookings} />
-      <View style={{ height: 10 }} />
-      <SettingsRow icon="bell" title="Notifications" body="Platform updates and daily plan briefing" onPress={s.openNotifs} />
-      <View style={{ height: 10 }} />
-      {/* Board annotation: "Add my Communities" */}
-      <SettingsRow
-        icon="users"
-        title="My Communities"
-        body="Crews you own, moderate or follow"
-        onPress={() => s.set('tab', 'community')}
+      {/* demo role pills — User | Coach | Admin */}
+      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Demo role</SectionHeading>
+      <Segmented
+        options={[
+          { key: 'USER', label: 'User' },
+          { key: 'COACH', label: 'Coach' },
+          { key: 'ADMIN', label: 'Admin' },
+        ]}
+        selected={s.role}
+        onSelect={(k) => s.set('role', k as Role)}
+        fontSize={13}
+        pad={8}
       />
 
-      {/* prefs */}
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Notification preferences</SectionHeading>
-      <ToggleCard title="Push notifications" body="Session changes, messages and platform updates" value={s.pushOn} onChange={(v) => s.set('pushOn', v)} />
-      <View style={{ height: 10 }} />
-      <ToggleCard title="Daily plan briefing" body="Morning summary of sessions and community events" value={s.dailyPlanOn} onChange={(v) => s.set('dailyPlanOn', v)} />
-      <View style={{ height: 10 }} />
-      <ToggleCard title="Calendar sync" body="Push confirmed sessions and changes to your calendar" value={s.calSyncOn} onChange={(v) => s.set('calSyncOn', v)} />
+      {/* ---------------------------- TRAINING ---------------------------- */}
+      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Training</SectionHeading>
+      <Card style={{ paddingHorizontal: 15 }}>
+        <GroupRow
+          icon="clock"
+          title="My bookings"
+          body={`${UPCOMING_SESSIONS} upcoming sessions · packages and past ratings`}
+          badge={String(UPCOMING_SESSIONS)}
+          onPress={s.openBookings}
+        />
+        <RowDivider />
+        {/* Board annotation: "Add my Communities" */}
+        <GroupRow
+          icon="users"
+          title="My communities"
+          body="Crews you own, moderate or follow"
+          badge={joinedCount > 0 ? String(joinedCount) : undefined}
+          onPress={() => s.set('tab', 'community')}
+        />
+        <RowDivider />
+        <GroupRow
+          icon="bell"
+          title="Notifications"
+          body="Platform updates and daily plan briefing"
+          dot={!s.notifSeen}
+          onPress={s.openNotifs}
+        />
+        <RowDivider />
+        <GroupRow
+          icon="smartphone"
+          title="Push notifications"
+          body="Session changes, messages and platform updates"
+          value={s.pushOn}
+          onToggle={(v) => s.set('pushOn', v)}
+        />
+        <RowDivider />
+        <GroupRow
+          icon="sunrise"
+          title="Daily plan briefing"
+          body="Morning summary of sessions and community events"
+          value={s.dailyPlanOn}
+          onToggle={(v) => s.set('dailyPlanOn', v)}
+        />
+        <RowDivider />
+        <GroupRow
+          icon="calendar"
+          title="Calendar sync"
+          body={`${calProviderLabel[s.calProvider]} · sessions auto pushed`}
+          value={s.calSyncOn}
+          onToggle={(v) => s.set('calSyncOn', v)}
+        />
+      </Card>
       {s.calSyncOn && (
         <>
           <View style={{ marginTop: 10 }}>
@@ -195,28 +232,29 @@ export function ProfileScreen() {
         </>
       )}
 
-      {/* appearance */}
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Appearance</SectionHeading>
-      <ToggleCard title="Dark theme" body="Match the handoff default dark athletic UI" value={s.isDark} onChange={(v) => s.set('isDark', v)} />
+      {/* ---------------------------- SETTINGS ---------------------------- */}
+      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Settings</SectionHeading>
+      <Card style={{ paddingHorizontal: 15 }}>
+        <GroupRow
+          icon="moon"
+          title="Appearance"
+          body={s.isDark ? 'Dark theme · the handoff default' : 'Light theme'}
+          value={s.isDark}
+          onToggle={(v) => s.set('isDark', v)}
+        />
+        <RowDivider />
+        <GroupRow
+          icon="shopping-bag"
+          title="Shop"
+          body="Partner sports and hobby stores"
+          onPress={() => s.set('tab', 'shop')}
+        />
+      </Card>
 
-      {/* demo role */}
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Demo role</SectionHeading>
-      <Segmented
-        options={[
-          { key: 'USER', label: 'User' },
-          { key: 'COACH', label: 'Coach' },
-          { key: 'ADMIN', label: 'Admin' },
-        ]}
-        selected={s.role}
-        onSelect={(k) => s.set('role', k as Role)}
-        fontSize={13}
-        pad={8}
-      />
-
-      {/* admin console */}
+      {/* admin console — admins only, sits inside SETTINGS per spec 6 */}
       {role === 'ADMIN' && (
         <>
-          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Admin console</SectionHeading>
+          <Text style={[t.labelSm, { color: c.txt2, marginTop: 14, marginBottom: 8 }]}>Admin console</Text>
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
               <ToolRow icon="credit-card" title="Accounting" body="Margins, expenses, profit shares" onPress={() => s.set('overlay', 'adminAccounting')} />
@@ -232,6 +270,38 @@ export function ProfileScreen() {
           </Card>
         </>
       )}
+
+      <Card style={{ marginTop: 10, paddingHorizontal: 15 }}>
+        {/* My day view — coaches only */}
+        {role === 'COACH' && (
+          <>
+            <GroupRow
+              icon="sun"
+              title="My day view"
+              body="Sessions to run today · mark as done"
+              onPress={() => s.set('overlay', 'coachDayView')}
+            />
+            <RowDivider />
+          </>
+        )}
+        {s.authEmail ? (
+          <GroupRow
+            icon="log-out"
+            title="Sign out"
+            body={`${s.authName ?? 'Signed in'} · ${s.authEmail}`}
+            onPress={() => {
+              void signOutUser().catch(() => {});
+            }}
+          />
+        ) : (
+          <GroupRow
+            icon="log-in"
+            title="Sign in or create account"
+            body="Guest mode now · an account saves your activity"
+            onPress={() => s.set('overlay', 'auth')}
+          />
+        )}
+      </Card>
     </ScrollView>
   );
 }
@@ -248,7 +318,12 @@ function GoalChip({ label, highlight }: { label: string; highlight?: boolean }) 
 function AddCertBtn({ icon, label, onPress }: { icon: any; label: string; onPress: () => void }) {
   const { c, t } = useTheme();
   return (
-    <Pressable onPress={onPress} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, borderColor: c.line, borderWidth: 1.5, borderStyle: 'dashed', paddingVertical: 13 }}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={{ flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, borderColor: c.line, borderWidth: 1.5, borderStyle: 'dashed', paddingVertical: 13 }}
+    >
       <Icon name={icon} size={17} color={c.accent} />
       <Text style={[t.labelSm, { color: c.strong }]}>{label}</Text>
     </Pressable>
@@ -269,7 +344,12 @@ function RoleCard({ title, body, badge, buttonLabel, onPress }: { title: string;
           <Text style={[t.price, { fontSize: 20, color: c.accent }]}>$19</Text>
           <Text style={[t.bodySm, { color: c.txt3 }]}>/month</Text>
         </Row>
-        <Pressable onPress={onPress} style={{ borderRadius: 999, backgroundColor: c.volt, paddingHorizontal: 20, paddingVertical: 11 }}>
+        <Pressable
+          onPress={onPress}
+          accessibilityRole="button"
+          accessibilityLabel={`${buttonLabel} — ${title}`}
+          style={{ minHeight: 44, justifyContent: 'center', borderRadius: 999, backgroundColor: c.volt, paddingHorizontal: 20, paddingVertical: 11 }}
+        >
           <Text style={[t.labelSm, { color: c.ink }]}>{buttonLabel}</Text>
         </Pressable>
       </Row>
@@ -280,7 +360,13 @@ function RoleCard({ title, body, badge, buttonLabel, onPress }: { title: string;
 function ToolRow({ count, icon, title, body, onPress }: { count?: string; icon?: any; title: string; body: string; onPress: () => void }) {
   const { c, t } = useTheme();
   return (
-    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center' }}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={count ? `${title}, ${count}` : title}
+      accessibilityHint={body}
+      style={{ flexDirection: 'row', alignItems: 'center', minHeight: 44 }}
+    >
       <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: count ? alpha(c.volt, 0.12) : c.surface2, alignItems: 'center', justifyContent: 'center' }}>
         {count ? <Text style={[t.priceSm, { color: c.accent }]}>{count}</Text> : <Icon name={icon ?? 'chevron-right'} size={18} color={c.accent} />}
       </View>
@@ -293,35 +379,82 @@ function ToolRow({ count, icon, title, body, onPress }: { count?: string; icon?:
   );
 }
 
-function SettingsRow({ icon, title, body, onPress }: { icon: any; title: string; body: string; onPress: () => void }) {
-  const { c, t } = useTheme();
-  return (
-    <Card onPress={onPress}>
-      <Row style={{ padding: 15 }} gap={12}>
-        <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name={icon} size={20} color={c.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[t.name, { color: c.txt }]}>{title}</Text>
-          <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]}>{body}</Text>
-        </View>
-        <Icon name="chevron-right" size={20} color={c.txt3} />
-      </Row>
-    </Card>
-  );
+function RowDivider() {
+  const { c } = useTheme();
+  return <View style={{ height: 1, backgroundColor: c.line2 }} />;
 }
 
-function ToggleCard({ title, body, value, onChange }: { title: string; body: string; value: boolean; onChange: (v: boolean) => void }) {
+/**
+ * One row inside a labelled TRAINING / SETTINGS group. Either a navigation row
+ * (chevron + optional badge/dot) or a switch row — in the switch case the whole
+ * row is the switch so the tap target clears 44px and carries the label, since
+ * the shared `Toggle` has no accessibilityLabel of its own.
+ */
+function GroupRow({
+  icon,
+  title,
+  body,
+  badge,
+  dot,
+  value,
+  onToggle,
+  onPress,
+}: {
+  icon: any;
+  title: string;
+  body: string;
+  badge?: string;
+  dot?: boolean;
+  value?: boolean;
+  onToggle?: (v: boolean) => void;
+  onPress?: () => void;
+}) {
   const { c, t } = useTheme();
-  return (
-    <Card>
-      <Row style={{ padding: 15 }} gap={12}>
-        <View style={{ flex: 1 }}>
-          <Text style={[t.name, { color: c.txt }]}>{title}</Text>
-          <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]}>{body}</Text>
+  const isSwitch = typeof onToggle === 'function';
+  const content = (
+    <Row style={{ paddingVertical: 13, minHeight: 44 }} gap={12}>
+      <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} size={20} color={c.accent} />
+        {dot && (
+          <View style={{ position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: c.volt }} />
+        )}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[t.name, { color: c.txt }]}>{title}</Text>
+        <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]}>{body}</Text>
+      </View>
+      {badge ? <MicroBadge label={badge} bg={c.surface2} fg={c.accent} /> : null}
+      {isSwitch ? (
+        <View pointerEvents="none">
+          <Toggle value={!!value} onChange={() => {}} />
         </View>
-        <Toggle value={value} onChange={onChange} />
-      </Row>
-    </Card>
+      ) : (
+        <Icon name="chevron-right" size={20} color={c.txt3} />
+      )}
+    </Row>
+  );
+
+  if (isSwitch)
+    return (
+      <Pressable
+        onPress={() => onToggle!(!value)}
+        accessibilityRole="switch"
+        accessibilityLabel={title}
+        accessibilityHint={body}
+        accessibilityState={{ checked: !!value }}
+      >
+        {content}
+      </Pressable>
+    );
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={badge ? `${title}, ${badge}` : title}
+      accessibilityHint={body}
+    >
+      {content}
+    </Pressable>
   );
 }

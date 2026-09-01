@@ -3,7 +3,7 @@ import { useStore } from '../state/store';
 import { AuthOverlay } from '../overlays/AuthOverlay';
 import { MyCommunitiesOverlay } from '../overlays/MyCommunitiesOverlay';
 import { CommunityProfileOverlay } from '../overlays/CommunityProfileOverlay';
-import { CommunityRegisterOverlay } from '../overlays/CommunityRegisterOverlay';
+import { RegistrationOverlay } from '../overlays/RegistrationOverlay';
 import { CoachDayViewOverlay } from '../overlays/CoachDayViewOverlay';
 import { PersonOverlay } from '../overlays/PersonOverlay';
 import { BookingOverlay } from '../overlays/BookingOverlay';
@@ -50,8 +50,10 @@ export function OverlayRouter({ id }: { id: string }) {
       return <CommunityProfileOverlay />;
     case 'myCommunities':
       return <MyCommunitiesOverlay />;
+    case 'registration':
     case 'communityRegister':
-      return <CommunityRegisterOverlay />;
+      // handoff v2 section 9: one shared form for community / venue / shop
+      return <RegistrationOverlay />;
     case 'coachDayView':
       return <CoachDayViewOverlay />;
     case 'person':

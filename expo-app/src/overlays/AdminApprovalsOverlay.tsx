@@ -14,6 +14,22 @@ export function AdminApprovalsOverlay() {
         <ApprovalCard type="Hobby request" title="Padel" detail="Sport · requested by 214 users" decision={s.hobbyDecisions['padel']} onApprove={() => s.set('hobbyDecisions', { ...s.hobbyDecisions, padel: 'Approved' })} onDecline={() => s.set('hobbyDecisions', { ...s.hobbyDecisions, padel: 'Rejected' })} />
         <ApprovalCard type="Hobby request" title="Salsa" detail="Hobby · requested by 89 users" decision={s.hobbyDecisions['salsa']} onApprove={() => s.set('hobbyDecisions', { ...s.hobbyDecisions, salsa: 'Approved' })} onDecline={() => s.set('hobbyDecisions', { ...s.hobbyDecisions, salsa: 'Rejected' })} />
         <ApprovalCard type="Official community" title="Chess community" detail="640 members · applied for official status" decision={s.hobbyDecisions['chess-off']} onApprove={() => s.set('hobbyDecisions', { ...s.hobbyDecisions, 'chess-off': 'Approved' })} onDecline={() => s.set('hobbyDecisions', { ...s.hobbyDecisions, 'chess-off': 'Rejected' })} />
+        {/* Community and venue registrations have no server table yet, so they
+            queue in the store; shop rows still come from the persisted flow. */}
+        {s.pendingRegistrations.map((r) => (
+          <ApprovalCard
+            key={r.id}
+            type={`${r.kind.charAt(0).toUpperCase()}${r.kind.slice(1)} registration`}
+            title={r.name}
+            detail={r.meta || 'Contact details pending'}
+            approveLabel="Open deal"
+            declineLabel="Decline"
+            decision={r.decision}
+            onApprove={() => s.decideRegistration(r.id, 'Approved — onboarding sent')}
+            onDecline={() => s.decideRegistration(r.id, 'Declined')}
+          />
+        ))}
+
         {s.shopRegDoneName.length > 0 && (
           <ApprovalCard type="Shop partnership" title={s.shopRegDoneName} detail={s.shopRegDoneMeta || 'Contact details pending'} approveLabel="Open deal" declineLabel="Decline" decision={s.shopDecisions[s.shopRegDoneName]} onApprove={() => s.set('shopDecisions', { ...s.shopDecisions, [s.shopRegDoneName]: 'Deal opened — onboarding sent' })} onDecline={() => s.set('shopDecisions', { ...s.shopDecisions, [s.shopRegDoneName]: 'Declined' })} />
         )}

@@ -1,17 +1,23 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Animated, NativeScrollEvent, NativeSyntheticEvent, Pressable } from 'react-native';
 import { Icon } from './ui';
-import { useTheme } from '../theme';
+import { motion, radii, useTheme } from '../theme';
 
 type IconName = React.ComponentProps<typeof Icon>['name'];
 
 // Board annotation: "Icon Disappears when scrolling Down and appears when
-// scrolling up". Returns the FAB plus the scroll handler that drives it.
+// scrolling up". v2 motion: translateY 28px + fade over 250ms, direction-aware.
 export function useScrollAwareFab() {
   const anim = useRef(new Animated.Value(1)).current;
   const lastY = useRef(0);
   const shown = useRef(true);
   const [visible, setVisible] = React.useState(true);
+
+  useEffect(() => {
+    return () => {
+      anim.stopAnimation();
+    };
+  }, [anim]);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
@@ -21,11 +27,11 @@ export function useScrollAwareFab() {
     if (goingDown && shown.current) {
       shown.current = false;
       setVisible(false);
-      Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true }).start();
+      Animated.timing(anim, { toValue: 0, duration: motion.fab, useNativeDriver: true }).start();
     } else if (goingUp && !shown.current) {
       shown.current = true;
       setVisible(true);
-      Animated.timing(anim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+      Animated.timing(anim, { toValue: 1, duration: motion.fab, useNativeDriver: true }).start();
     }
   };
 
@@ -58,7 +64,9 @@ export function ScrollAwareFab({
         right: 18,
         bottom: 18,
         opacity: value,
-        transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+        transform: [
+          { translateY: value.interpolate({ inputRange: [0, 1], outputRange: [motion.fabTravel, 0] }) },
+        ],
       }}
     >
       <Pressable
@@ -68,7 +76,7 @@ export function ScrollAwareFab({
         style={{
           width: 52,
           height: 52,
-          borderRadius: 16,
+          borderRadius: radii.avatar, // prototype: 17px rounded square
           backgroundColor: c.volt,
           alignItems: 'center',
           justifyContent: 'center',

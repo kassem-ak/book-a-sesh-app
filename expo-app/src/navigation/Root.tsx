@@ -15,6 +15,7 @@ import { DiscoverScreen } from '../screens/DiscoverScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { ShopScreen } from '../screens/ShopScreen';
 import { OverlayRouter } from './OverlayRouter';
+import { SheetRouter } from './SheetRouter';
 import { TabBar } from './TabBar';
 
 export function Root() {
@@ -22,6 +23,7 @@ export function Root() {
   const insets = useSafeAreaInsets();
   const tab = useStore((s) => s.tab);
   const overlay = useStore((s) => s.overlay);
+  const sheet = useStore((s) => s.sheet);
   const authEmail = useStore((s) => s.authEmail);
   const guestMode = useStore((s) => s.guestMode);
 
@@ -57,6 +59,8 @@ export function Root() {
       </View>
       <TabBar />
       {overlay ? <OverlayRouter id={overlay} /> : null}
+      {/* handoff v2: bottom sheets sit above overlays */}
+      {sheet ? <SheetRouter id={sheet} /> : null}
       <ErrorBanner />
     </View>
   );

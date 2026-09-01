@@ -20,7 +20,7 @@ export const type = {
   overlayTitle: { fontFamily: fonts.archivo800, fontSize: 19 },
   price: { fontFamily: fonts.archivo800, fontSize: 17 },
   priceSm: { fontFamily: fonts.archivo800, fontSize: 15 },
-  sectionHeading: { fontFamily: fonts.archivo800, fontSize: 12, letterSpacing: 1.4 },
+  sectionHeading: { fontFamily: fonts.archivo800, fontSize: 12, letterSpacing: 1.6 },
   initials: { fontFamily: fonts.archivo800, fontSize: 18 },
   bodyLg: { fontFamily: fonts.hanken400, fontSize: 15 },
   body: { fontFamily: fonts.hanken400, fontSize: 14 },

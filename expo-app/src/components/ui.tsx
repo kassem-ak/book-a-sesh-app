@@ -10,7 +10,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { alpha, useTheme } from '../theme';
+import { avatarSize, radii, useTheme } from '../theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
 
@@ -24,7 +24,7 @@ export function Card({
   onPress,
   background,
   borderColor,
-  radius = 18,
+  radius = radii.card,
   style,
 }: {
   children: ReactNode;
@@ -35,6 +35,7 @@ export function Card({
   style?: StyleProp<ViewStyle>;
 }) {
   const { c } = useTheme();
+  // v2: card radius 20
   const box: StyleProp<ViewStyle> = {
     backgroundColor: background ?? c.surface,
     borderColor: borderColor ?? c.line,
@@ -68,7 +69,7 @@ export function VoltButton({
       onPress={enabled ? onPress : undefined}
       style={{
         height,
-        borderRadius: 15,
+        borderRadius: radii.button,
         backgroundColor: enabled ? c.volt : c.surface2,
         alignItems: 'center',
         justifyContent: 'center',
@@ -98,10 +99,12 @@ export function SectionHeading({ children, style }: { children: ReactNode; style
 }
 
 // ---- Avatar tile ----
+// Default is the v2 list tile (58). Store hero = 64, venue = 66 — see
+// `avatarSize` in ../theme.
 export function Avatar({
   initials,
-  size = 54,
-  radius = 14,
+  size = avatarSize.list,
+  radius = radii.avatar,
   fontSize = 18,
   bg,
 }: {
@@ -170,23 +173,27 @@ export function Segmented({
   onSelect,
   fontSize = 14,
   pad = 12,
+  radius = radii.input,
 }: {
   options: SegOption[];
   selected: string;
   onSelect: (k: string) => void;
   fontSize?: number;
   pad?: number;
+  /** Container radius. Pass `radii.pill` for the Discover coaches|Partners form. */
+  radius?: number;
 }) {
   const { c, t } = useTheme();
+  const inner = radius >= radii.pill ? radii.pill : Math.max(radius - 4, 0);
   return (
-    <View style={{ flexDirection: 'row', backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, padding: 4 }}>
+    <View style={{ flexDirection: 'row', backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: radius, padding: 4 }}>
       {options.map((o) => {
         const active = o.key === selected;
         return (
           <Pressable
             key={o.key}
             onPress={() => onSelect(o.key)}
-            style={{ flex: 1, alignItems: 'center', paddingVertical: pad, borderRadius: 11, backgroundColor: active ? c.volt : 'transparent' }}
+            style={{ flex: 1, alignItems: 'center', paddingVertical: pad, borderRadius: inner, backgroundColor: active ? c.volt : 'transparent' }}
           >
             <Text style={[t.label, { fontSize, color: active ? c.ink : c.txt2 }]}>{o.label}</Text>
           </Pressable>
@@ -229,6 +236,8 @@ export function Field({
   align = 'left',
   secure = false,
   icon,
+  radius = radii.input,
+  label,
 }: {
   value: string;
   onChange: (t: string) => void;
@@ -239,13 +248,15 @@ export function Field({
   align?: 'left' | 'center';
   secure?: boolean;
   icon?: IconName;
+  radius?: number;
+  label?: string; // accessible name; falls back to the placeholder
 }) {
   const { c, t } = useTheme();
   const [focused, setFocused] = React.useState(false);
   // Board annotation: the leading icon switches to volt (#C6F24E) while typing.
   const iconColor = focused || value.length > 0 ? c.accent : c.txt3;
   return (
-    <View style={{ width, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 }}>
+    <View style={{ width, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: radius, paddingHorizontal: 14, paddingVertical: 12 }}>
       {icon ? <Icon name={icon} size={17} color={iconColor} /> : null}
       <TextInput
         value={value}
@@ -254,6 +265,7 @@ export function Field({
         placeholderTextColor={c.txt3}
         keyboardType={keyboardType}
         secureTextEntry={secure}
+        accessibilityLabel={label ?? placeholder}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         autoCapitalize={secure || keyboardType === 'email-address' ? 'none' : 'sentences'}
@@ -272,13 +284,16 @@ export function StripedPlaceholder({ caption, height, radius = 14 }: { caption: 
         height,
         aspectRatio: height ? undefined : 16 / 10,
         borderRadius: radius,
-        backgroundColor: c.surface2,
+        // `--ph` token — was surface2 + a hardcoded alpha caption
+        backgroundColor: c.ph,
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
       }}
     >
-      <Text style={{ fontFamily: 'monospace', fontSize: 12, color: alpha(c.isDark ? '#FFFFFF' : '#000000', 0.25) }}>{caption}</Text>
+      <View style={{ borderRadius: 6, borderWidth: 1, borderColor: c.line, paddingHorizontal: 8, paddingVertical: 3 }}>
+        <Text style={{ fontFamily: 'monospace', fontSize: 10, color: c.txt3 }}>{caption}</Text>
+      </View>
     </View>
   );
 }

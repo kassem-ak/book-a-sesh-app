@@ -159,11 +159,39 @@ export interface SpotterState {
   role: Role;
   isDark: boolean;
   overlay: string | null;
+  // handoff v2 adds a second presentation layer: bottom sheets, distinct from
+  // full-screen overlays. Ids: story | hours | pkg | myComm | admin | rsvp
+  sheet: string | null;
   writeBusy: string | null;
   writeError: string | null;
   authEmail: string | null; // signed-in real account email (null = guest)
   authName: string | null;
   guestMode: boolean; // user chose "Continue as guest" on the landing gate
+
+  // --- onboarding (handoff v2) ---
+  authSeek: string;
+  authLoc: string;
+  searchRadius: number;
+
+  // --- court RSVP (handoff v2 section C) ---
+  rsvpTarget: string | null;
+  rsvpPricePerHour: number;
+  rsvpType: string;
+  rsvpHours: number;
+  rsvpGear: boolean;
+  rsvpCoach: boolean;
+
+  // --- shared registration form: community | venue | shop ---
+  regKind: string;
+  // Registrations awaiting admin review. Shop rows persist through
+  // submitShopRegistration; community/venue have no server table yet, so they
+  // are held here and surfaced in the admin queue.
+  pendingRegistrations: { id: string; kind: string; name: string; meta: string; decision?: string }[];
+  regChannel: string | null;
+  regTime: string;
+
+  // --- discover live search ---
+  discSearch: string;
 
   // discover / shop
   mode: string;
@@ -341,6 +369,13 @@ export interface SpotterState {
   openEvent(id: string, from: string | null): void;
   openNotifs(): void;
   closeOverlay(): void;
+  openSheet(id: string): void;
+  closeSheet(): void;
+  openRsvp(target: string, pricePerHour: number): void;
+  rsvpTotal(): number;
+  openRegistration(kind: 'community' | 'venue' | 'shop'): void;
+  recordRegistration(kind: string, name: string, meta: string): void;
+  decideRegistration(id: string, decision: string): void;
 
   // accounting
   revenue: number;
@@ -407,11 +442,30 @@ export const useStore = create<SpotterState>((set, get) => ({
   role: 'USER',
   isDark: true,
   overlay: null,
+  sheet: null,
   writeBusy: null,
   writeError: null,
   authEmail: null,
   authName: null,
   guestMode: false,
+
+  authSeek: '',
+  authLoc: 'Beirut, Lebanon',
+  searchRadius: 12,
+
+  rsvpTarget: null,
+  rsvpPricePerHour: 40,
+  rsvpType: 'Single',
+  rsvpHours: 1,
+  rsvpGear: false,
+  rsvpCoach: false,
+
+  regKind: 'community',
+  pendingRegistrations: [],
+  regChannel: null,
+  regTime: '',
+
+  discSearch: '',
 
   mode: 'coaches',
   sport: 'All',
@@ -857,6 +911,58 @@ export const useStore = create<SpotterState>((set, get) => ({
   openEvent: (id, from) => set({ eventId: id, returnTo: from, overlay: 'event' }),
   openNotifs: () => set({ overlay: 'notifications', notifSeen: true }),
   closeOverlay: () => set({ overlay: null }),
+
+  // ---- handoff v2: bottom-sheet layer ----
+  openSheet: (id) => set({ sheet: id }),
+  closeSheet: () => set({ sheet: null }),
+
+  // Court RSVP. The per-hour price is captured when the sheet opens so the
+  // total is computed from venue data, never from a client-typed number.
+  openRsvp: (target, pricePerHour) =>
+    set({
+      sheet: 'rsvp',
+      rsvpTarget: target,
+      rsvpPricePerHour: pricePerHour,
+      rsvpType: 'Single',
+      rsvpHours: 1,
+      rsvpGear: false,
+      rsvpCoach: false,
+    }),
+  // total = court rate x hours + equipment (6/h) + coach (45 flat)
+  rsvpTotal: () => {
+    const s = get();
+    const base = s.rsvpPricePerHour * s.rsvpHours;
+    const gear = s.rsvpGear ? 6 * s.rsvpHours : 0;
+    const coach = s.rsvpCoach ? 45 : 0;
+    return base + gear + coach;
+  },
+
+  recordRegistration: (kind, name, meta) =>
+    set((state) => ({
+      pendingRegistrations: [
+        ...state.pendingRegistrations,
+        { id: `reg-${Date.now()}`, kind, name, meta },
+      ],
+    })),
+  decideRegistration: (id, decision) =>
+    set((state) => ({
+      pendingRegistrations: state.pendingRegistrations.map((r) =>
+        r.id === id ? { ...r, decision } : r
+      ),
+    })),
+
+  openRegistration: (kind) =>
+    set({
+      overlay: 'registration',
+      regKind: kind,
+      regChannel: null,
+      regTime: '',
+      shopRegName: '',
+      shopRegCat: null,
+      shopRegPhone: '',
+      shopRegEmail: '',
+      shopRegDone: false,
+    }),
   revenue: D.revenue,
   expTotal: () => get().acctExpItems.reduce((a, e) => a + e.amt, 0),
   net: () => round2(get().revenue - get().expTotal()),

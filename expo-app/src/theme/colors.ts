@@ -24,6 +24,9 @@ export interface Colors {
   danger: string;
   avatarBg: string;
   ink: string; // button-on-volt text — constant
+  ph: string; // `--ph` — image placeholder fill
+  cyan: string; // second onboarding gradient blob
+  scrim: string; // sheet/modal backdrop
 }
 
 export const dark: Colors = {
@@ -49,6 +52,9 @@ export const dark: Colors = {
   danger: '#E8543F',
   avatarBg: '#262B33',
   ink: '#0D0E11',
+  ph: 'rgba(255,255,255,0.04)',
+  cyan: '#4EBEF2',
+  scrim: 'rgba(0,0,0,0.55)',
 };
 
 export const light: Colors = {
@@ -67,13 +73,16 @@ export const light: Colors = {
   mono: '#AEB4BE',
   mapBg: '#E6E8ED',
   grid: 'rgba(0,0,0,0.05)',
-  accent: '#5E8A00',
-  volt: '#C6F24E',
+  accent: '#5E7B10',
+  volt: '#B4E13A',
   amber: '#F2C84B',
   amberText: '#9A7400',
   danger: '#E8543F',
   avatarBg: '#565E6B',
   ink: '#0D0E11',
+  ph: 'rgba(0,0,0,0.05)',
+  cyan: '#2E9BD1',
+  scrim: 'rgba(0,0,0,0.55)',
 };
 
 // Alpha helper for tints (volt/amber/danger backgrounds).
