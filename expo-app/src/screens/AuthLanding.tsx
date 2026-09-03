@@ -103,7 +103,10 @@ export function AuthLanding() {
             <VoltButton
               label="NEXT"
               onPress={() => {
-                s.set('role', kind === 'coach' ? 'COACH' : 'USER');
+                // Intent only. The role is a property of the account and is
+                // resolved from the server by refreshRole(); letting this pill
+                // set it handed anyone the paid coach product for free.
+                s.set('signupIntent', kind === 'coach' ? 'coach' : 'trainee');
                 setStep('where');
               }}
             />

@@ -33,9 +33,13 @@ export function ShopStorefrontOverlay() {
       bottomBar={
         count > 0 ? (
           <View style={{ padding: 16, backgroundColor: c.bg }}>
-            <Pressable onPress={s.checkoutCart} style={{ height: 56, borderRadius: 15, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={[t.overlayTitle, { fontSize: 16, color: c.ink }]}>Checkout · {count} item{count > 1 ? 's' : ''} · ${s.cartTotal()}</Text>
-            </Pressable>
+            <VoltButton
+              height={56}
+              label={`Checkout · ${count} item${count > 1 ? 's' : ''} · $${s.cartTotal()}`}
+              onPress={s.checkoutCart}
+              busy={s.writeBusy === 'checkout'}
+              busyLabel="Placing order..."
+            />
           </View>
         ) : undefined
       }

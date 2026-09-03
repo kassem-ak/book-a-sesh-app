@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather, FontAwesome } from '@expo/vector-icons';
 import React, { ReactNode } from 'react';
 import {
   Pressable,
@@ -16,6 +16,14 @@ type IconName = React.ComponentProps<typeof Feather>['name'];
 
 export function Icon({ name, size = 20, color }: { name: IconName; size?: number; color: string }) {
   return <Feather name={name} size={size} color={color} />;
+}
+
+// Feather carries no Apple or Microsoft mark, so the sign-in providers use
+// FontAwesome's brand glyphs to keep all four looking like one set.
+export type BrandName = 'facebook' | 'google' | 'apple' | 'windows';
+
+export function BrandIcon({ name, size = 18, color }: { name: BrandName; size?: number; color: string }) {
+  return <FontAwesome name={name} size={size} color={color} />;
 }
 
 // ---- Card ----
@@ -57,22 +65,31 @@ export function VoltButton({
   onPress,
   enabled = true,
   height = 52,
+  busy = false,
+  busyLabel = 'Processing...',
 }: {
   label: string;
   onPress: () => void;
   enabled?: boolean;
   height?: number;
+  /** Blocks re-entry while a write is in flight (double-tap = double order). */
+  busy?: boolean;
+  busyLabel?: string;
 }) {
   const { c, t } = useTheme();
+  const live = enabled && !busy;
   return (
     <Pressable
-      onPress={enabled ? onPress : undefined}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !live, busy }}
+      onPress={live ? onPress : undefined}
       style={{
         height,
         borderRadius: radii.button,
         backgroundColor: enabled ? c.volt : c.surface2,
         alignItems: 'center',
         justifyContent: 'center',
+        opacity: busy ? 0.7 : 1,
       }}
     >
       {/* Android clips shrink-to-fit Text with custom fonts; stretch instead. */}
@@ -80,7 +97,7 @@ export function VoltButton({
         numberOfLines={1}
         style={[t.overlayTitle, { fontSize: 16, color: enabled ? c.ink : c.txt3, alignSelf: 'stretch', textAlign: 'center' }]}
       >
-        {label}
+        {busy ? busyLabel : label}
       </Text>
     </Pressable>
   );

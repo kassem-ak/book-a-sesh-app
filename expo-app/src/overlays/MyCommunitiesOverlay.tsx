@@ -5,11 +5,11 @@ import { Avatar, Card, MicroBadge, Row, SectionHeading } from '../components/ui'
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
+// currentCommunityRole() returns ADMIN | MODERATOR | MEMBER, so key on that.
 const ROLE_LABEL: Record<string, string> = {
-  owner: 'Owner',
-  admin: 'Admin',
-  moderator: 'Moderator',
-  member: 'Member',
+  ADMIN: 'Admin',
+  MODERATOR: 'Moderator',
+  MEMBER: 'Member',
 };
 
 // "My Communities" — the crews the signed-in user owns, moderates or follows.
@@ -79,8 +79,8 @@ function CommunityRow({
         </View>
         <MicroBadge
           label={ROLE_LABEL[role] ?? 'Member'}
-          bg={role === 'member' ? c.surface2 : alpha(c.volt, 0.14)}
-          fg={role === 'member' ? c.txt2 : c.accent}
+          bg={role === 'MEMBER' ? c.surface2 : alpha(c.volt, 0.14)}
+          fg={role === 'MEMBER' ? c.txt2 : c.accent}
         />
       </Row>
     </Card>

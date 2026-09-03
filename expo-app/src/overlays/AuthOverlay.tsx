@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Field, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
-import { signInEmail, signInWithProvider, signUpEmail, SsoProvider } from '../lib/session';
+import { BrandIcon, BrandName, Field, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import { signInEmail, signInWithProvider, signUpEmail, SSO_LABELS, SsoProvider } from '../lib/session';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -56,10 +56,9 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
       // Until the provider is turned on in Supabase Auth, GoTrue answers
       // "Unsupported provider: provider is not enabled" — not something to
       // show a person.
-      const label = provider === 'google' ? 'Google' : 'Facebook';
       setError(
         /provider is not enabled|unsupported provider/i.test(raw)
-          ? `${label} sign-in is not set up yet. Use your email and password for now.`
+          ? `${SSO_LABELS[provider]} sign-in is not set up yet. Use your email and password for now.`
           : raw || 'Sign-in failed',
       );
     } finally {
@@ -86,12 +85,17 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
 
   return (
     <View>
-      {/* SSO */}
-      {/* spec 1.1: Facebook + Google as icon buttons, side by side */}
-      <Row gap={12}>
-        <SsoButton label="Facebook" icon="facebook" onPress={() => sso('facebook')} disabled={busy} />
-        <SsoButton label="Google" icon="chrome" onPress={() => sso('google')} disabled={busy} />
-      </Row>
+      {/* SSO — Facebook, Google, Microsoft and Apple in a 2x2 grid. */}
+      <View style={{ gap: 12 }}>
+        <Row gap={12}>
+          <SsoButton provider="facebook" icon="facebook" onPress={sso} disabled={busy} />
+          <SsoButton provider="google" icon="google" onPress={sso} disabled={busy} />
+        </Row>
+        <Row gap={12}>
+          <SsoButton provider="azure" icon="windows" onPress={sso} disabled={busy} />
+          <SsoButton provider="apple" icon="apple" onPress={sso} disabled={busy} />
+        </Row>
+      </View>
 
 
       <Row style={{ marginVertical: 20 }} gap={12}>
@@ -137,13 +141,25 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function SsoButton({ label, icon, onPress, disabled }: { label: string; icon: 'chrome' | 'facebook'; onPress: () => void; disabled: boolean }) {
+function SsoButton({
+  provider,
+  icon,
+  onPress,
+  disabled,
+}: {
+  provider: SsoProvider;
+  icon: BrandName;
+  onPress: (p: SsoProvider) => void;
+  disabled: boolean;
+}) {
   const { c, t } = useTheme();
+  const label = SSO_LABELS[provider];
   return (
     <Pressable
-      onPress={disabled ? undefined : onPress}
+      onPress={disabled ? undefined : () => onPress(provider)}
       accessibilityRole="button"
       accessibilityLabel={`Continue with ${label}`}
+      accessibilityState={{ disabled }}
       style={{
         flex: 1,
         height: 52,
@@ -159,7 +175,7 @@ function SsoButton({ label, icon, onPress, disabled }: { label: string; icon: 'c
         opacity: disabled ? 0.6 : 1,
       }}
     >
-      <Icon name={icon} size={18} color={c.txt} />
+      <BrandIcon name={icon} size={18} color={c.txt} />
       {/* flexShrink:0 + trailing pad: Android clips custom-font labels laid
           out in a row when it measures them a hair too narrow. */}
       {/* No line clamp: clamping made Android ellipsize these short labels. */}
