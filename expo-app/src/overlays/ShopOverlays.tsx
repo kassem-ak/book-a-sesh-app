@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Stars, StripedPlaceholder, VoltButton } from '../components/ui';
-import { shopDistLabel } from '../state/models';
+import { formatDistanceKm } from '../lib/geo';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -12,6 +12,7 @@ export function ShopStorefrontOverlay() {
   const s = useStore();
   const sh = s.shopById(s.shopId);
   const count = s.cartCount();
+  const distanceLabel = formatDistanceKm((sh as { distanceKm?: number | null }).distanceKm);
 
   if (s.shopOrderDone) {
     return (
@@ -33,9 +34,13 @@ export function ShopStorefrontOverlay() {
       bottomBar={
         count > 0 ? (
           <View style={{ padding: 16, backgroundColor: c.bg }}>
-            <Pressable onPress={s.checkoutCart} style={{ height: 56, borderRadius: 15, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={[t.overlayTitle, { fontSize: 16, color: c.ink }]}>Checkout · {count} item{count > 1 ? 's' : ''} · ${s.cartTotal()}</Text>
-            </Pressable>
+            <VoltButton
+              height={56}
+              label={`Checkout · ${count} item${count > 1 ? 's' : ''} · $${s.cartTotal()}`}
+              onPress={s.checkoutCart}
+              busy={s.writeBusy === 'checkout'}
+              busyLabel="Placing order..."
+            />
           </View>
         ) : undefined
       }
@@ -49,7 +54,9 @@ export function ShopStorefrontOverlay() {
                 <Text style={[t.overlayTitle, { color: c.txt }]}>{sh.name}</Text>
                 <MicroBadge label="Partner store" bg={alpha(c.volt, 0.14)} fg={c.accent} />
               </Row>
-              <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]}>{sh.category} · {shopDistLabel(sh.dist)} away</Text>
+              <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]}>
+                {[sh.category, distanceLabel ? `${distanceLabel} away` : null].filter(Boolean).join(' - ')}
+              </Text>
               <Row gap={5} style={{ marginTop: 4 }}>
                 <Stars value={1} />
                 <Text style={[t.labelSm, { color: c.txt }]}>{sh.rating.toFixed(1)}</Text>

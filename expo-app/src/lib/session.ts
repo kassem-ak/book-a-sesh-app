@@ -70,19 +70,24 @@ export async function signOutUser() {
   if (error) throw error;
 }
 
-// ---- SSO (Facebook / Google, per redesign spec 1.1) ---------------------------------------------------
+// ---- SSO (Facebook / Google / Microsoft / Apple) --------------------------
 // Web: full-page redirect to the provider and back (PKCE code parsed by the
 // client via detectSessionInUrl). Native: system browser session that returns
-// through the spotter:// deep link, then we exchange the code manually.
-export type SsoProvider = 'google' | 'facebook';
+// through the bookd:// deep link, then we exchange the code manually.
+// 'azure' is Supabase's id for Microsoft Entra / Microsoft accounts.
+export type SsoProvider = 'google' | 'facebook' | 'azure' | 'apple';
+
+export const SSO_LABELS: Record<SsoProvider, string> = {
+  google: 'Google',
+  facebook: 'Facebook',
+  azure: 'Microsoft',
+  apple: 'Apple',
+};
 
 /** Thrown when the provider is switched off in Supabase Auth. */
 export class ProviderDisabledError extends Error {
   constructor(public provider: SsoProvider) {
-    super(
-      `${provider === 'google' ? 'Google' : 'Facebook'} sign-in is not set up yet. ` +
-        'Use your email and password for now.',
-    );
+    super(`${SSO_LABELS[provider]} sign-in is not set up yet. Use your email and password for now.`);
     this.name = 'ProviderDisabledError';
   }
 }

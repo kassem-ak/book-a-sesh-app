@@ -181,6 +181,8 @@ export interface SpotterState {
   // top level
   tab: string;
   role: Role;
+  /** What the user said they were at signup. Intent only, never a grant. */
+  signupIntent: 'coach' | 'trainee' | null;
   isDark: boolean;
   overlay: string | null;
   // handoff v2 adds a second presentation layer: bottom sheets, distinct from
@@ -474,6 +476,7 @@ const chgLines = (from: MarginsShares, to: MarginsShares): string[] => {
 export const useStore = create<SpotterState>((set, get) => ({
   tab: 'discover',
   role: 'USER',
+  signupIntent: null,
   isDark: true,
   overlay: null,
   sheet: null,

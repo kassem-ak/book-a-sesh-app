@@ -28,7 +28,7 @@ export const initials = (name: string) =>
 
 export const firstName = (name: string) => name.split(' ')[0];
 export const personMeta = (p: Person) =>
-  p.isCoach ? `${p.sport} · ${p.distance} km` : `${p.sport} · ${p.goal ?? ''}`;
+  [p.sport, p.isCoach ? null : p.goal].filter(Boolean).join(' - ');
 
 export interface Review {
   name: string;

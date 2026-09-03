@@ -34,15 +34,15 @@ const COPY: Record<RegKind, Copy> = {
     namePh: 'e.g. Summit Trail Co.',
     officialQ: 'Is it an official Entity? (federation, institute, etc..)',
     footnote: 'New communities start unofficial. The OFFICIAL badge is granted only by BOOK’D admins after review.',
-    sentLine: 'The BOOK’D team reviews every request. When it goes live, you’ll be its first member automatically.',
+    sentLine: 'Your community request is saved on this device.',
   },
   venue: {
     title: 'Venue registration',
     nameLabel: 'Venue name',
     namePh: 'e.g. Let’s Go Paddle',
     officialQ: 'Is it an official Entity? (federation, institute, etc..)',
-    footnote: 'An admin reviews every request and reaches out within 2 business days to agree on courts, hours and the commission.',
-    sentLine: 'Your venue was forwarded to the BOOK’D admins. They’ll contact you to set up courts and pricing.',
+    footnote: 'Venue listings require BOOK’D admin setup before they can go live.',
+    sentLine: 'Your venue request is saved on this device.',
   },
   shop: {
     title: 'Shop registration',
@@ -140,7 +140,7 @@ export function RegistrationOverlay() {
           <Text style={[t.caption, { color: c.txt3, marginTop: 14, textAlign: 'center' }]}>
             {kind === 'shop'
               ? 'Tracked as an admin approval item.'
-              : 'Queued for admin review on this device — it is not sent to a server yet.'}
+              : 'Saved on this device for review.'}
           </Text>
           <View style={{ width: '100%', maxWidth: 260, marginTop: 26 }}>
             <TapTarget label="Done, close registration" onPress={s.closeOverlay}>

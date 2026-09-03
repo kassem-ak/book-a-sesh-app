@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
   Avatar,
@@ -11,14 +11,26 @@ import {
   Segmented,
   Stars,
 } from '../components/ui';
+import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, parseGeoPoint } from '../lib/geo';
 import { DiscoverSort, fetchCoaches } from '../lib/queries';
-import { CoachPkg, Person, initials, personMeta } from '../state/models';
+import { CoachPkg, Person, initials } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 
 type RelatedName = { name?: string | null } | { name?: string | null }[] | null;
+
+type GeoPerson = Person & {
+  coordinates?: GeoPoint | null;
+};
+
+type DiscoverEntry = {
+  person: Person;
+  index: number;
+  distanceKm: number | null;
+  distanceLabel: string | null;
+};
 
 type RemotePackage = {
   id: string;
@@ -40,6 +52,7 @@ type RemoteCoach = {
   boosted?: boolean | null;
   user?: RelatedName;
   sport?: RelatedName;
+  location?: unknown;
   packages?: RemotePackage[] | null;
 };
 
@@ -53,12 +66,21 @@ function toNumber(value: number | string | null | undefined) {
   return Number.isFinite(num) ? num : 0;
 }
 
-function pseudoDistance(id: string) {
-  const sum = Array.from(id).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return Math.round((0.6 + (sum % 36) / 10) * 10) / 10;
+function personCoordinates(p: Person) {
+  return parseGeoPoint((p as GeoPerson).coordinates ?? p);
 }
 
-function fromRemoteCoach(row: RemoteCoach): Person {
+function personDistanceKm(p: Person, devicePoint: GeoPoint | null | undefined) {
+  return distanceKmBetween(devicePoint ?? null, personCoordinates(p));
+}
+
+function personMetaLabel(p: Person, distanceLabel?: string | null) {
+  const parts = p.isCoach ? [p.sport] : [p.sport, p.goal ?? ''];
+  if (distanceLabel) parts.push(distanceLabel);
+  return parts.filter(Boolean).join(' - ');
+}
+
+function fromRemoteCoach(row: RemoteCoach): GeoPerson {
   const name = firstRelated(row.user)?.name ?? 'Coach';
   const sport = firstRelated(row.sport)?.name ?? 'Coaching';
   const packages: CoachPkg[] = (row.packages ?? [])
@@ -67,6 +89,7 @@ function fromRemoteCoach(row: RemoteCoach): Person {
     .filter((pkg) => pkg.id && pkg.price >= 0)
     .sort((a, b) => a.sessions - b.sessions);
   const headline = row.headline ?? row.level ?? 'Coach';
+  const coordinates = parseGeoPoint(row.location ?? row);
   return {
     id: row.user_id,
     name,
@@ -75,7 +98,7 @@ function fromRemoteCoach(row: RemoteCoach): Person {
     reviews: row.reviews_count ?? 0,
     price: Math.round((row.price_cents ?? 0) / 100),
     boosted: Boolean(row.boosted),
-    distance: pseudoDistance(row.user_id),
+    distance: Number.POSITIVE_INFINITY,
     level: row.level ?? headline,
     sessions: row.sessions_count ? `${row.sessions_count}+` : '0',
     reply: row.reply_time ?? 'Today',
@@ -83,6 +106,7 @@ function fromRemoteCoach(row: RemoteCoach): Person {
     tags: [headline, sport].filter((tag): tag is string => Boolean(tag)),
     isCoach: true,
     packages,
+    coordinates,
   };
 }
 function matchesSport(p: Person, sport: string) {
@@ -108,11 +132,14 @@ export function DiscoverScreen() {
   const s = useStore();
   const isCoaches = s.mode === 'coaches';
   const setRemotePeople = useStore((state) => state.setRemotePeople);
+  const setStoreValue = useStore((state) => state.set);
+  const [devicePoint, setDevicePoint] = useState<GeoPoint | null | undefined>(undefined);
+  const remoteSort: DiscoverSort = s.sortBy === 'price' ? 'price' : 'rating';
 
   useEffect(() => {
     if (!isCoaches) return;
     let active = true;
-    fetchCoaches(s.sortBy as DiscoverSort)
+    fetchCoaches(remoteSort)
       .then((rows) => {
         if (active && Array.isArray(rows)) setRemotePeople(rows.map((row) => fromRemoteCoach(row as RemoteCoach)));
       })
@@ -122,17 +149,57 @@ export function DiscoverScreen() {
     return () => {
       active = false;
     };
-  }, [isCoaches, s.sortBy, setRemotePeople]);
+  }, [isCoaches, remoteSort, setRemotePeople]);
 
   const base = s.people(isCoaches ? 'coaches' : 'partners').filter((p) => matchesSport(p, s.sport));
-  const featured = base.filter((p) => p.boosted);
-  const rest = base
-    .filter((p) => !p.boosted)
-    .sort((a, b) => {
-      if (s.sortBy === 'price') return (a.price ?? 0) - (b.price ?? 0);
-      if (s.sortBy === 'distance') return a.distance - b.distance;
-      return b.rating - a.rating;
+  const hasCoordinatePeople = base.some((p) => personCoordinates(p));
+
+  useEffect(() => {
+    if (!hasCoordinatePeople) {
+      setDevicePoint(null);
+      return;
+    }
+
+    let active = true;
+    getDevicePoint().then((point) => {
+      if (active) setDevicePoint(point);
     });
+    return () => {
+      active = false;
+    };
+  }, [hasCoordinatePeople]);
+
+  const entries: DiscoverEntry[] = base.map((person, index) => {
+    const distanceKm = personDistanceKm(person, devicePoint);
+    return { person, index, distanceKm, distanceLabel: formatDistanceKm(distanceKm) };
+  });
+  const canSortByDistance = entries.some((entry) => entry.distanceKm !== null);
+  const distanceCapabilityKnown = !hasCoordinatePeople || devicePoint !== undefined;
+
+  useEffect(() => {
+    if (s.sortBy === 'distance' && distanceCapabilityKnown && !canSortByDistance) setStoreValue('sortBy', 'rating');
+  }, [canSortByDistance, distanceCapabilityKnown, s.sortBy, setStoreValue]);
+
+  const activeSortBy = s.sortBy === 'distance' && !canSortByDistance ? null : s.sortBy;
+  const featured = entries.filter((entry) => entry.person.boosted);
+  const rest = entries
+    .filter((entry) => !entry.person.boosted)
+    .sort((a, b) => {
+      if (activeSortBy === 'price') return (a.person.price ?? 0) - (b.person.price ?? 0);
+      if (activeSortBy === 'distance') {
+        if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
+        if (a.distanceKm !== null) return -1;
+        if (b.distanceKm !== null) return 1;
+        return a.index - b.index;
+      }
+      if (activeSortBy === 'rating') return b.person.rating - a.person.rating;
+      return a.index - b.index;
+    });
+  const sortOptions = [
+    { key: 'rating', label: 'Rating' },
+    { key: 'price', label: 'Price' },
+    ...(canSortByDistance ? [{ key: 'distance', label: 'Distance' }] : []),
+  ];
   const adHidden = s.adsHidden['discover'];
   const ad = D.ads.discover;
 
@@ -264,8 +331,8 @@ export function DiscoverScreen() {
             <>
               <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Featured {isCoaches ? 'coaches' : 'partners'}</SectionHeading>
               <View style={{ gap: 11 }}>
-                {featured.map((p) => (
-                  <BoostedCard key={p.id} p={p} onPress={() => s.openPerson(p.id)} />
+                {featured.map(({ person, distanceLabel }) => (
+                  <BoostedCard key={person.id} p={person} distanceLabel={distanceLabel} onPress={() => s.openPerson(person.id)} />
                 ))}
               </View>
             </>
@@ -295,20 +362,25 @@ export function DiscoverScreen() {
           <Row style={{ marginTop: 22, marginBottom: 11, justifyContent: 'space-between' }}>
             <SectionHeading>All {isCoaches ? 'coaches' : 'partners'}</SectionHeading>
             <Row gap={6}>
-              {[
-                ['rating', 'Rating'],
-                ['price', 'Price'],
-                ['distance', 'Distance'],
-              ].map(([k, label]) => (
-                <Pressable key={k} onPress={() => s.set('sortBy', k)}>
-                  <Text style={[t.labelSm, { color: s.sortBy === k ? c.accent : c.txt3, backgroundColor: s.sortBy === k ? alpha(c.volt, 0.12) : 'transparent', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }]}>{label}</Text>
-                </Pressable>
-              ))}
+              {sortOptions.map(({ key, label }) => {
+                const active = s.sortBy === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => setStoreValue('sortBy', key)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Sort by ${label.toLowerCase()}`}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[t.labelSm, { color: active ? c.accent : c.txt3, backgroundColor: active ? alpha(c.volt, 0.12) : 'transparent', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
             </Row>
           </Row>
           <View style={{ gap: 11 }}>
-            {rest.map((p) => (
-              <PersonCard key={p.id} p={p} onPress={() => s.openPerson(p.id)} />
+            {rest.map(({ person, distanceLabel }) => (
+              <PersonCard key={person.id} p={person} distanceLabel={distanceLabel} onPress={() => s.openPerson(person.id)} />
             ))}
           </View>
         </>
@@ -317,7 +389,7 @@ export function DiscoverScreen() {
   );
 }
 
-export function PersonCard({ p, onPress }: { p: Person; onPress: () => void }) {
+export function PersonCard({ p, distanceLabel, onPress }: { p: Person; distanceLabel?: string | null; onPress: () => void }) {
   const { c, t } = useTheme();
   return (
     <Card onPress={onPress}>
@@ -328,7 +400,7 @@ export function PersonCard({ p, onPress }: { p: Person; onPress: () => void }) {
             <Text style={[t.name, { color: c.txt }]}>{p.name}</Text>
             <Icon name="check-circle" size={14} color={c.accent} />
           </Row>
-          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{personMeta(p)}</Text>
+          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{personMetaLabel(p, distanceLabel)}</Text>
           <Row gap={5} style={{ marginTop: 4 }}>
             <Stars value={1} />
             <Text style={[t.labelSm, { color: c.txt }]}>{p.rating.toFixed(1)}</Text>
@@ -348,7 +420,7 @@ export function PersonCard({ p, onPress }: { p: Person; onPress: () => void }) {
   );
 }
 
-function BoostedCard({ p, onPress }: { p: Person; onPress: () => void }) {
+function BoostedCard({ p, distanceLabel, onPress }: { p: Person; distanceLabel?: string | null; onPress: () => void }) {
   const { c, t } = useTheme();
   return (
     <Card onPress={onPress} background={alpha(c.amber, 0.06)} borderColor={alpha(c.amber, 0.3)}>
@@ -359,7 +431,7 @@ function BoostedCard({ p, onPress }: { p: Person; onPress: () => void }) {
             <Text style={[t.name, { color: c.txt }]}>{p.name}</Text>
             <MicroBadge label="Boosted" bg={alpha(c.amber, 0.2)} fg={c.amberText} />
           </Row>
-          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{personMeta(p)}</Text>
+          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{personMetaLabel(p, distanceLabel)}</Text>
           <Row gap={5} style={{ marginTop: 4 }}>
             <Stars value={1} />
             <Text style={[t.labelSm, { color: c.txt }]}>{p.rating.toFixed(1)}</Text>
