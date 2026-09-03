@@ -86,7 +86,7 @@ export function AuthLanding() {
             />
 
             <View style={{ height: 22 }} />
-            {/* email + password + Facebook/Google SSO live in the shared form */}
+            {/* email + password + SSO live in the shared form */}
             <AuthForm onDone={() => setStep('role')} />
           </>
         )}
@@ -103,7 +103,10 @@ export function AuthLanding() {
             <VoltButton
               label="NEXT"
               onPress={() => {
-                s.set('role', kind === 'coach' ? 'COACH' : 'USER');
+                // Intent only. The role is a property of the account and is
+                // resolved from the server by refreshRole(); letting this pill
+                // set it handed anyone the paid coach product for free.
+                s.set('signupIntent', kind === 'coach' ? 'coach' : 'trainee');
                 setStep('where');
               }}
             />
@@ -112,7 +115,7 @@ export function AuthLanding() {
 
         {step === 'where' && (
           <>
-            <Text style={[t.bodySm, { color: c.txt2 }]}>Hey Champ -</Text>
+            <Text style={[t.bodySm, { color: c.txt2 }]}>Set your area</Text>
             <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Where are we looking?</Text>
 
             <LocationField value={loc} onChange={setLoc} />

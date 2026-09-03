@@ -72,7 +72,7 @@ function friendly(raw: string) {
   if (m.includes('not authorized to manage')) return "You don't have permission to manage this community.";
   if (m.includes('join this community')) return 'Join this community before suggesting events.';
   if (m.includes('signed-in app user required')) return 'Sign in to continue.';
-  if (m.includes('invalid input syntax for type uuid')) return 'This demo item is not backed by live data yet.';
+  if (m.includes('invalid input syntax for type uuid')) return 'That item is not available in the live app.';
   if (m.includes('must keep at least one owner')) return 'A community needs at least one owner — transfer ownership first.';
   if (m.includes('already handled')) return 'That suggestion was already reviewed.';
   if (m.includes('network') || m.includes('fetch')) return 'Network problem — check your connection and try again.';

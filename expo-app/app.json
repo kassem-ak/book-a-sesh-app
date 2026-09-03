@@ -1,18 +1,27 @@
 {
   "expo": {
-    "name": "Spotter",
-    "slug": "expo-app",
-    "scheme": "spotter",
+    "name": "BOOK'D",
+    "slug": "bookd",
+    "owner": "akkass",
+    "description": "Book coaches, courts, communities, and partner-store gear in one app.",
+    "githubUrl": "https://github.com/kassem-ak/book-a-sesh-app",
+    "scheme": "bookd",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.spotter.expo"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.bookd.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "com.spotter.expo",
+      "package": "com.bookd.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -28,7 +37,27 @@
     "plugins": [
       "expo-font",
       "expo-web-browser",
-      "./plugins/withBookdAndroid"
+      "./plugins/withBookdAndroid",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow BOOK'D to use your location while the app is open so it can show real distances to nearby coaches and partner stores."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0D0E11",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#0D0E11",
+            "image": "./assets/splash-icon.png"
+          }
+        }
+      ],
+      "expo-status-bar"
     ],
     "experiments": {
       "baseUrl": "/book-a-sesh-app"

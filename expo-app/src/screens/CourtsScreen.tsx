@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { ScrollAwareFab, useScrollAwareFab } from '../components/ScrollAwareFab';
 import { Avatar, Card, Icon, MicroBadge, Row, StripedPlaceholder } from '../components/ui';
 import { venueById, venues } from '../state/courtsData';
 import { useStore } from '../state/store';
@@ -15,15 +14,6 @@ const TABS: [Tab, string][] = [
 ];
 
 const TAP = { top: 8, bottom: 8, left: 8, right: 8 };
-
-// The `sheet` layer (delta section B) and the rsvp* fields are added to the
-// store by the integrator in this same round; write them loosely so this
-// screen compiles either way.
-type LooseSetter = { set: (key: string, value: unknown) => void };
-const store = () => useStore.getState() as unknown as LooseSetter;
-
-// Board note on the venue avatar: "Stories can be added" -> sheet: 'story'.
-const openAddStory = () => store().set('sheet', 'story');
 
 // Court / event RSVP. The store resolves the price from venue data by id and
 // refuses to open when the target cannot be priced.
@@ -179,11 +169,10 @@ function VenueProfile({ id, entryTab, onBack }: { id: string; entryTab: Tab; onB
   const v = venueById(id);
   const [tab, setTab] = useState<Tab>(entryTab);
   const [shown, setShown] = useState(6);
-  const { anim, onScroll, visible } = useScrollAwareFab();
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 26 }} onScroll={onScroll} scrollEventThrottle={16}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 26 }}>
         {/* v2 top bar: back · "Courts" · gallery icon · volt + */}
         <Row style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14 }} gap={10}>
           <Pressable
@@ -206,18 +195,13 @@ function VenueProfile({ id, entryTab, onBack }: { id: string; entryTab: Tab; onB
           </Pressable>
           <Text style={[t.overlayTitle, { color: c.txt, flex: 1 }]}>Courts</Text>
           <HeaderIconButton icon="image" label="Open the gallery tab" onPress={() => setTab('gallery')} />
-          <HeaderIconButton icon="plus" label={'Add a story to ' + v.name} onPress={openAddStory} volt />
         </Row>
 
         <StripedPlaceholder caption={v.coverPhoto ?? 'venue hero'} height={176} radius={0} />
 
         <View style={{ paddingHorizontal: spacing.screen }}>
-          {/* Story ring + "Add story" affordance -> sheet: 'story' */}
           <Row style={{ marginTop: -30, alignItems: 'flex-end' }} gap={12}>
-            <Pressable
-              onPress={openAddStory}
-              accessibilityRole="button"
-              accessibilityLabel={'Add a story to ' + v.name}
+            <View
               style={{
                 width: avatarSize.venue,
                 height: avatarSize.venue,
@@ -230,33 +214,7 @@ function VenueProfile({ id, entryTab, onBack }: { id: string; entryTab: Tab; onB
               }}
             >
               <Avatar initials={v.code} size={58} radius={radii.avatar} bg={v.tint} fontSize={17} />
-              <View
-                style={{
-                  position: 'absolute',
-                  bottom: -6,
-                  right: -6,
-                  width: 22,
-                  height: 22,
-                  borderRadius: 999,
-                  backgroundColor: c.volt,
-                  borderWidth: 2,
-                  borderColor: c.bg,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Icon name="plus" size={11} color={c.ink} />
-              </View>
-            </Pressable>
-            <Pressable
-              onPress={openAddStory}
-              accessibilityRole="button"
-              accessibilityLabel="Add story"
-              hitSlop={TAP}
-              style={{ flex: 1, minHeight: 44, justifyContent: 'flex-end', paddingBottom: 4 }}
-            >
-              <Text style={[t.labelSm, { fontSize: 11, color: c.txt3 }]}>Add story</Text>
-            </Pressable>
+            </View>
           </Row>
 
           <Row style={{ marginTop: 14, alignItems: 'flex-start' }} gap={10}>
@@ -370,10 +328,6 @@ function VenueProfile({ id, entryTab, onBack }: { id: string; entryTab: Tab; onB
           )}
         </View>
       </ScrollView>
-
-      {tab === 'gallery' ? (
-        <ScrollAwareFab anim={anim} visible={visible} icon="image" label="Add photo to gallery" onPress={openAddStory} />
-      ) : null}
     </View>
   );
 }

@@ -217,10 +217,15 @@ export function CoachPackagesOverlay() {
         </View>
         <SectionHeading style={{ marginTop: 24, marginBottom: 11 }}>Your active promos</SectionHeading>
         <View style={{ gap: 10 }}>
-          {s.cPromoCode && <PromoCard code={s.cPromoCode} sub={`${s.cPromoPct}% off your sessions · just created`} fresh />}
-          <PromoCard code="FIRST5" sub="$5 off a client's first session · always on" />
+          {s.cPromoCode ? (
+            <PromoCard code={s.cPromoCode} sub={`${s.cPromoPct}% off your sessions - just created`} fresh />
+          ) : (
+            <Card style={{ padding: 14 }}>
+              <Text style={[t.bodySm, { color: c.txt2 }]}>No active promos.</Text>
+            </Card>
+          )}
         </View>
-        <Text style={[t.bodySm, { color: c.txt3, marginTop: 16 }]}>Your promos apply to your sessions only. Platform-wide promotions are managed by Spotter admins.</Text>
+        <Text style={[t.bodySm, { color: c.txt3, marginTop: 16 }]}>Your promos apply to your sessions only. Platform-wide promotions are managed by BOOK'D admins.</Text>
       </View>
     </OverlayScaffold>
   );

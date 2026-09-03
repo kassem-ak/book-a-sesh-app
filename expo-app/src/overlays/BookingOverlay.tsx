@@ -57,7 +57,7 @@ export function BookingOverlay() {
             <Text style={[t.body, { color: c.txt2 }]}>Total</Text>
             <Text style={[t.price, { color: c.accent }]}>${selectedPkg.price}</Text>
           </Row>
-          <VoltButton label="Confirm and pay" onPress={s.confirmBooking} />
+          <VoltButton label="Confirm and pay" onPress={s.confirmBooking} busy={s.writeBusy === 'booking'} busyLabel="Booking..." />
         </View>
       }
     >

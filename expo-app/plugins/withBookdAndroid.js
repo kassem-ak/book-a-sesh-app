@@ -3,7 +3,7 @@ const { withAndroidManifest, withAppBuildGradle } = require('expo/config-plugins
 // The android/ directory is generated and gitignored, so anything hand-edited
 // there disappears on the next `expo prebuild`. Two changes have to survive:
 //
-//  1. The `spotter://` intent filter. Without it Android has no handler for the
+//  1. The `bookd://` intent filter. Without it Android has no handler for the
 //     OAuth redirect, so `WebBrowser.openAuthSessionAsync` never gets its
 //     callback and SSO hangs after the provider approves.
 //  2. `debuggableVariants = []`, which makes the debug variant embed the JS
@@ -11,7 +11,7 @@ const { withAndroidManifest, withAppBuildGradle } = require('expo/config-plugins
 //     paths overflow the Windows 260-character path limit, so the standalone
 //     APK is produced from the debug variant instead.
 
-const SCHEME = 'spotter';
+const SCHEME = 'bookd';
 
 function addSchemeIntentFilter(config) {
   return withAndroidManifest(config, (cfg) => {

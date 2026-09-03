@@ -1,21 +1,38 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, Text, View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 import { Avatar, Card, Icon, MicroBadge, Row } from '../components/ui';
-import { Person, initials, personMeta } from '../state/models';
+import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, mapPointToPercent, MapPoint, parseGeoPoint } from '../lib/geo';
+import { Person, initials } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 const MAP_H = 460;
-// pseudo pin positions (% of map) for up to 6 people
-const POS = [
-  { top: 30, left: 46 },
-  { top: 22, left: 20 },
-  { top: 55, left: 30 },
-  { top: 62, left: 66 },
-  { top: 40, left: 76 },
-  { top: 74, left: 50 },
-];
+
+type GeoPerson = Person & {
+  coordinates?: GeoPoint | null;
+};
+
+type CoordinatePerson = {
+  person: Person;
+  coordinates: GeoPoint;
+};
+
+type PersonPin = CoordinatePerson & {
+  mapPoint: MapPoint;
+  distanceKm: number | null;
+  distanceLabel: string | null;
+};
+
+function personCoordinates(p: Person) {
+  return parseGeoPoint((p as GeoPerson).coordinates ?? p);
+}
+
+function personMetaLabel(p: Person, distanceLabel?: string | null) {
+  const parts = p.isCoach ? [p.sport] : [p.sport, p.goal ?? ''];
+  if (distanceLabel) parts.push(distanceLabel);
+  return parts.filter(Boolean).join(' - ');
+}
 
 function Grid({ color }: { color: string }) {
   return (
@@ -33,74 +50,116 @@ function Grid({ color }: { color: string }) {
 export function DiscoverMap({ people }: { people: Person[] }) {
   const { c, t } = useTheme();
   const s = useStore();
-  const nearest = [...people].sort((a, b) => a.distance - b.distance)[0];
+  const [devicePoint, setDevicePoint] = useState<GeoPoint | null | undefined>(undefined);
+  const coordinatePeople = people
+    .map((person) => {
+      const coordinates = personCoordinates(person);
+      return coordinates ? { person, coordinates } : null;
+    })
+    .filter((entry): entry is CoordinatePerson => Boolean(entry));
+  const coordinateKey = coordinatePeople.map((entry) => `${entry.person.id}:${entry.coordinates.latitude},${entry.coordinates.longitude}`).join('|');
+
+  useEffect(() => {
+    if (coordinatePeople.length === 0) {
+      setDevicePoint(null);
+      return;
+    }
+
+    let active = true;
+    getDevicePoint().then((point) => {
+      if (active) setDevicePoint(point);
+    });
+    return () => {
+      active = false;
+    };
+  }, [coordinateKey, coordinatePeople.length]);
+
+  const coordinatePoints = coordinatePeople.map((entry) => entry.coordinates);
+  const pins = coordinatePeople
+    .slice(0, 6)
+    .map((entry) => {
+      const mapPoint = mapPointToPercent(entry.coordinates, coordinatePoints, devicePoint ?? null);
+      if (!mapPoint) return null;
+      const distanceKm = distanceKmBetween(devicePoint ?? null, entry.coordinates);
+      return { ...entry, mapPoint, distanceKm, distanceLabel: formatDistanceKm(distanceKm) };
+    })
+    .filter((entry): entry is PersonPin => Boolean(entry));
+  const userMapPoint = devicePoint ? mapPointToPercent(devicePoint, coordinatePoints, devicePoint) : null;
+  const nearest = pins
+    .filter((entry) => entry.distanceKm !== null)
+    .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0))[0];
+
   return (
     <View>
       <View style={{ height: MAP_H, borderRadius: 18, backgroundColor: c.mapBg, borderColor: c.line, borderWidth: 1, overflow: 'hidden' }}>
         <Grid color={c.grid} />
-        {/* user location — board annotation: "blinking marker" */}
-        <View style={{ position: 'absolute', top: '48%', left: '50%', marginLeft: -17, marginTop: -17 }}>
-          <BlinkingMarker />
-        </View>
-        {people.slice(0, 6).map((p, i) => {
-          const pos = POS[i];
-          return (
-            <Pressable
-              key={p.id}
-              onPress={() => s.openPerson(p.id)}
-              style={{ position: 'absolute', top: `${pos.top}%`, left: `${pos.left}%`, alignItems: 'center' }}
-            >
-              <View style={{ position: 'relative' }}>
-                <View
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 2,
-                    // spec: boosted = filled amber, others = volt outline
-                    borderColor: p.boosted ? c.amber : c.volt,
-                    backgroundColor: p.boosted ? c.amber : 'transparent',
-                    padding: p.boosted ? 2 : 0,
-                  }}
-                >
-                  <Avatar initials={initials(p.name)} size={44} radius={999} />
+        {userMapPoint ? (
+          <View style={{ position: 'absolute', top: `${userMapPoint.top}%`, left: `${userMapPoint.left}%`, marginLeft: -17, marginTop: -17 }}>
+            <BlinkingMarker />
+          </View>
+        ) : null}
+        {pins.map(({ person: p, mapPoint }) => (
+          <Pressable
+            key={p.id}
+            onPress={() => s.openPerson(p.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`${p.name} on map`}
+            style={{ position: 'absolute', top: `${mapPoint.top}%`, left: `${mapPoint.left}%`, alignItems: 'center' }}
+          >
+            <View style={{ position: 'relative' }}>
+              <View
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 2,
+                  // spec: boosted = filled amber, others = volt outline
+                  borderColor: p.boosted ? c.amber : c.volt,
+                  backgroundColor: p.boosted ? c.amber : 'transparent',
+                  padding: p.boosted ? 2 : 0,
+                }}
+              >
+                <Avatar initials={initials(p.name)} size={44} radius={999} />
+              </View>
+              {p.boosted && (
+                <View style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: c.amber, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="zap" size={10} color={c.ink} />
                 </View>
-                {p.boosted && (
-                  <View style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: c.amber, alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon name="zap" size={10} color={c.ink} />
-                  </View>
-                )}
-              </View>
-              <View style={{ marginTop: 4, backgroundColor: c.surface, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
-                <Text style={[t.caption, { color: c.txt }]}>★ {p.rating.toFixed(1)}</Text>
-              </View>
-            </Pressable>
-          );
-        })}
+              )}
+            </View>
+            <View style={{ marginTop: 4, backgroundColor: c.surface, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
+              <Row gap={3}>
+                <Icon name="star" size={10} color={c.txt} />
+                <Text style={[t.caption, { color: c.txt }]}>{p.rating.toFixed(1)}</Text>
+              </Row>
+            </View>
+          </Pressable>
+        ))}
       </View>
 
-      {/* docked nearest card */}
-      {nearest && (
-        <View style={{ marginTop: -74, marginHorizontal: 10 }}>
-          <Card onPress={() => s.openPerson(nearest.id)} style={{ padding: 12 }}>
-            <Row gap={12}>
-              <Avatar initials={initials(nearest.name)} size={48} radius={13} />
-              <View style={{ flex: 1 }}>
-                <Text style={[t.name, { color: c.txt }]}>{nearest.name}</Text>
-                <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{personMeta(nearest)}</Text>
-              </View>
-              {nearest.isCoach ? (
-                <Text style={[t.price, { color: c.accent }]}>${nearest.price}</Text>
-              ) : (
-                <MicroBadge label={nearest.level} bg={c.surface2} fg={c.txt2} />
-              )}
-            </Row>
-          </Card>
-        </View>
-      )}
+      {nearest && (() => {
+        const p = nearest.person;
+        return (
+          <View style={{ marginTop: -74, marginHorizontal: 10 }}>
+            <Card onPress={() => s.openPerson(p.id)} style={{ padding: 12 }}>
+              <Row gap={12}>
+                <Avatar initials={initials(p.name)} size={48} radius={13} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[t.name, { color: c.txt }]}>{p.name}</Text>
+                  <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{personMetaLabel(p, nearest.distanceLabel)}</Text>
+                </View>
+                {p.isCoach ? (
+                  <Text style={[t.price, { color: c.accent }]}>${p.price}</Text>
+                ) : (
+                  <MicroBadge label={p.level} bg={c.surface2} fg={c.txt2} />
+                )}
+              </Row>
+            </Card>
+          </View>
+        );
+      })()}
     </View>
   );
 }
 
-// Board annotation: "blinking marker" on the user's location.
 export function BlinkingMarker() {
   const { c } = useTheme();
   const pulse = useRef(new Animated.Value(0)).current;
