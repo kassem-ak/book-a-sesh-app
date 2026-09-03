@@ -259,7 +259,7 @@ export function StartCommunityOverlay() {
       <View style={{ paddingHorizontal: 18 }}>
         <SectionHeading style={{ marginBottom: 11 }}>Community name</SectionHeading>
         <Field value={s.commName} onChange={(v) => s.set('commName', v)} placeholder="Downtown Padel Crew..." />
-        <Pressable onPress={() => s.set('overlay', 'communityRegister')} style={{ marginTop: 16 }}>
+        <Pressable onPress={() => s.openRegistration('community')} style={{ marginTop: 16 }}>
           <Text style={[t.label, { color: c.accent }]}>Registering an official entity? Use the full form</Text>
         </Pressable>
       </View>

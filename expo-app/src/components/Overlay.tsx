@@ -1,10 +1,11 @@
 import React, { ReactNode, useEffect, useRef } from 'react';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../theme';
+import { motion, useTheme } from '../theme';
 import { Icon } from './ui';
 
 // Full-screen overlay that slides up 14px + fades over 280ms (matches `ovUp`).
+// Distinct from `Sheet` — overlays fill the screen, sheets dock to the bottom.
 export function OverlayScaffold({
   header,
   children,
@@ -18,7 +19,13 @@ export function OverlayScaffold({
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(anim, { toValue: 1, duration: 280, useNativeDriver: true }).start();
+    const a = Animated.timing(anim, {
+      toValue: 1,
+      duration: motion.overlay,
+      useNativeDriver: true,
+    });
+    a.start();
+    return () => a.stop();
   }, [anim]);
   return (
     <Animated.View
@@ -30,7 +37,14 @@ export function OverlayScaffold({
         bottom: 0,
         backgroundColor: c.bg,
         opacity: anim,
-        transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+        transform: [
+          {
+            translateY: anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [motion.overlayTravel, 0],
+            }),
+          },
+        ],
       }}
     >
       <View style={{ paddingTop: insets.top }}>{header}</View>

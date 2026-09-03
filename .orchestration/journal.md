@@ -22,3 +22,18 @@
   the schedule editor, and a "Create a new package" action — the three red
   annotations on the Coach profile artboard.
 - Verified: tsc --noEmit clean, web export succeeds.
+
+## 2026-09-01 — handoff v2, 4 parallel agents (no failover triggered)
+- A design system: v2 tokens (card 20 / input 16 / avatar 17,58 / tracking 1.6 /
+  light accent #5E7B10 / ph + scrim), new Sheet component, FAB motion 250ms/28px.
+- B courts+rsvp: prototype venue data, venue top bar + story ring, RSVP sheet.
+- C onboarding+chat+profile: progress dots, two-blob gradient on all steps,
+  radius default 12, Session reminders card, TRAINING/SETTINGS groups.
+- D registration+community: shared RegistrationOverlay (community|venue|shop),
+  My Communities dot, community cover + federation pill.
+- Integrator: sheet layer + SheetRouter, RSVP/registration/onboarding store
+  fields, server-derived RSVP total, registration approvals queue, Field a11y
+  label, cyan token, radius lifted into the store.
+- Corrected my own delta spec against the prototype: light volt #B4E13A and
+  light --ph 0.05 (spec had said otherwise).
+- Verified: tsc --noEmit clean, expo export succeeds.

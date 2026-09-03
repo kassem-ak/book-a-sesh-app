@@ -27,7 +27,8 @@
     },
     "plugins": [
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "./plugins/withBookdAndroid"
     ],
     "experiments": {
       "baseUrl": "/book-a-sesh-app"

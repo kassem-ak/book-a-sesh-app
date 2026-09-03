@@ -52,7 +52,16 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
       // Web redirects away; native resolves here once the deep link returns.
       onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sign-in failed');
+      const raw = e instanceof Error ? e.message : '';
+      // Until the provider is turned on in Supabase Auth, GoTrue answers
+      // "Unsupported provider: provider is not enabled" — not something to
+      // show a person.
+      const label = provider === 'google' ? 'Google' : 'Facebook';
+      setError(
+        /provider is not enabled|unsupported provider/i.test(raw)
+          ? `${label} sign-in is not set up yet. Use your email and password for now.`
+          : raw || 'Sign-in failed',
+      );
     } finally {
       setBusy(false);
     }
@@ -118,9 +127,9 @@ export function AuthForm({ onDone }: { onDone: () => void }) {
           setMode(mode === 'in' ? 'up' : 'in');
           setError(null);
         }}
-        style={{ marginTop: 18, alignItems: 'center' }}
+        style={{ marginTop: 18 }}
       >
-        <Text style={[t.label, { color: c.accent }]}>
+        <Text style={[t.label, { color: c.accent, textAlign: 'center' }]}>
           {mode === 'in' ? 'New here? Create an account' : 'Already have an account? Sign in'}
         </Text>
       </Pressable>
@@ -145,12 +154,16 @@ function SsoButton({ label, icon, onPress, disabled }: { label: string; icon: 'c
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 10,
+        gap: 8,
+        paddingHorizontal: 10,
         opacity: disabled ? 0.6 : 1,
       }}
     >
       <Icon name={icon} size={18} color={c.txt} />
-      <Text style={[t.label, { color: c.txt }]}>{label}</Text>
+      {/* flexShrink:0 + trailing pad: Android clips custom-font labels laid
+          out in a row when it measures them a hair too narrow. */}
+      {/* No line clamp: clamping made Android ellipsize these short labels. */}
+      <Text style={[t.label, { color: c.txt, flexShrink: 0, paddingRight: 2 }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -164,8 +177,8 @@ export function AuthOverlay() {
       <View style={{ paddingHorizontal: 18 }}>
         <AuthForm onDone={s.closeOverlay} />
         <Text style={[t.bodySm, { color: c.txt3, marginTop: 18 }]}>
-          You can keep browsing as a guest — an account saves your bookings, communities and shop
-          orders under your own name.
+          You can keep browsing as a guest — an account saves your bookings
+          and communities under your own name.
         </Text>
       </View>
     </OverlayScaffold>

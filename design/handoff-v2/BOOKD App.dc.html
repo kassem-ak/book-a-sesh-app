@@ -1,0 +1,1763 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; }
+  .scry::-webkit-scrollbar { display:none; }
+  .scry { scrollbar-width:none; }
+  @keyframes ovUp { from { transform:translateY(14px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  @keyframes gradShift { 0% { transform:translate3d(-6%,-4%,0) scale(1.15); } 50% { transform:translate3d(6%,5%,0) scale(1.3); } 100% { transform:translate3d(-6%,-4%,0) scale(1.15); } }
+  @keyframes gradShift2 { 0% { transform:translate3d(5%,6%,0) scale(1.2); } 50% { transform:translate3d(-7%,-6%,0) scale(1.35); } 100% { transform:translate3d(5%,6%,0) scale(1.2); } }
+  @keyframes blink { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.35; transform:scale(.82); } }
+  @keyframes pulseRing { 0% { transform:scale(.7); opacity:.55; } 70% { transform:scale(2.1); opacity:0; } 100% { opacity:0; } }
+  :root {
+    --page: radial-gradient(120% 90% at 50% 0%, #15171C 0%, #08090B 60%);
+    --bg:#0D0E11; --nav:#101216; --surface:#16181D; --surface2:#1C1F26;
+    --line:rgba(255,255,255,0.07); --line2:rgba(255,255,255,0.05);
+    --txt:#F2F3F5; --strong:#E7E9EC; --soft:#C5CAD2; --txt2:#9BA1AC; --txt3:#6B7280;
+    --volt:#C6F24E; --accent:#C6F24E; --amber:#F2C84B; --amber-text:#F2C84B;
+    --mapbg:#12141A; --grid:rgba(255,255,255,0.045); --ph:rgba(255,255,255,0.04);
+  }
+  [data-theme="light"] {
+    --page: radial-gradient(120% 90% at 50% 0%, #FFFFFF 0%, #E9EBEF 60%);
+    --bg:#F4F5F7; --nav:#FFFFFF; --surface:#FFFFFF; --surface2:#EFF1F4;
+    --line:rgba(0,0,0,0.09); --line2:rgba(0,0,0,0.06);
+    --txt:#14161A; --strong:#22252B; --soft:#3C4149; --txt2:#5C636E; --txt3:#8A9099;
+    --volt:#B4E13A; --accent:#5E7B10; --amber-text:#8A6A08;
+    --mapbg:#E7EAEE; --grid:rgba(0,0,0,0.05); --ph:rgba(0,0,0,0.05);
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--txt); }
+</style>
+</helmet>
+
+<template id="__bundler_thumbnail" data-bg-color="#0D0E11">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#0D0E11"></rect>
+    <rect x="470" y="260" width="260" height="260" rx="70" fill="#C6F24E"></rect>
+    <text x="600" y="450" font-family="Archivo, Arial, sans-serif" font-size="170" font-weight="900" fill="#0D0E11" text-anchor="middle">B</text>
+  </svg>
+</template>
+<div data-theme="{{ themeAttr }}" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px;background:var(--page);box-sizing:border-box;font-family:'Hanken Grotesk',sans-serif">
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ isDark }}" hint-size="412px,892px">
+
+<div style="height:100%;position:relative;display:flex;flex-direction:column;background:var(--bg);font-family:'Hanken Grotesk',sans-serif;color:var(--txt);overflow:hidden">
+
+  <!-- ================= AUTH / ONBOARDING ================= -->
+  <sc-if value="{{ showAuth }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:60;background:var(--bg);overflow:hidden">
+    <div style="position:absolute;top:-18%;left:-22%;width:120%;height:80%;background:radial-gradient(closest-side, rgba(198,242,78,0.30), rgba(198,242,78,0) 70%);animation:gradShift 14s ease-in-out infinite;filter:blur(6px)"></div>
+    <div style="position:absolute;bottom:-24%;right:-26%;width:120%;height:85%;background:radial-gradient(closest-side, rgba(78,190,242,0.20), rgba(78,190,242,0) 70%);animation:gradShift2 18s ease-in-out infinite;filter:blur(6px)"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg, rgba(13,14,17,0.35) 0%, rgba(13,14,17,0.85) 70%, var(--bg) 100%)"></div>
+
+    <div style="position:relative;height:100%;display:flex;flex-direction:column;justify-content:center;padding:36px 26px;box-sizing:border-box">
+
+      <sc-if value="{{ auth1 }}" hint-placeholder-val="{{ true }}">
+      <div style="animation:fadeIn .4s ease">
+        <div style="font-size:14px;font-weight:700;color:var(--txt2);letter-spacing:0.3px">Let's</div>
+        <div style="font-family:Archivo;font-weight:800;font-size:34px;letter-spacing:-0.8px;margin:2px 0 26px">Get Started</div>
+        <div style="display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 15px;margin-bottom:13px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{ emailIconColor }}" stroke-width="2"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
+          <input value="{{ authEmail }}" onChange="{{ onAuthEmail }}" placeholder="Email" style="flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-size:15px;font-weight:600;font-family:inherit">
+        </div>
+        <div style="display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 15px;margin-bottom:22px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="{{ searchIconColor }}"><circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/></svg>
+          <input value="{{ authSeek }}" onChange="{{ onAuthSeek }}" placeholder="Search Coach, Mentor" style="flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-size:15px;font-weight:600;font-family:inherit">
+        </div>
+        <div onClick="{{ authNext }}" style="display:flex;align-items:center;justify-content:center;gap:10px;height:52px;border-radius:999px;border:1px solid var(--line);background:var(--surface2);cursor:pointer">
+          <span style="font-family:Archivo;font-weight:800;font-size:14px;letter-spacing:0.6px">NEXT</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--txt2)" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+        <div style="display:flex;justify-content:center;gap:14px;margin-top:26px">
+          <div onClick="{{ authNext }}" style="width:52px;height:52px;border-radius:16px;border:1px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;cursor:pointer">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="var(--soft)"><path d="M14 9h3V5h-3c-2.2 0-4 1.8-4 4v2H8v4h2v6h4v-6h3l1-4h-4V9.5c0-.3.2-.5.5-.5z"/></svg>
+          </div>
+          <div onClick="{{ authNext }}" style="width:52px;height:52px;border-radius:16px;border:1px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;cursor:pointer">
+            <span style="font-family:Archivo;font-weight:800;font-size:17px;color:var(--soft)">G+</span>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ auth2 }}" hint-placeholder-val="{{ false }}">
+      <div style="animation:fadeIn .4s ease">
+        <div style="font-size:14px;font-weight:700;color:var(--txt2);letter-spacing:0.3px">What</div>
+        <div style="font-family:Archivo;font-weight:800;font-size:34px;letter-spacing:-0.8px;margin:2px 0 30px">Are you?</div>
+        <div style="display:flex;gap:12px;margin-bottom:26px">
+          <sc-for list="{{ roleOptions }}" as="r" hint-placeholder-count="2">
+            <div onClick="{{ r.onTap }}" style="flex:1;text-align:center;padding:14px 8px;border-radius:999px;font-weight:700;font-size:14px;cursor:pointer;background:{{ r.bg }};color:{{ r.fg }};border:1px solid {{ r.border }}">{{ r.label }}</div>
+          </sc-for>
+        </div>
+        <div onClick="{{ authNext }}" style="display:flex;align-items:center;justify-content:center;gap:10px;height:52px;border-radius:999px;border:1px solid var(--line);background:var(--surface2);cursor:pointer">
+          <span style="font-family:Archivo;font-weight:800;font-size:14px;letter-spacing:0.6px">NEXT</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--txt2)" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ auth3 }}" hint-placeholder-val="{{ false }}">
+      <div style="animation:fadeIn .4s ease">
+        <div style="font-size:14px;font-weight:700;color:var(--txt2);letter-spacing:0.3px">Hey Champ —</div>
+        <div style="font-family:Archivo;font-weight:800;font-size:31px;letter-spacing:-0.7px;margin:2px 0 26px">Where are we looking?</div>
+        <div style="display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 15px;margin-bottom:26px">
+          <input value="{{ authLoc }}" onChange="{{ onAuthLoc }}" placeholder="Location" style="flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-size:15px;font-weight:600;font-family:inherit">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{ locIconColor }}" stroke-width="2"><circle cx="12" cy="12" r="3.4"/><circle cx="12" cy="12" r="8.4"/><path d="M12 1.6v3M12 19.4v3M1.6 12h3M19.4 12h3"/></svg>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--txt2);margin-bottom:16px">Search Radius</div>
+        <div style="position:relative;height:44px">
+          <div style="position:absolute;top:22px;left:0;right:0;height:2px;background:var(--line);border-radius:2px"></div>
+          <div style="position:absolute;top:22px;left:0;height:2px;background:var(--volt);border-radius:2px;width:{{ radiusPct }}"></div>
+          <div style="position:absolute;top:8px;left:{{ radiusPct }};transform:translateX(-50%);width:34px;height:34px;border-radius:50%;background:var(--surface2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;pointer-events:none">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--volt)" stroke-width="2" stroke-linecap="round"><circle cx="15.5" cy="4.5" r="1.6"/><path d="M13 9l-3 2 2 3-2 5M13 9l3.5 1.5L19 9M10 11L6 9.5M12 14l4 1.5 1.5 4.5"/></svg>
+          </div>
+          <input type="range" min="1" max="100" value="{{ radiusVal }}" onChange="{{ onRadius }}" style="position:absolute;inset:0;width:100%;height:44px;opacity:0;cursor:pointer;margin:0">
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--txt2);margin-bottom:8px">
+          <span>1 Km</span><span style="color:var(--volt)">{{ radiusLabel }}</span><span>100 Km</span>
+        </div>
+        <div onClick="{{ authDone }}" style="display:flex;align-items:center;justify-content:center;gap:10px;height:52px;border-radius:999px;background:var(--volt);color:#0D0E11;cursor:pointer;margin-top:22px">
+          <span style="font-family:Archivo;font-weight:800;font-size:14px;letter-spacing:0.6px">NEXT</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0D0E11" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+      </div>
+      </sc-if>
+
+      <div style="position:absolute;left:26px;right:26px;bottom:26px;display:flex;gap:6px;justify-content:center">
+        <sc-for list="{{ authDots }}" as="d" hint-placeholder-count="3">
+          <div style="width:{{ d.w }};height:5px;border-radius:99px;background:{{ d.bg }}"></div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= MAIN SCROLL AREA ================= -->
+  <div class="scry" onScroll="{{ onScroll }}" style="flex:1;overflow-y:auto;overflow-x:hidden">
+
+    <!-- ---------- DISCOVER ---------- -->
+    <sc-if value="{{ isDiscover }}" hint-placeholder-val="{{ true }}">
+    <div style="padding:22px 18px 26px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+        <div>
+          <div style="font-size:13px;color:var(--txt3);font-weight:600">Lets</div>
+          <div style="font-family:Archivo;font-weight:800;font-size:27px;line-height:1.05;letter-spacing:-0.5px;margin-top:2px">Find your coach<br>or partner</div>
+          <div style="font-size:12.5px;color:var(--txt2);font-weight:600;margin-top:6px">Beirut, Lebanon</div>
+        </div>
+        <div style="display:flex;gap:10px;flex-shrink:0">
+          <div onClick="{{ openNotifs }}" style="position:relative;width:46px;height:46px;border-radius:15px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="1.9"><path d="M18 15v-4a6 6 0 1 0-12 0v4l-1.5 3h15z"/><path d="M10 21h4"/></svg>
+            <div style="position:absolute;top:11px;right:12px;width:7px;height:7px;border-radius:50%;background:{{ bellDot }};border:2px solid var(--surface)"></div>
+          </div>
+          <div onClick="{{ openProfile }}" style="width:46px;height:46px;border-radius:15px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="1.9"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c1.5-3.6 4-5.4 7-5.4s5.5 1.8 7 5.4"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px">
+        <div>
+          <div style="font-size:12.5px;color:var(--txt2);font-weight:600">Chosen Sport</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:7px">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18M5.5 5.5c3 3 10 3 13 0M5.5 18.5c3-3 10-3 13 0"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="1.7" stroke-linecap="round"><circle cx="15.5" cy="4.5" r="1.7"/><path d="M13 9l-3 2 2 3-2 5M13 9l3.5 1.5L19 9M10 11L6 9.5M12 14l4 1.5 1.5 4.5"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M12 5v14M4 12h16"/></svg>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;border:1px solid var(--line);border-radius:999px;padding:4px;background:var(--surface)">
+          <div onClick="{{ onCoaches }}" style="padding:9px 15px;border-radius:999px;font-weight:700;font-size:13px;cursor:pointer;background:{{ coachTabBg }};color:{{ coachTabFg }}">coaches</div>
+          <div onClick="{{ onPartners }}" style="padding:9px 15px;border-radius:999px;font-weight:700;font-size:13px;cursor:pointer;background:{{ partnerTabBg }};color:{{ partnerTabFg }}">Partners</div>
+        </div>
+      </div>
+
+      <div onClick="{{ toggleSportMenu }}" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px;cursor:pointer">
+        <span style="font-size:14px;font-weight:600">{{ sportLabel }}</span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <sc-if value="{{ sportMenuOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;margin-bottom:10px">
+        <sc-for list="{{ sportOptions }}" as="s" hint-placeholder-count="5">
+          <div onClick="{{ s.onTap }}" style="padding:11px 12px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:{{ s.bg }};color:{{ s.fg }}">{{ s.label }}</div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <div style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:22px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{ discSearchIcon }}" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input value="{{ discSearch }}" onChange="{{ onDiscSearch }}" placeholder="Search Coach, Mentor" style="flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-size:14px;font-family:inherit">
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Featured coaches</div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:22px">
+        <sc-for list="{{ featured }}" as="p" hint-placeholder-count="2">
+          <div onClick="{{ p.onOpen }}" style="display:flex;gap:14px;align-items:center;padding:15px;background:var(--surface);border:1px solid var(--line);border-radius:20px;cursor:pointer">
+            <div style="width:58px;height:58px;border-radius:17px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:19px;color:#F2F3F5;background:{{ p.tint }}">{{ p.initials }}</div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:9px">
+                <span style="font-weight:700;font-size:16.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</span>
+                <span style="flex-shrink:0;font-size:9px;font-weight:800;letter-spacing:0.8px;color:var(--amber-text);border:1px solid rgba(242,200,75,0.35);padding:4px 9px;border-radius:999px">BOOSTED</span>
+              </div>
+              <div style="font-size:13.5px;color:var(--soft);margin-top:4px">{{ p.meta }}</div>
+              <div style="display:flex;align-items:center;gap:5px;margin-top:4px"><span style="color:var(--amber-text);font-size:11px">★</span><span style="font-weight:600;font-size:12.5px;color:var(--txt2)">{{ p.rating }} {{ p.reviews }}</span></div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:Archivo;font-weight:800;font-size:17px;color:var(--accent)">{{ p.price }}</div>
+              <div style="font-size:11px;color:var(--txt3);margin-top:2px">per session</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ adVisible }}" hint-placeholder-val="{{ true }}">
+      <div onClick="{{ onAdOpen }}" style="position:relative;display:flex;gap:14px;align-items:center;padding:15px;background:var(--surface);border:1px solid var(--line);border-radius:20px;margin-bottom:22px;cursor:pointer">
+        <div onClick="{{ onAdHide }}" style="position:absolute;top:11px;right:13px;font-size:13px;font-weight:700;color:var(--txt3);cursor:pointer;line-height:1">✕</div>
+        <div style="width:58px;height:58px;border-radius:17px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:19px;color:#F2F3F5;background:#2A3340">SL</div>
+        <div style="flex:1;min-width:0;padding-right:20px">
+          <span style="display:inline-block;font-size:9px;font-weight:800;letter-spacing:0.8px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--txt3)">AD</span>
+          <div style="font-weight:700;font-size:16px;margin-top:6px">StrideLab running shoes</div>
+          <div style="font-size:13.5px;color:var(--soft);margin-top:3px">Free gait analysis with first pair.</div>
+        </div>
+      </div>
+      </sc-if>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">{{ listHeading }}</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ ranked }}" as="p" hint-placeholder-count="4">
+          <div onClick="{{ p.onOpen }}" style="display:flex;gap:14px;align-items:center;padding:15px;background:var(--surface);border:1px solid var(--line);border-radius:20px;cursor:pointer">
+            <div style="width:58px;height:58px;border-radius:17px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:19px;color:#F2F3F5;background:{{ p.tint }}">{{ p.initials }}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:16.5px">{{ p.name }}</div>
+              <div style="font-size:13.5px;color:var(--soft);margin-top:4px">{{ p.meta }}</div>
+              <div style="display:flex;align-items:center;gap:5px;margin-top:4px"><span style="color:var(--amber-text);font-size:11px">★</span><span style="font-weight:600;font-size:12.5px;color:var(--txt2)">{{ p.rating }} {{ p.reviews }}</span></div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:Archivo;font-weight:800;font-size:17px;color:var(--accent)">{{ p.price }}</div>
+              <div style="font-size:11px;color:var(--txt3);margin-top:2px">{{ p.priceSub }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ---------- MAPS ---------- -->
+    <sc-if value="{{ isMaps }}" hint-placeholder-val="{{ false }}">
+    <div style="position:relative;height:100%;min-height:760px">
+      <div style="position:absolute;inset:0;background:var(--mapbg);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:44px 44px"></div>
+      <div style="position:absolute;top:22%;left:8%;width:210px;height:9px;background:rgba(198,242,78,0.10);border-radius:99px;transform:rotate(28deg)"></div>
+      <div style="position:absolute;top:56%;left:38%;width:250px;height:9px;background:var(--line);border-radius:99px;transform:rotate(-16deg)"></div>
+
+      <div style="position:absolute;top:18px;left:18px;right:18px;z-index:6">
+        <div style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:13px 16px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <span style="font-size:14px;color:var(--txt2);font-weight:600">Search this area</span>
+        </div>
+        <div class="scry" style="display:flex;gap:8px;overflow-x:auto;margin-top:11px;padding-bottom:2px">
+          <sc-for list="{{ mapChips }}" as="c" hint-placeholder-count="4">
+            <div onClick="{{ c.onTap }}" style="flex-shrink:0;padding:8px 15px;border-radius:999px;font-size:11.5px;font-weight:800;letter-spacing:0.6px;cursor:pointer;background:{{ c.bg }};color:{{ c.fg }};border:1px solid {{ c.border }}">{{ c.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-for list="{{ mapPins }}" as="pin" hint-placeholder-count="5">
+        <div onClick="{{ pin.onOpen }}" style="position:absolute;top:{{ pin.top }};left:{{ pin.left }};transform:translate(-50%,-50%);cursor:pointer;z-index:4">
+          <div style="width:46px;height:46px;border-radius:50%;border:2px solid {{ pin.ring }};background:{{ pin.tint }};display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:14px;color:#F2F3F5;box-shadow:0 6px 18px rgba(0,0,0,0.45)">{{ pin.initials }}</div>
+          <div style="position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);display:flex;align-items:center;gap:3px;background:var(--nav);border:1px solid var(--line);border-radius:999px;padding:2px 7px;white-space:nowrap">
+            <span style="color:var(--amber-text);font-size:9px">★</span><span style="font-size:10px;font-weight:800">{{ pin.rating }}</span>
+          </div>
+        </div>
+      </sc-for>
+
+      <div style="position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);z-index:3">
+        <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:rgba(198,242,78,0.5);animation:pulseRing 2s ease-out infinite"></div>
+        <div style="position:relative;width:20px;height:20px;border-radius:50%;background:var(--volt);border:3px solid var(--bg);animation:blink 1.6s ease-in-out infinite"></div>
+      </div>
+
+      <div onClick="{{ nearest.onOpen }}" style="position:absolute;left:14px;right:14px;bottom:16px;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:15px;display:flex;gap:14px;align-items:center;z-index:6;cursor:pointer;box-shadow:0 14px 40px rgba(0,0,0,0.45)">
+        <div style="width:58px;height:58px;border-radius:17px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:19px;color:#F2F3F5;background:{{ nearest.tint }}">{{ nearest.initials }}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11.5px;color:var(--txt3);font-weight:700">Nearest boosted coach</div>
+          <div style="font-weight:700;font-size:16.5px;margin-top:2px">{{ nearest.name }}</div>
+          <div style="font-size:13.5px;color:var(--soft);margin-top:2px">{{ nearest.meta }}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:Archivo;font-weight:800;font-size:17px;color:var(--accent)">{{ nearest.price }}</div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:2px">per session</div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ---------- COURTS (all courts view) ---------- -->
+    <sc-if value="{{ isCourts }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:20px 18px 26px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <div style="font-family:Archivo;font-weight:800;font-size:27px;letter-spacing:-0.5px">Courts</div>
+          <div style="font-size:13px;color:var(--txt2);margin-top:2px">Book courts, join tournaments</div>
+        </div>
+        <div style="display:flex;gap:9px">
+          <div onClick="{{ openCourtsGalleryTab }}" style="width:40px;height:40px;border-radius:13px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M12 6v12M3 12h4M17 12h4"/></svg>
+          </div>
+          <div onClick="{{ openVenueRequest }}" style="width:40px;height:40px;border-radius:13px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div onClick="{{ toggleCourtSportMenu }}" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px;cursor:pointer">
+        <span style="font-size:14px;font-weight:600">{{ courtSportLabel }}</span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <sc-if value="{{ courtSportMenuOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;margin-bottom:10px">
+        <sc-for list="{{ courtSportOptions }}" as="s" hint-placeholder-count="4">
+          <div onClick="{{ s.onTap }}" style="padding:11px 12px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:{{ s.bg }};color:{{ s.fg }}">{{ s.label }}</div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <div style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:20px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{ courtSearchIcon }}" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input value="{{ courtSearch }}" onChange="{{ onCourtSearch }}" placeholder="Search venues, courts" style="flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-size:14px;font-family:inherit">
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <sc-for list="{{ venues }}" as="v" hint-placeholder-count="3">
+          <div onClick="{{ v.onOpen }}" style="background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:11px;cursor:pointer">
+            <div style="height:126px;border-radius:14px;background:var(--ph);display:flex;align-items:center;justify-content:center">
+              <span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--txt3);border:1px solid var(--line);border-radius:6px;padding:3px 8px">{{ v.ph }}</span>
+            </div>
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:11px 4px 3px">
+              <div style="min-width:0">
+                <div style="font-weight:700;font-size:16px">{{ v.name }}</div>
+                <div style="font-size:12.5px;color:var(--txt2);margin-top:2px">{{ v.city }} · {{ v.sport }}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-family:Archivo;font-weight:800;font-size:14px;color:var(--accent)">{{ v.dist }}</div>
+                <div style="font-size:11px;color:var(--txt3)">{{ v.openLabel }}</div>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ---------- COMMUNITY ---------- -->
+    <sc-if value="{{ isCommunity }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:20px 18px 26px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px">
+        <div>
+          <div style="font-family:Archivo;font-weight:800;font-size:27px;letter-spacing:-0.5px">Community</div>
+          <div style="font-size:13px;color:var(--txt2);margin-top:2px">Train with crews around you</div>
+        </div>
+        <div style="display:flex;gap:9px;flex-shrink:0">
+          <div onClick="{{ openMyCommunities }}" style="position:relative;width:40px;height:40px;border-radius:13px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="1.9"><circle cx="8" cy="9" r="3"/><circle cx="17" cy="7.5" r="2.4"/><path d="M2.5 19c1-3 3.2-4.6 5.5-4.6S12.5 16 13.5 19M15 13.4c2 .2 3.6 1.7 4.4 4"/></svg>
+            <div style="position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--volt);border:2px solid var(--surface)"></div>
+          </div>
+          <div onClick="{{ openStartCommunity }}" style="width:40px;height:40px;border-radius:13px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Happening soon</div>
+      <div class="scry" style="display:flex;gap:12px;overflow-x:auto;margin:0 -18px 22px;padding:0 18px 4px">
+        <sc-for list="{{ homeEvents }}" as="ev" hint-placeholder-count="2">
+          <div onClick="{{ ev.onOpen }}" style="flex-shrink:0;width:212px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:10px;cursor:pointer">
+            <div style="position:relative;height:96px;border-radius:12px;background:var(--ph);display:flex;align-items:center;justify-content:center">
+              <span style="font-family:ui-monospace,monospace;font-size:9px;color:var(--txt3);border:1px solid var(--line);border-radius:5px;padding:2px 6px">{{ ev.ph }}</span>
+              <div style="position:absolute;top:8px;left:8px;font-size:9px;font-weight:800;letter-spacing:0.6px;padding:4px 8px;border-radius:999px;background:rgba(13,14,17,0.72);color:var(--volt)">{{ ev.kind }}</div>
+            </div>
+            <div style="padding:10px 4px 2px">
+              <div style="font-weight:700;font-size:14.5px;line-height:1.25">{{ ev.title }}</div>
+              <div style="font-size:12px;color:var(--soft);margin-top:5px">{{ ev.when }}</div>
+              <div style="font-size:12px;color:var(--txt3);margin-top:2px">{{ ev.where }} · {{ ev.going }} going</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ commAdVisible }}" hint-placeholder-val="{{ true }}">
+      <div onClick="{{ onAdOpen }}" style="position:relative;display:flex;gap:12px;align-items:center;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:18px;margin-bottom:22px;cursor:pointer">
+        <span style="position:absolute;top:12px;right:12px;font-size:9px;font-weight:800;letter-spacing:0.8px;padding:3px 7px;border-radius:5px;background:var(--surface2);color:var(--txt3)">AD</span>
+        <div style="width:50px;height:50px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:15px;color:#F2F3F5;background:#2C3A2E">FN</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:15px">FuelUp Nutrition</div>
+          <div style="font-size:12.5px;color:var(--txt2);margin-top:2px">20% off recovery packs for crews</div>
+        </div>
+      </div>
+      </sc-if>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Communities</div>
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <sc-for list="{{ communities }}" as="c" hint-placeholder-count="5">
+          <div style="display:flex;gap:13px;align-items:center;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:18px">
+            <div onClick="{{ c.onOpen }}" style="width:50px;height:50px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:15px;color:#F2F3F5;background:{{ c.tint }};cursor:pointer">{{ c.code }}</div>
+            <div onClick="{{ c.onOpen }}" style="flex:1;min-width:0;cursor:pointer">
+              <div style="display:flex;align-items:center;gap:7px">
+                <span style="font-weight:700;font-size:16px">{{ c.sport }}</span>
+                <sc-if value="{{ c.official }}" hint-placeholder-val="{{ false }}"><span style="font-size:8.5px;font-weight:800;letter-spacing:0.6px;padding:3px 6px;border-radius:4px;background:rgba(198,242,78,0.12);color:var(--accent)">OFFICIAL</span></sc-if>
+              </div>
+              <div style="font-size:12.5px;color:var(--txt2);margin-top:2px">{{ c.members }} members</div>
+              <div style="font-size:12.5px;color:var(--txt3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.about }}</div>
+            </div>
+            <div onClick="{{ c.onJoin }}" style="flex-shrink:0;font-size:12px;font-weight:800;padding:8px 14px;border-radius:999px;cursor:pointer;background:{{ c.joinBg }};color:{{ c.joinFg }};border:1px solid {{ c.joinBorder }}">{{ c.joinLabel }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ---------- CHAT ---------- -->
+    <sc-if value="{{ isChat }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:20px 18px 26px">
+      <div style="font-family:Archivo;font-weight:800;font-size:27px;letter-spacing:-0.5px">Chat</div>
+      <div style="font-size:13px;color:var(--txt2);margin:2px 0 18px">Conversations and session updates</div>
+      <div style="display:flex;flex-direction:column">
+        <sc-for list="{{ chats }}" as="c" hint-placeholder-count="4">
+          <div onClick="{{ c.onOpen }}" style="display:flex;gap:13px;align-items:center;padding:13px 4px;border-bottom:1px solid var(--line2);cursor:pointer">
+            <div style="position:relative;flex-shrink:0">
+              <div style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:17px;color:#F2F3F5;background:{{ c.tint }}">{{ c.initials }}</div>
+              <sc-if value="{{ c.online }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;bottom:1px;right:1px;width:13px;height:13px;border-radius:50%;background:var(--volt);border:2px solid var(--bg)"></div></sc-if>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:15.5px">{{ c.name }}</div>
+              <div style="font-size:13px;color:var(--txt2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.preview }}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+              <span style="font-size:11px;color:var(--txt3)">{{ c.time }}</span>
+              <sc-if value="{{ c.unread }}" hint-placeholder-val="{{ false }}"><span style="min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:var(--volt);color:#0D0E11;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">{{ c.unreadCount }}</span></sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="margin-top:20px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:15px">
+        <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:10px">Session reminders</div>
+        <div style="font-size:13.5px;color:var(--soft);line-height:1.45">Marcus approved your Thursday 6:30 PM strength session.</div>
+        <div onClick="{{ openBookings }}" style="margin-top:12px;text-align:center;padding:10px;border-radius:12px;background:var(--surface2);border:1px solid var(--line);font-weight:800;font-size:12.5px;cursor:pointer">Open booking</div>
+      </div>
+    </div>
+    </sc-if>
+
+  </div>
+
+  <!-- ================= BOTTOM NAV ================= -->
+  <div style="display:flex;background:var(--nav);border-top:1px solid var(--line);padding:11px 6px 13px;flex-shrink:0;z-index:12">
+    <div onClick="{{ goDiscover }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:{{ navDiscover }}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <span style="font-size:10px;font-weight:700">Discover</span>
+    </div>
+    <div onClick="{{ goMaps }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:{{ navMaps }}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M9 4.5L3.5 6.5v13L9 17.5l6 2 5.5-2v-13L15 6.5z"/><path d="M9 4.5v13M15 6.5v13"/></svg>
+      <span style="font-size:10px;font-weight:700">Maps</span>
+    </div>
+    <div onClick="{{ goCourts }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:{{ navCourts }}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M12 6v12"/><circle cx="12" cy="12" r="1.6"/></svg>
+      <span style="font-size:10px;font-weight:700">Courts</span>
+    </div>
+    <div onClick="{{ goCommunity }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:{{ navCommunity }}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="6" r="2.4"/><circle cx="6" cy="15" r="2.4"/><circle cx="18" cy="15" r="2.4"/><path d="M10.4 7.7L7.6 12.9M13.6 7.7l2.8 5.2M8.4 15h7.2"/></svg>
+      <span style="font-size:10px;font-weight:700">Community</span>
+    </div>
+    <div onClick="{{ goChat }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:{{ navChat }}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M20 15.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>
+      <span style="font-size:10px;font-weight:700">Chat</span>
+    </div>
+  </div>
+
+  <!-- ================= VENUE (COURTS) PROFILE ================= -->
+  <sc-if value="{{ showVenue }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" onScroll="{{ onScroll }}" style="position:absolute;inset:0;z-index:26;background:var(--bg);overflow-y:auto;animation:ovUp .28s ease">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;padding:16px 16px 14px">
+        <div onClick="{{ closeOverlay }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+        <div style="flex:1;font-family:Archivo;font-weight:800;font-size:17px">Courts</div>
+        <div onClick="{{ openCourtsGalleryTab }}" style="width:40px;height:40px;border-radius:13px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="1.7"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M12 6v12M3 12h4M17 12h4"/></svg></div>
+        <div onClick="{{ openAddStory }}" style="width:40px;height:40px;border-radius:13px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg></div>
+      </div>
+      <div style="height:176px;background:var(--ph);display:flex;align-items:center;justify-content:center;border-top:1px solid var(--line2);border-bottom:1px solid var(--line2)">
+        <span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--txt3);border:1px solid var(--line);border-radius:6px;padding:3px 8px">{{ venue.coverPh }}</span>
+      </div>
+    </div>
+
+    <div style="padding:0 18px 26px">
+      <div style="display:flex;align-items:flex-end;gap:12px;margin-top:-30px">
+        <div onClick="{{ openAddStory }}" style="position:relative;width:66px;height:66px;border-radius:20px;background:var(--surface2);border:2px solid var(--volt);display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:17px;color:var(--txt);cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.5)">
+          {{ venue.initials }}
+          <div style="position:absolute;bottom:-6px;right:-6px;width:22px;height:22px;border-radius:50%;background:var(--volt);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0D0E11" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg></div>
+        </div>
+        <div onClick="{{ openAddStory }}" style="flex:1;min-width:0;padding-bottom:4px;cursor:pointer">
+          <div style="font-size:11px;color:var(--txt3);font-weight:700">Add story</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-top:14px">
+        <div style="min-width:0">
+          <div style="font-family:Archivo;font-weight:800;font-size:22px;letter-spacing:-0.4px">{{ venue.name }}</div>
+          <div style="font-size:13px;color:var(--soft);margin-top:6px">Open : {{ venue.days }}</div>
+          <div style="font-size:13px;color:var(--soft);margin-top:2px">Operation hours : {{ venue.hours }}</div>
+          <div style="font-size:13px;color:var(--txt2);margin-top:2px">{{ venue.city }}</div>
+        </div>
+        <span style="flex-shrink:0;font-size:10px;font-weight:800;letter-spacing:0.8px;padding:6px 12px;border-radius:999px;background:rgba(198,242,78,0.12);color:var(--accent)">{{ venue.openState }}</span>
+      </div>
+
+      <div style="display:flex;justify-content:center;align-items:center;gap:0;margin:20px 0 18px">
+        <sc-for list="{{ venueTabs }}" as="t" hint-placeholder-count="3">
+          <div onClick="{{ t.onTap }}" style="padding:8px 24px;font-weight:700;font-size:13.5px;cursor:pointer;color:{{ t.fg }};border-right:1px solid {{ t.divider }};border-bottom:2px solid {{ t.border }}">{{ t.label }}</div>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ venueCourtsTab }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <sc-for list="{{ venueCourts }}" as="c" hint-placeholder-count="2">
+          <div style="background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:11px">
+            <div style="height:112px;border-radius:14px;background:var(--ph);display:flex;align-items:center;justify-content:center">
+              <span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--txt3);border:1px solid var(--line);border-radius:6px;padding:3px 8px">{{ c.ph }}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 4px 3px">
+              <div style="flex:1;min-width:0">
+                <div style="font-family:Archivo;font-weight:800;font-size:13px;letter-spacing:0.4px;text-transform:uppercase">{{ c.name }}</div>
+                <div style="font-size:12.5px;color:var(--txt2);margin-top:3px">{{ c.players }} Players</div>
+              </div>
+              <div style="font-family:Archivo;font-weight:800;font-size:16px;color:var(--accent)">{{ c.price }}</div>
+              <div onClick="{{ c.onRsvp }}" style="flex-shrink:0;font-size:12px;font-weight:800;padding:9px 16px;border-radius:999px;background:var(--volt);color:#0D0E11;cursor:pointer">RSVP</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ venueEventsTab }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <sc-for list="{{ venueEvents }}" as="e" hint-placeholder-count="2">
+          <div style="background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:11px">
+            <div style="position:relative;height:112px;border-radius:14px;background:var(--ph);display:flex;align-items:center;justify-content:center">
+              <span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--txt3);border:1px solid var(--line);border-radius:6px;padding:3px 8px">{{ e.ph }}</span>
+              <div style="position:absolute;top:8px;left:8px;font-size:9px;font-weight:800;letter-spacing:0.6px;padding:4px 8px;border-radius:999px;background:rgba(13,14,17,0.72);color:var(--volt)">TOURNAMENT</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 4px 3px">
+              <div style="flex:1;min-width:0">
+                <div style="font-family:Archivo;font-weight:800;font-size:13px;letter-spacing:0.4px;text-transform:uppercase">{{ e.name }}</div>
+                <div style="font-size:12.5px;color:var(--txt2);margin-top:3px">{{ e.dates }}</div>
+              </div>
+              <div style="font-family:Archivo;font-weight:800;font-size:15px;color:var(--accent)">{{ e.price }}</div>
+              <div onClick="{{ e.onRsvp }}" style="flex-shrink:0;font-size:12px;font-weight:800;padding:9px 16px;border-radius:999px;background:var(--volt);color:#0D0E11;cursor:pointer">RSVP</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ venueGalleryTab }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px">
+        <sc-for list="{{ albums }}" as="a" hint-placeholder-count="6">
+          <div style="cursor:pointer">
+            <div style="aspect-ratio:1;border-radius:14px;background:var(--ph);border:1px solid var(--line)"></div>
+            <div style="font-size:11.5px;color:var(--txt2);text-align:center;margin-top:6px;font-weight:600">{{ a.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:20px;cursor:pointer">
+        <span style="font-size:12px;font-weight:700;color:var(--txt2)">Load More</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      </sc-if>
+    </div>
+
+    <div style="position:sticky;bottom:16px;display:flex;justify-content:flex-end;padding:0 16px 16px;pointer-events:none;transition:transform .25s ease, opacity .25s ease;transform:{{ fabTransform }};opacity:{{ fabOpacity }}">
+      <div onClick="{{ openAddStory }}" style="width:52px;height:52px;border-radius:17px;background:var(--volt);display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;box-shadow:0 12px 30px rgba(0,0,0,0.5)">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#0D0E11" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M8 13l3-3 4 4 2-2 3 3"/><path d="M17 3v4M15 5h4"/></svg>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= RSVP SHEET ================= -->
+  <sc-if value="{{ showRsvp }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:34;background:rgba(6,7,9,0.62);display:flex;align-items:flex-end;animation:fadeIn .2s ease">
+    <div class="scry" style="width:100%;max-height:88%;overflow-y:auto;background:var(--bg);border-top:1px solid var(--line);border-radius:26px 26px 0 0;padding:20px 18px 24px;box-sizing:border-box;animation:ovUp .3s ease">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px">
+        <div>
+          <div style="font-family:Archivo;font-weight:800;font-size:20px">RSVP · {{ rsvp.target }}</div>
+          <div style="font-size:12.5px;color:var(--txt2);margin-top:3px">{{ venue.name }} · {{ rsvp.priceLabel }}</div>
+        </div>
+        <div onClick="{{ closeRsvp }}" style="width:34px;height:34px;border-radius:11px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--txt2)" stroke-width="2.4"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:9px">Booking type</div>
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <sc-for list="{{ rsvpTypes }}" as="t" hint-placeholder-count="3">
+          <div onClick="{{ t.onTap }}" style="flex:1;text-align:center;padding:11px 6px;border-radius:13px;font-size:12.5px;font-weight:700;cursor:pointer;background:{{ t.bg }};color:{{ t.fg }};border:1px solid {{ t.border }}">{{ t.label }}</div>
+        </sc-for>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:9px">Number of hours</div>
+      <div style="display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:11px 14px;margin-bottom:20px">
+        <div onClick="{{ rsvpHoursMinus }}" style="width:32px;height:32px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:800;font-size:17px;color:var(--txt2)">−</div>
+        <div style="flex:1;text-align:center;font-family:Archivo;font-weight:800;font-size:17px">{{ rsvp.hoursLabel }}</div>
+        <div onClick="{{ rsvpHoursPlus }}" style="width:32px;height:32px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:800;font-size:17px;color:var(--txt2)">+</div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:11px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14.5px">Equipment rent</div>
+          <div style="font-size:12px;color:var(--txt2);margin-top:2px">Rackets & balls · +$6 / hour</div>
+        </div>
+        <div onClick="{{ toggleGear }}" style="width:46px;height:26px;border-radius:999px;position:relative;cursor:pointer;transition:.2s;flex-shrink:0;background:{{ gearBg }}">
+          <div style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#FFFFFF;transition:.2s;transform:{{ gearKnob }}"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:20px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14.5px">Add a coach</div>
+          <div style="font-size:12px;color:var(--txt2);margin-top:2px">Opens the coach's calendar next</div>
+        </div>
+        <div onClick="{{ toggleRsvpCoach }}" style="width:46px;height:26px;border-radius:999px;position:relative;cursor:pointer;transition:.2s;flex-shrink:0;background:{{ coachBg }}">
+          <div style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#FFFFFF;transition:.2s;transform:{{ coachKnob }}"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:14px;padding:13px 15px;margin-bottom:14px">
+        <span style="font-weight:700;font-size:14px">Total</span>
+        <span style="font-family:Archivo;font-weight:800;font-size:18px;color:var(--accent)">{{ rsvp.total }}</span>
+      </div>
+      <div onClick="{{ confirmRsvp }}" style="height:52px;border-radius:15px;background:var(--volt);color:#0D0E11;font-family:Archivo;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer">{{ rsvp.cta }}</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= COMMUNITY PROFILE ================= -->
+  <sc-if value="{{ showCommunity }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" onScroll="{{ onScroll }}" style="position:absolute;inset:0;z-index:26;background:var(--bg);overflow-y:auto;animation:ovUp .28s ease">
+    <div style="position:relative">
+      <div style="height:150px;background:var(--ph)"></div>
+      <div onClick="{{ closeOverlay }}" style="position:absolute;top:16px;left:16px;width:38px;height:38px;border-radius:12px;background:rgba(13,14,17,0.66);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#F2F3F5" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+      <sc-if value="{{ community.official }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:16px;right:16px;width:34px;height:34px;border-radius:50%;background:rgba(13,14,17,0.66);display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--volt)" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg></div>
+      </sc-if>
+    </div>
+
+    <div style="padding:0 18px 26px">
+      <div style="margin-top:-34px;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:14px">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:56px;height:56px;border-radius:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:16px;color:#F2F3F5;background:{{ community.tint }}">{{ community.code }}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <span style="font-family:Archivo;font-weight:800;font-size:17px;line-height:1.2;flex:1;min-width:0">{{ community.name }}</span>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2" style="flex-shrink:0"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M14 6l4 4"/></svg>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap">
+              <sc-if value="{{ community.official }}" hint-placeholder-val="{{ false }}"><span style="font-size:9px;font-weight:800;letter-spacing:0.6px;padding:4px 8px;border-radius:5px;background:rgba(198,242,78,0.12);color:var(--accent)">OFFICIAL FEDERATION</span></sc-if>
+              <span style="font-size:12.5px;font-weight:700;color:var(--soft)">{{ community.members }} Members</span>
+            </div>
+            <div style="font-size:12.5px;color:var(--txt2);margin-top:4px">{{ community.tags }}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--txt3);font-weight:700;margin-top:13px">Bio:</div>
+        <div style="font-size:13.5px;color:var(--soft);line-height:1.45;margin-top:3px">{{ community.about }}</div>
+        <div style="display:flex;justify-content:center;gap:0;margin-top:14px;border-top:1px solid var(--line2);padding-top:4px">
+          <sc-for list="{{ communityTabs }}" as="t" hint-placeholder-count="3">
+            <div onClick="{{ t.onTap }}" style="padding:9px 20px;font-weight:700;font-size:13px;cursor:pointer;color:{{ t.fg }};border-bottom:2px solid {{ t.border }}">{{ t.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-if value="{{ commNewsTab }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:14px;margin-top:18px">
+        <sc-for list="{{ commPosts }}" as="p" hint-placeholder-count="2">
+          <div style="background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:13px">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px">
+              <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:11px;color:#F2F3F5;background:{{ p.tint }}">{{ p.initials }}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:14px">{{ p.author }}</div>
+                <div style="font-size:11.5px;color:var(--txt3)">{{ p.when }}</div>
+              </div>
+            </div>
+            <div style="font-size:13.5px;color:var(--soft);line-height:1.5;margin-bottom:11px">{{ p.body }}</div>
+            <div style="height:150px;border-radius:14px;background:var(--ph);display:flex;align-items:center;justify-content:center">
+              <span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--txt3);border:1px solid var(--line);border-radius:6px;padding:3px 8px">{{ p.ph }}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:18px;margin-top:12px">
+              <div onClick="{{ p.onLike }}" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="{{ p.likeFill }}" stroke="{{ p.likeStroke }}" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c.9 1.2 2.1 1.8 3.5 1.8s2.6-.6 3.5-1.8" fill="none"/><path d="M9 10h.01M15 10h.01" fill="none"/></svg>
+                <span style="font-size:12.5px;font-weight:700;color:{{ p.likeStroke }}">{{ p.likes }}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2"><path d="M20 15.5A2.5 2.5 0 0 1 17.5 18H8l-4 3V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>
+                <span style="font-size:12.5px;font-weight:700;color:var(--txt3)">{{ p.comments }}</span>
+              </div>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2" style="cursor:pointer"><circle cx="18" cy="5" r="2.4"/><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="19" r="2.4"/><path d="M8.1 10.9l7.8-4.4M8.1 13.1l7.8 4.4"/></svg>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ commEventsTab }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:13px;margin-top:18px">
+        <sc-for list="{{ commEvents }}" as="e" hint-placeholder-count="2">
+          <div style="background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:11px">
+            <div style="position:relative;height:112px;border-radius:14px;background:var(--ph);display:flex;align-items:center;justify-content:center">
+              <span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--txt3);border:1px solid var(--line);border-radius:6px;padding:3px 8px">{{ e.ph }}</span>
+              <div style="position:absolute;top:8px;left:8px;font-size:9px;font-weight:800;letter-spacing:0.6px;padding:4px 8px;border-radius:999px;background:rgba(13,14,17,0.72);color:var(--volt)">EVENT</div>
+            </div>
+            <div style="padding:11px 4px 3px">
+              <div style="font-weight:700;font-size:15px">{{ e.title }}</div>
+              <div style="font-size:12.5px;color:var(--soft);margin-top:4px">{{ e.when }}</div>
+              <div style="font-size:12.5px;color:var(--txt3);margin-top:2px">{{ e.where }} · {{ e.going }} going</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:20px;cursor:pointer">
+        <span style="font-size:12px;font-weight:700;color:var(--txt2)">Load More</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ commGalleryTab }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px">
+        <sc-for list="{{ albums }}" as="a" hint-placeholder-count="6">
+          <div style="cursor:pointer">
+            <div style="aspect-ratio:1;border-radius:16px;background:var(--ph);border:1px solid var(--line)"></div>
+            <div style="font-size:12px;color:var(--txt2);text-align:center;margin-top:7px;font-weight:600">{{ a.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:20px;cursor:pointer">
+        <span style="font-size:12px;font-weight:700;color:var(--txt2)">Load More</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      </sc-if>
+    </div>
+
+    <div style="position:sticky;bottom:16px;display:flex;justify-content:flex-end;padding:0 16px 16px;pointer-events:none;transition:transform .25s ease, opacity .25s ease;transform:{{ fabTransform }};opacity:{{ fabOpacity }}">
+      <div onClick="{{ openAddStory }}" style="width:52px;height:52px;border-radius:17px;background:var(--volt);display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;box-shadow:0 12px 30px rgba(0,0,0,0.5)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0D0E11" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= PROFILE ================= -->
+  <sc-if value="{{ showProfile }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" style="position:absolute;inset:0;z-index:28;background:var(--bg);overflow-y:auto;animation:ovUp .28s ease">
+    <div style="padding:20px 18px 26px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div onClick="{{ closeOverlay }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+          <div style="font-family:Archivo;font-weight:800;font-size:24px;letter-spacing:-0.4px">Profile</div>
+        </div>
+        <div onClick="{{ openNotifs }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2"><path d="M18 15v-4a6 6 0 1 0-12 0v4l-1.5 3h15z"/><path d="M10 21h4"/></svg></div>
+      </div>
+      <div style="font-size:13px;color:var(--txt2);margin:0 0 14px 50px">Alex Morgan · Beirut</div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:15px;margin-bottom:22px">
+        <div style="display:flex;gap:13px;align-items:flex-start">
+          <div style="width:56px;height:56px;border-radius:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:17px;color:#F2F3F5;background:#2A3340">AM</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <span style="font-family:Archivo;font-weight:800;font-size:18px;flex:1">Alex Morgan</span>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M14 6l4 4"/></svg>
+            </div>
+            <div style="font-size:12.5px;color:var(--txt2);margin-top:3px">Strength · Running · Boxing</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <sc-for list="{{ roleTabs }}" as="r" hint-placeholder-count="3">
+            <div onClick="{{ r.onTap }}" style="flex:1;text-align:center;padding:8px;border-radius:999px;font-size:12.5px;font-weight:700;cursor:pointer;background:{{ r.bg }};color:{{ r.fg }};border:1px solid {{ r.border }}">{{ r.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Training</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:22px">
+        <sc-for list="{{ trainingRows }}" as="r" hint-placeholder-count="4">
+          <div onClick="{{ r.onOpen }}" style="display:flex;align-items:center;gap:11px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:16px;cursor:pointer">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:15px">{{ r.label }}</div>
+              <div style="font-size:12.5px;color:var(--txt2);margin-top:2px">{{ r.sub }}</div>
+            </div>
+            <span style="flex-shrink:0;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:999px;background:{{ r.badgeBg }};color:{{ r.badgeFg }}">{{ r.badge }}</span>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2.2" style="flex-shrink:0"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Settings</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ settingsRows }}" as="r" hint-placeholder-count="3">
+          <div onClick="{{ r.onOpen }}" style="display:flex;align-items:center;gap:11px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:16px;cursor:pointer">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:15px">{{ r.label }}</div>
+              <div style="font-size:12.5px;color:var(--txt2);margin-top:2px">{{ r.sub }}</div>
+            </div>
+            <span style="flex-shrink:0;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:999px;background:{{ r.badgeBg }};color:var(--accent)">{{ r.badge }}</span>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2.2" style="flex-shrink:0"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= COACH PROFILE ================= -->
+  <sc-if value="{{ showCoach }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" style="position:absolute;inset:0;z-index:30;background:var(--bg);display:flex;flex-direction:column;animation:ovUp .28s ease">
+    <div style="display:flex;align-items:center;gap:12px;padding:18px 16px 10px;flex-shrink:0">
+      <div onClick="{{ closeOverlay }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+      <div style="font-family:Archivo;font-weight:800;font-size:19px">Coach profile</div>
+    </div>
+    <div class="scry" style="flex:1;overflow-y:auto;padding:6px 18px 18px">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:15px">
+        <div style="display:flex;gap:13px;align-items:flex-start">
+          <div style="width:60px;height:60px;border-radius:17px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:18px;color:#F2F3F5;background:{{ coach.tint }}">{{ coach.initials }}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <span style="font-family:Archivo;font-weight:800;font-size:20px;flex:1;min-width:0">{{ coach.name }}</span>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2" style="flex-shrink:0"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M14 6l4 4"/></svg>
+            </div>
+            <div style="font-size:13px;color:var(--soft);margin-top:3px">{{ coach.disc }}</div>
+            <div style="display:flex;gap:8px;margin-top:9px">
+              <span style="font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:999px;background:var(--surface2);color:var(--strong)">★ {{ coach.rating }}</span>
+              <span style="font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:999px;background:var(--surface2);color:var(--strong)">{{ coach.sessions }} sessions</span>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:13.5px;color:var(--soft);line-height:1.5;margin-top:13px">{{ coach.bio }}</div>
+      </div>
+
+      <sc-if value="{{ coachOwner }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <div onClick="{{ openAddStory }}" style="flex:1;text-align:center;padding:12px 8px;border-radius:14px;background:var(--surface);border:1px solid var(--line);font-size:12.5px;font-weight:700;cursor:pointer">Add gallery images</div>
+        <div onClick="{{ openActiveHours }}" style="flex:1;text-align:center;padding:12px 8px;border-radius:14px;background:var(--surface);border:1px solid var(--line);font-size:12.5px;font-weight:700;cursor:pointer">Active hours</div>
+      </div>
+      </sc-if>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin:22px 0 11px">Packages</div>
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <sc-for list="{{ coachPackages }}" as="p" hint-placeholder-count="2">
+          <div onClick="{{ p.onSelect }}" style="display:flex;align-items:center;gap:12px;padding:15px;background:var(--surface);border:1px solid {{ p.border }};border-radius:18px;cursor:pointer">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:15.5px">{{ p.name }}</div>
+              <div style="font-size:12.5px;color:var(--txt2);margin-top:3px">{{ p.sub }}</div>
+            </div>
+            <div style="font-family:Archivo;font-weight:800;font-size:17px;color:var(--accent)">{{ p.price }}</div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ coachOwner }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ openNewPackage }}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:18px;border:1px dashed var(--line);cursor:pointer">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+          <span style="font-size:13px;font-weight:800;color:var(--accent)">Create a new package</span>
+        </div>
+        </sc-if>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin:22px 0 11px">Reviews</div>
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <sc-for list="{{ coachReviews }}" as="r" hint-placeholder-count="2">
+          <div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px">
+            <div style="display:flex;align-items:center;gap:7px">
+              <span style="font-weight:700;font-size:14px">{{ r.who }}</span>
+              <span style="color:var(--amber-text);font-size:12px">{{ r.stars }}</span>
+            </div>
+            <div style="font-size:13px;color:var(--txt2);line-height:1.45;margin-top:5px">{{ r.text }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div onClick="{{ goBooking }}" style="position:sticky;bottom:0;margin-top:22px;height:54px;border-radius:16px;background:var(--volt);color:#0D0E11;font-family:Archivo;font-weight:800;font-size:15.5px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 14px 34px rgba(0,0,0,0.45)">Book a session</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= BOOKING CALENDAR ================= -->
+  <sc-if value="{{ showBooking }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" style="position:absolute;inset:0;z-index:32;background:var(--bg);overflow-y:auto;animation:ovUp .28s ease">
+    <div style="padding:18px 18px 26px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <div onClick="{{ closeBooking }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+        <div style="font-family:Archivo;font-weight:800;font-size:20px">Book {{ coach.first }}</div>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:12px">{{ monthLabel }}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px">
+        <sc-for list="{{ weekdays }}" as="d" hint-placeholder-count="7">
+          <div style="text-align:center;font-size:10.5px;font-weight:800;color:var(--txt3)">{{ d.l }}</div>
+        </sc-for>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:22px">
+        <sc-for list="{{ monthDays }}" as="d" hint-placeholder-count="31">
+          <div onClick="{{ d.onTap }}" style="aspect-ratio:1;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;cursor:pointer;background:{{ d.bg }};color:{{ d.fg }};border:1px solid {{ d.border }}">{{ d.n }}</div>
+        </sc-for>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Time slot</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:22px">
+        <sc-for list="{{ slots }}" as="s" hint-placeholder-count="6">
+          <div onClick="{{ s.onTap }}" style="text-align:center;padding:11px 4px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;background:{{ s.bg }};color:{{ s.fg }};border:1px solid {{ s.border }}">{{ s.label }}</div>
+        </sc-for>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Package</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+        <sc-for list="{{ coachPackages }}" as="p" hint-placeholder-count="2">
+          <div onClick="{{ p.onSelect }}" style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--surface);border:1px solid {{ p.border }};border-radius:16px;cursor:pointer">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:15px">{{ p.name }}</div>
+              <div style="font-size:12.5px;color:var(--txt2);margin-top:2px">{{ p.sub }}</div>
+            </div>
+            <div style="font-family:Archivo;font-weight:800;font-size:16px;color:var(--accent)">{{ p.price }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:16px;padding:14px 15px;margin-bottom:14px">
+        <span style="font-weight:700;font-size:15px">Total</span>
+        <span style="font-family:Archivo;font-weight:800;font-size:19px;color:var(--accent)">{{ bookingTotal }}</span>
+      </div>
+      <div onClick="{{ confirmBooking }}" style="height:54px;border-radius:16px;background:var(--volt);color:#0D0E11;font-family:Archivo;font-weight:800;font-size:15.5px;display:flex;align-items:center;justify-content:center;cursor:pointer">Confirm and pay</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= BOOKING CONFIRMED ================= -->
+  <sc-if value="{{ showBooked }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:34;background:var(--bg);display:flex;flex-direction:column;animation:ovUp .28s ease">
+    <div style="display:flex;align-items:center;gap:12px;padding:18px 16px">
+      <div onClick="{{ closeOverlay }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+      <div style="font-family:Archivo;font-weight:800;font-size:19px">Booking confirmed</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 30px 40px">
+      <div style="width:96px;height:96px;border-radius:50%;border:2px solid var(--volt);display:flex;align-items:center;justify-content:center;margin-bottom:22px">
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--volt)" stroke-width="2.2"><path d="M5 12l5 5L20 7"/></svg>
+      </div>
+      <div style="font-family:Archivo;font-weight:800;font-size:26px;letter-spacing:-0.4px;margin-bottom:12px">You are booked!</div>
+      <div style="font-size:14.5px;color:var(--soft);line-height:1.5;max-width:250px;margin-bottom:22px">{{ bookedLine }}</div>
+      <sc-if value="{{ calSyncOn }}" hint-placeholder-val="{{ true }}">
+      <div style="width:100%;max-width:290px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:22px">
+        <div style="font-family:Archivo;font-weight:800;font-size:14px;color:var(--accent)">Added to {{ calProvider }} Calendar</div>
+        <div style="font-size:12.5px;color:var(--txt2);margin-top:3px">Changes sync automatically.</div>
+      </div>
+      </sc-if>
+      <div onClick="{{ openBookings }}" style="width:100%;max-width:290px;height:50px;border-radius:15px;background:var(--surface2);border:1px solid var(--line);font-family:Archivo;font-weight:800;font-size:14.5px;display:flex;align-items:center;justify-content:center;cursor:pointer">View in bookings</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= BOOKINGS ================= -->
+  <sc-if value="{{ showBookings }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" style="position:absolute;inset:0;z-index:33;background:var(--bg);overflow-y:auto;animation:ovUp .28s ease">
+    <div style="padding:18px 18px 26px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px">
+        <div onClick="{{ closeOverlay }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+        <div style="font-family:Archivo;font-weight:800;font-size:20px">Bookings</div>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Active package</div>
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:15px;margin-bottom:22px">
+        <div style="font-weight:700;font-size:15px">Marcus Reyes · 4-session block</div>
+        <div style="font-size:12.5px;color:var(--txt2);margin:3px 0 11px">2 of 4 sessions used</div>
+        <div style="height:7px;border-radius:99px;background:var(--surface2);overflow:hidden"><div style="width:50%;height:100%;background:var(--volt)"></div></div>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Upcoming</div>
+      <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:22px">
+        <sc-for list="{{ upcoming }}" as="b" hint-placeholder-count="2">
+          <div style="display:flex;align-items:center;gap:11px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:16px">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:15px">{{ b.title }}</div>
+              <div style="font-size:12.5px;color:var(--txt2);margin-top:2px">{{ b.when }}</div>
+            </div>
+            <sc-if value="{{ calSyncOn }}" hint-placeholder-val="{{ true }}"><span style="font-size:10.5px;font-weight:700;color:var(--accent);background:rgba(198,242,78,0.10);padding:4px 9px;border-radius:999px;white-space:nowrap">In calendar ✓</span></sc-if>
+            <span style="font-size:11.5px;font-weight:800;padding:6px 11px;border-radius:999px;background:var(--surface2);color:var(--txt2);cursor:pointer">Change</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Past</div>
+      <div style="display:flex;align-items:center;gap:11px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:16px">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:15px">Boxing footwork</div>
+          <div style="font-size:12.5px;color:var(--txt2);margin-top:2px">Mon 29 · complete</div>
+        </div>
+        <span style="font-size:11.5px;font-weight:800;padding:6px 12px;border-radius:999px;background:var(--volt);color:#0D0E11;cursor:pointer">Rate</span>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= COACH DAY VIEW ================= -->
+  <sc-if value="{{ showCoachDay }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" style="position:absolute;inset:0;z-index:34;background:var(--bg);overflow-y:auto;animation:ovUp .28s ease">
+    <div style="padding:18px 18px 26px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <div onClick="{{ closeOverlay }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+        <div style="font-family:Archivo;font-weight:800;font-size:20px">My day</div>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:12px">{{ monthLabel }}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:22px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg>
+        <div style="flex:1;display:grid;grid-template-columns:repeat(7,1fr);gap:6px">
+          <sc-for list="{{ weekStrip }}" as="d" hint-placeholder-count="7">
+            <div onClick="{{ d.onTap }}" style="aspect-ratio:1;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;cursor:pointer;background:{{ d.bg }};color:{{ d.fg }};border:1px solid {{ d.border }}">{{ d.n }}</div>
+          </sc-for>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Time</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:22px">
+        <sc-for list="{{ daySessions }}" as="s" hint-placeholder-count="6">
+          <div onClick="{{ s.onTap }}" style="display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--surface);border:1px solid {{ s.border }};border-radius:14px;cursor:pointer;opacity:{{ s.opacity }}">
+            <span style="font-family:Archivo;font-weight:800;font-size:12.5px;color:var(--txt2);width:66px;flex-shrink:0">{{ s.time }}</span>
+            <span style="flex:1;min-width:0;font-weight:600;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.who }}</span>
+            <span style="flex-shrink:0;font-size:11px;font-weight:800;padding:5px 10px;border-radius:999px;background:var(--surface2);color:{{ s.countFg }}">{{ s.count }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div onClick="{{ askDone }}" style="height:52px;border-radius:15px;background:var(--surface2);border:1px solid var(--line);font-family:Archivo;font-weight:800;font-size:14.5px;display:flex;align-items:center;justify-content:center;cursor:pointer">Mark as Done</div>
+    </div>
+
+    <sc-if value="{{ showDonePrompt }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:rgba(6,7,9,0.66);display:flex;align-items:center;justify-content:center;padding:26px;animation:fadeIn .2s ease">
+      <div style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:20px;animation:ovUp .26s ease">
+        <div style="font-family:Archivo;font-weight:800;font-size:17px;line-height:1.3">Did you finish your {{ donePromptTime }} session?</div>
+        <div style="font-size:13px;color:var(--txt2);margin-top:7px;line-height:1.45">Confirming releases the session from your package and prompts the trainee to rate it.</div>
+        <div style="display:flex;gap:10px;margin-top:18px">
+          <div onClick="{{ confirmDone }}" style="flex:1;text-align:center;padding:12px;border-radius:13px;background:var(--volt);color:#0D0E11;font-weight:800;font-size:13.5px;cursor:pointer">YES</div>
+          <div onClick="{{ cancelDone }}" style="flex:1;text-align:center;padding:12px;border-radius:13px;background:var(--surface2);border:1px solid var(--line);color:var(--txt2);font-weight:800;font-size:13.5px;cursor:pointer">NO</div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ================= SHOP ================= -->
+  <sc-if value="{{ showShop }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" style="position:absolute;inset:0;z-index:38;background:var(--bg);overflow-y:auto;animation:ovUp .28s ease">
+    <div style="padding:18px 18px 26px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+        <div onClick="{{ closeOverlay }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+        <div style="font-family:Archivo;font-weight:800;font-size:24px;letter-spacing:-0.4px">Shop</div>
+      </div>
+      <div style="font-size:13px;color:var(--txt2);margin:0 0 18px 50px">Partner sports and hobby stores</div>
+
+      <div style="display:flex;gap:4px;border:1px solid var(--line);border-radius:999px;padding:4px;background:var(--surface);margin-bottom:20px">
+        <div onClick="{{ onShopList }}" style="flex:1;text-align:center;padding:10px;border-radius:999px;font-weight:700;font-size:13px;cursor:pointer;background:{{ shopListBg }};color:{{ shopListFg }}">List</div>
+        <div onClick="{{ onShopMap }}" style="flex:1;text-align:center;padding:10px;border-radius:999px;font-weight:700;font-size:13px;cursor:pointer;background:{{ shopMapBg }};color:{{ shopMapFg }}">Map</div>
+      </div>
+
+      <sc-if value="{{ shopListMode }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:var(--txt3);margin-bottom:11px">Closest first</div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:22px">
+          <sc-for list="{{ shops }}" as="s" hint-placeholder-count="4">
+            <div onClick="{{ s.onOpen }}" style="display:flex;gap:14px;align-items:center;padding:15px;background:var(--surface);border:1px solid var(--line);border-radius:20px;cursor:pointer">
+              <div style="width:58px;height:58px;border-radius:17px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:18px;color:#F2F3F5;background:{{ s.tint }}">{{ s.code }}</div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:9px">
+                  <span style="font-weight:700;font-size:15.5px;white-space:nowrap">{{ s.name }}</span>
+                  <span style="flex-shrink:0;font-size:8.5px;font-weight:800;letter-spacing:0.7px;padding:3px 7px;border-radius:999px;background:rgba(198,242,78,0.12);color:var(--accent)">PARTNER</span>
+                </div>
+                <div style="font-size:13.5px;color:var(--soft);margin-top:4px">{{ s.category }}</div>
+                <div style="display:flex;align-items:center;gap:5px;margin-top:4px"><span style="color:var(--amber-text);font-size:11px">★</span><span style="font-size:12.5px;color:var(--txt2);font-weight:600">{{ s.rating }} {{ s.reviews }} · {{ s.deal }}</span></div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-family:Archivo;font-weight:800;font-size:15px;color:var(--accent)">{{ s.dist }}</div>
+                <div style="font-size:11px;color:var(--txt3);margin-top:2px">away</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ shopMapMode }}" hint-placeholder-val="{{ false }}">
+      <div style="position:relative;height:480px;border-radius:22px;overflow:hidden;border:1px solid var(--line);margin-bottom:22px">
+        <div style="position:absolute;inset:0;background:var(--mapbg);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:40px 40px"></div>
+        <sc-for list="{{ shopPins }}" as="p" hint-placeholder-count="4">
+          <div onClick="{{ p.onOpen }}" style="position:absolute;top:{{ p.top }};left:{{ p.left }};transform:translate(-50%,-50%);cursor:pointer;z-index:4">
+            <div style="width:46px;height:46px;border-radius:15px;border:2px solid rgba(198,242,78,0.45);background:{{ p.tint }};display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:14px;color:#F2F3F5;box-shadow:0 6px 18px rgba(0,0,0,0.45)">{{ p.code }}</div>
+            <div style="position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);background:var(--nav);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap"><span style="font-size:10px;font-weight:800">{{ p.dist }}</span></div>
+          </div>
+        </sc-for>
+        <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:3;width:18px;height:18px;border-radius:50%;background:var(--volt);border:3px solid var(--bg);animation:blink 1.6s ease-in-out infinite"></div>
+      </div>
+      </sc-if>
+
+      <div style="background:linear-gradient(135deg, rgba(198,242,78,0.08), var(--surface));border:1px solid rgba(198,242,78,0.25);border-radius:20px;padding:17px">
+        <div style="font-family:Archivo;font-weight:800;font-size:16.5px">Own a sports or hobby shop?</div>
+        <div style="font-size:13.5px;color:var(--soft);margin:5px 0 14px;line-height:1.45">Sell to nearby athletes in-app and keep your own storefront inside BOOK’D.</div>
+        <div onClick="{{ openShopReg }}" style="text-align:center;padding:13px;border-radius:14px;background:var(--volt);color:#0D0E11;font-family:Archivo;font-weight:800;font-size:14.5px;cursor:pointer">Be a Shop</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= PARTNER STORE ================= -->
+  <sc-if value="{{ showStore }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" style="position:absolute;inset:0;z-index:39;background:var(--bg);overflow-y:auto;animation:ovUp .28s ease">
+    <div style="padding:18px 18px 26px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+        <div onClick="{{ backToShop }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+        <div style="font-family:Archivo;font-weight:800;font-size:19px">Partner store</div>
+      </div>
+
+      <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px">
+        <div style="width:64px;height:64px;border-radius:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:20px;color:#F2F3F5;background:{{ store.tint }}">{{ store.code }}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:Archivo;font-weight:800;font-size:19px">{{ store.name }}</div>
+          <div style="font-size:13.5px;color:var(--soft);margin-top:3px">{{ store.category }} - {{ store.dist }}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+            <span style="color:var(--amber-text);font-size:11px">★</span><span style="font-size:12.5px;color:var(--txt2);font-weight:600">{{ store.rating }} {{ store.reviews }}</span>
+            <span style="font-size:9px;font-weight:800;letter-spacing:0.8px;padding:4px 9px;border-radius:999px;background:rgba(198,242,78,0.12);color:var(--accent)">PARTNER STORE</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;background:rgba(198,242,78,0.07);border:1px solid rgba(198,242,78,0.25);border-radius:16px;padding:13px 14px;margin-bottom:20px">
+        <span style="font-size:13.5px;font-weight:700;color:var(--accent)">{{ store.deal }}</span>
+        <span style="font-size:12.5px;color:var(--txt3)">· applied at in-app checkout</span>
+      </div>
+
+      <div style="font-family:Archivo;font-weight:800;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:var(--txt3);margin-bottom:12px">Popular items</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <sc-for list="{{ storeItems }}" as="p" hint-placeholder-count="4">
+          <div style="background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden">
+            <div style="height:98px;background:var(--ph);display:flex;align-items:center;justify-content:center">
+              <span style="font-family:ui-monospace,monospace;font-size:9.5px;color:var(--txt3);border:1px solid var(--line);border-radius:5px;padding:3px 7px">{{ p.ph }}</span>
+            </div>
+            <div style="padding:12px 13px 13px">
+              <div style="font-weight:700;font-size:13.5px;line-height:1.3;min-height:35px">{{ p.name }}</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:9px">
+                <span style="font-family:Archivo;font-weight:800;font-size:15px;color:var(--accent)">{{ p.price }}</span>
+                <div onClick="{{ p.onAdd }}" style="font-size:11.5px;font-weight:800;padding:7px 13px;border-radius:999px;cursor:pointer;background:{{ p.addBg }};color:{{ p.addFg }}">{{ p.addLabel }}</div>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ hasCart }}" hint-placeholder-val="{{ false }}">
+      <div style="position:sticky;bottom:0;margin-top:20px;height:54px;border-radius:16px;background:var(--volt);color:#0D0E11;font-family:Archivo;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 14px 34px rgba(0,0,0,0.45)">{{ cartLabel }}</div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= REGISTRATION FORM (community / shop / venue) ================= -->
+  <sc-if value="{{ showReg }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" style="position:absolute;inset:0;z-index:40;background:var(--bg);overflow-y:auto;animation:ovUp .28s ease">
+    <div style="padding:18px 18px 26px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <div onClick="{{ closeOverlay }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+        <div style="font-family:Archivo;font-weight:800;font-size:20px">{{ reg.title }}</div>
+      </div>
+
+      <sc-if value="{{ regNotSent }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <div style="font-family:Archivo;font-weight:800;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:9px">{{ reg.nameLabel }}</div>
+        <input value="{{ regName }}" onChange="{{ onRegName }}" placeholder="{{ reg.namePh }}" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 15px;color:var(--txt);font-size:15px;font-family:inherit;outline:none;margin-bottom:20px">
+
+        <div style="font-family:Archivo;font-weight:800;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:9px">Category</div>
+        <div onClick="{{ toggleRegCat }}" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 15px;margin-bottom:20px;cursor:pointer">
+          <span style="font-size:15px;font-weight:600;color:{{ regCatFg }}">{{ regCatLabel }}</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <sc-if value="{{ regCatOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:6px;margin:-12px 0 20px">
+          <sc-for list="{{ regCats }}" as="c" hint-placeholder-count="5">
+            <div onClick="{{ c.onTap }}" style="padding:12px;border-radius:11px;font-size:14.5px;font-weight:600;cursor:pointer;background:{{ c.bg }};color:{{ c.fg }}">{{ c.label }}</div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+        <div style="font-family:Archivo;font-weight:800;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:9px">Phone</div>
+        <input value="{{ regPhone }}" onChange="{{ onRegPhone }}" placeholder="e.g. +961 3 123 456" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 15px;color:var(--txt);font-size:15px;font-family:inherit;outline:none;margin-bottom:20px">
+
+        <div style="font-family:Archivo;font-weight:800;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:9px">Email</div>
+        <input value="{{ regEmail }}" onChange="{{ onRegEmail }}" placeholder="e.g. hello@yourcrew.com" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 15px;color:var(--txt);font-size:15px;font-family:inherit;outline:none;margin-bottom:20px">
+
+        <div style="font-family:Archivo;font-weight:800;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:9px">Preferred way to reach you</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px">
+          <sc-for list="{{ regChannels }}" as="c" hint-placeholder-count="4">
+            <div onClick="{{ c.onTap }}" style="padding:10px 15px;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;background:{{ c.bg }};color:{{ c.fg }};border:1px solid {{ c.border }}">{{ c.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="font-family:Archivo;font-weight:800;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:9px">Best time to contact</div>
+        <input value="{{ regTime }}" onChange="{{ onRegTime }}" placeholder="e.g. weekdays after 5 PM" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 15px;color:var(--txt);font-size:15px;font-family:inherit;outline:none;margin-bottom:20px">
+
+        <div style="font-size:13.5px;color:var(--soft);line-height:1.45;margin-bottom:11px">{{ reg.officialQ }}</div>
+        <div style="display:flex;gap:10px;margin-bottom:20px">
+          <sc-for list="{{ regOfficialOpts }}" as="o" hint-placeholder-count="2">
+            <div onClick="{{ o.onTap }}" style="width:76px;text-align:center;padding:11px 6px;border-radius:999px;font-size:13px;font-weight:800;cursor:pointer;background:{{ o.bg }};color:{{ o.fg }};border:1px solid {{ o.border }}">{{ o.label }}</div>
+          </sc-for>
+        </div>
+
+        <div onClick="{{ closeSheet }}" style="height:150px;border-radius:18px;border:1px dashed var(--line);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;margin-bottom:22px;cursor:pointer">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M8 13l3-3 4 4 2-2 3 3"/></svg>
+          <span style="font-size:12.5px;color:var(--txt3);font-weight:600">Upload official documents</span>
+        </div>
+
+        <div onClick="{{ submitReg }}" style="height:52px;border-radius:15px;background:{{ regBtnBg }};color:{{ regBtnFg }};font-family:Archivo;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-bottom:14px">Send request to admins</div>
+        <div style="font-size:12.5px;color:var(--txt3);line-height:1.5">{{ reg.footnote }}</div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ regSent }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:60px 20px 0">
+        <div style="width:74px;height:74px;border-radius:50%;border:2px solid var(--volt);display:flex;align-items:center;justify-content:center;margin-bottom:20px"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--volt)" stroke-width="2.4"><path d="M5 12l5 5L20 7"/></svg></div>
+        <div style="font-family:Archivo;font-weight:800;font-size:23px;margin-bottom:9px">Request sent</div>
+        <div style="font-size:14.5px;color:var(--soft);line-height:1.5;max-width:270px;margin-bottom:26px">{{ reg.sentLine }}</div>
+        <div onClick="{{ closeOverlay }}" style="width:100%;max-width:260px;height:50px;border-radius:15px;background:var(--volt);color:#0D0E11;font-family:Archivo;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer">Done</div>
+      </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= CHAT THREAD ================= -->
+  <sc-if value="{{ showThread }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:31;background:var(--bg);display:flex;flex-direction:column;animation:ovUp .28s ease">
+    <div style="display:flex;align-items:center;gap:12px;padding:18px 16px 12px;flex-shrink:0;border-bottom:1px solid var(--line2)">
+      <div onClick="{{ closeOverlay }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+      <div style="font-family:Archivo;font-weight:800;font-size:18px">{{ thread.name }}</div>
+    </div>
+    <div class="scry" style="flex:1;overflow-y:auto;padding:18px 16px 12px;display:flex;flex-direction:column;gap:11px">
+      <sc-for list="{{ threadMsgs }}" as="m" hint-placeholder-count="5">
+        <div style="display:flex;justify-content:{{ m.align }}">
+          <div style="max-width:78%;padding:12px 15px;border-radius:{{ m.radius }};background:{{ m.bg }};color:{{ m.fg }};font-size:14px;line-height:1.45">{{ m.text }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 16px 18px;flex-shrink:0;border-top:1px solid var(--line2)">
+      <div style="flex:1;display:flex;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:13px 16px">
+        <input value="{{ draft }}" onChange="{{ onDraft }}" placeholder="{{ thread.placeholder }}" style="flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-size:14px;font-family:inherit">
+      </div>
+      <div onClick="{{ sendMsg }}" style="width:46px;height:46px;border-radius:50%;background:var(--volt);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#0D0E11" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= NOTIFICATIONS ================= -->
+  <sc-if value="{{ showNotifs }}" hint-placeholder-val="{{ false }}">
+  <div class="scry" style="position:absolute;inset:0;z-index:36;background:var(--bg);overflow-y:auto;animation:ovUp .28s ease">
+    <div style="padding:18px 18px 26px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px">
+        <div onClick="{{ closeOverlay }}" style="width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--txt)" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></div>
+        <div style="font-family:Archivo;font-weight:800;font-size:20px">Notifications</div>
+      </div>
+      <div style="background:linear-gradient(135deg, rgba(198,242,78,0.10), var(--surface));border:1px solid rgba(198,242,78,0.28);border-radius:18px;padding:15px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+          <div style="width:20px;height:20px;border-radius:6px;background:var(--volt);display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:900;font-size:11px;color:#0D0E11">B</div>
+          <span style="font-size:12px;color:var(--txt3)">BOOK’D · Daily plan · 7:02 AM</span>
+        </div>
+        <div style="font-family:Archivo;font-weight:800;font-size:16px;margin-bottom:7px">Good morning, Alex — today's plan</div>
+        <div style="font-size:13.5px;color:var(--soft);line-height:1.5">Strength technique with Marcus at 6:30 PM · Paddle court B is free 8–10 PM near you.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <sc-for list="{{ notifs }}" as="n" hint-placeholder-count="3">
+          <div style="display:flex;gap:12px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:16px">
+            <div style="width:38px;height:38px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:12px;color:#F2F3F5;background:{{ n.tint }}">{{ n.initials }}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:14.5px">{{ n.title }}</div>
+              <div style="font-size:12.5px;color:var(--txt2);margin-top:2px;line-height:1.4">{{ n.body }}</div>
+              <div style="font-size:11px;color:var(--txt3);margin-top:5px">{{ n.when }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= SIMPLE SHEET (stories / hours / package / venue request / my communities) ================= -->
+  <sc-if value="{{ showSheet }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:44;background:rgba(6,7,9,0.62);display:flex;align-items:flex-end;animation:fadeIn .2s ease">
+    <div class="scry" style="width:100%;max-height:86%;overflow-y:auto;background:var(--bg);border-top:1px solid var(--line);border-radius:26px 26px 0 0;padding:20px 18px 24px;box-sizing:border-box;animation:ovUp .3s ease">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px">
+        <div>
+          <div style="font-family:Archivo;font-weight:800;font-size:19px">{{ sheet.title }}</div>
+          <div style="font-size:12.5px;color:var(--txt2);margin-top:3px;line-height:1.45">{{ sheet.sub }}</div>
+        </div>
+        <div onClick="{{ closeSheet }}" style="width:34px;height:34px;border-radius:11px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--txt2)" stroke-width="2.4"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+      </div>
+      <sc-if value="{{ sheet.isDrop }}" hint-placeholder-val="{{ false }}">
+      <div style="height:170px;border-radius:18px;border:1px dashed var(--line);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;margin-bottom:16px">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M8 13l3-3 4 4 2-2 3 3"/></svg>
+        <span style="font-size:12.5px;color:var(--txt3);font-weight:600">Drop images or tap to upload</span>
+      </div>
+      </sc-if>
+      <sc-if value="{{ sheet.isList }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:16px">
+        <sc-for list="{{ sheet.rows }}" as="r" hint-placeholder-count="3">
+          <div onClick="{{ r.onTap }}" style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:16px;cursor:pointer">
+            <div style="width:44px;height:44px;border-radius:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Archivo;font-weight:800;font-size:13px;color:#F2F3F5;background:{{ r.tint }}">{{ r.code }}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:15px">{{ r.label }}</div>
+              <div style="font-size:12.5px;color:var(--txt2);margin-top:2px">{{ r.sub }}</div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+      <div onClick="{{ closeSheet }}" style="height:50px;border-radius:15px;background:var(--volt);color:#0D0E11;font-family:Archivo;font-weight:800;font-size:14.5px;display:flex;align-items:center;justify-content:center;cursor:pointer">{{ sheet.cta }}</div>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</x-import>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:492,&quot;height&quot;:972},&quot;signedIn&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Dark&quot;,&quot;Light&quot;],&quot;default&quot;:&quot;Dark&quot;,&quot;tsType&quot;:&quot;'Dark' | 'Light'&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  state = {
+    authStep: (this.props || {}).signedIn === false ? 1 : 0,
+    authEmail: '', authSeek: '', authLoc: 'Beirut, Lebanon', authRole: null, radius: 12,
+    tab: 'discover', overlay: null, sheet: null,
+    mode: 'coaches', sport: 'All sports and hobbies', sportMenu: false, sortBy: 'rating', discSearch: '',
+    courtSport: 'All sports and hobbies', courtSportMenu: false, courtSearch: '',
+    venueId: 'v1', venueTab: 'courts', communityId: 'running', commTab: 'news',
+    coachId: 'c1', pkgId: 'p1', day: 9, slot: '6:30 PM',
+    rsvpTarget: null, rsvpType: 'Single', rsvpHours: 1, rsvpGear: false, rsvpCoach: false,
+    joined: { strength: true }, likes: {}, doneAsk: null, doneDay: {},
+    theme: null, role: 'User', adHidden: false, commAdHidden: false, notifSeen: false,
+    mapChip: null, threadName: null, draft: '', sent: [],
+    regKind: 'community', regSent: false, regName: '', regCat: null, regCatMenu: false, regPhone: '', regEmail: '', regOfficial: null,
+    regChannel: null, regTime: '', shopId: 's1', shopView: 'list', cart: {},
+    fabUp: true, lastScroll: 0,
+  };
+
+  watchScroll(el) { if (el) this.handleScrollY(el.scrollTop); }
+
+  handleScrollY(y) {
+    const prev = this._lastY || 0;
+    if (Math.abs(y - prev) < 4) return;
+    this._lastY = y;
+    const up = y < prev || y < 40;
+    if (up !== this.state.fabUp) this.setState({ fabUp: up });
+  }
+
+  componentWillUnmount() { document.removeEventListener('scroll', this._anyScroll, true); }
+
+  componentDidMount() {
+    this._lastY = 0;
+    this._anyScroll = e => { const el = e.target; if (el && typeof el.scrollTop === 'number') this.handleScrollY(el.scrollTop); };
+    document.addEventListener('scroll', this._anyScroll, true);
+    try { const t = localStorage.getItem('bookd-theme'); if (t) this.setState({ theme: t }); } catch (e) {}
+  }
+
+  renderVals() {
+    const st = this.state, P = this.props || {};
+    const INK = '#0D0E11';
+    const isDark = (st.theme ?? P.theme ?? 'Dark') === 'Dark';
+    const volt = 'var(--volt)';
+
+    const PEOPLE = [
+      { id: 'c1', name: 'Marcus Reyes', initials: 'MR', tint: '#2A3340', disc: 'Strength and Conditioning', sport: 'Strength', dist: 1.2, rating: 4.9, reviews: 213, price: 45, boosted: true, sessions: '640+', bio: 'Ex-national powerlifter. Durable strength, flawless technique and progressive overload.' },
+      { id: 'c2', name: 'Aicha Bennani', initials: 'AB', tint: '#3A2E2A', disc: 'Boxing coach', sport: 'Boxing', dist: 2.4, rating: 4.9, reviews: 178, price: 50, boosted: true, sessions: '410+', bio: 'Amateur champion turned coach. Footwork first, power later.' },
+      { id: 'c3', name: 'Diego Santos', initials: 'DS', tint: '#2F3A2A', disc: 'Calisthenics', sport: 'Calisthenics', dist: 0.8, rating: 4.7, reviews: 42, price: 38, sessions: '210+', bio: 'Bodyweight progressions from first pull-up to full planche.' },
+      { id: 'c4', name: 'Yara Khoury', initials: 'YK', tint: '#3A2A33', disc: 'Running & endurance', sport: 'Running', dist: 1.4, rating: 4.9, reviews: 96, price: 40, sessions: '380+', bio: 'Marathon pacer. Builds engines without injuries.' },
+      { id: 'p1', name: 'Jordan K.', initials: 'JK', tint: '#22324A', disc: 'Strength · Intermediate', sport: 'Strength', dist: 0.4, rating: 4.8, reviews: 31, level: 'Intermediate', partner: true, sessions: '55', bio: 'Powerbuilding. Needs a reliable spotter.' },
+      { id: 'p2', name: 'Elena V.', initials: 'EV', tint: '#3A2330', disc: 'Boxing · Intermediate', sport: 'Boxing', dist: 2.0, rating: 4.7, reviews: 25, level: 'Intermediate', partner: true, sessions: '40', bio: 'Two years boxing, looking for weekly sparring.' },
+      { id: 'p3', name: 'Rami S.', initials: 'RS', tint: '#2F3A2A', disc: 'Chess · ~1500 ELO', sport: 'Chess', dist: 0.7, rating: 4.8, reviews: 14, level: '~1500 ELO', partner: true, sessions: '26', bio: 'Café blitz addict looking for regular sparring.' },
+    ];
+    const fmtD = d => d < 1 ? Math.round(d * 1000) + ' m' : (Math.round(d * 10) / 10) + ' km';
+    const openPerson = id => () => this.setState({ overlay: 'coach', coachId: id, pkgId: 'p1' });
+    const deco = p => ({
+      ...p, meta: p.sport + ' - ' + fmtD(p.dist), rating: p.rating.toFixed(1), reviews: '(' + p.reviews + ')',
+      price: p.partner ? p.level : '$' + p.price, priceSub: p.partner ? 'level' : 'per session',
+      onOpen: openPerson(p.id),
+    });
+    const wantCoach = st.mode === 'coaches';
+    const pool = PEOPLE.filter(p => (wantCoach ? !p.partner : p.partner))
+      .filter(p => st.sport.indexOf('All') === 0 || p.sport === st.sport)
+      .filter(p => !st.discSearch || (p.name + ' ' + p.sport).toLowerCase().indexOf(st.discSearch.toLowerCase()) >= 0);
+    const sorted = [...pool].sort((a, b) => st.sortBy === 'price' ? (a.price || 0) - (b.price || 0) : st.sortBy === 'distance' ? a.dist - b.dist : b.rating - a.rating);
+    const featured = sorted.filter(p => p.boosted).map(deco);
+    const ranked = sorted.filter(p => !p.boosted).map(deco);
+
+    const VENUES = [
+      { id: 'v1', name: "Let's Go Paddle", initials: 'LGP', city: 'Beirut, Lebanon', sport: 'Paddle', dist: 1.6, days: 'Mon to Sat', hours: '11:00 am - 12:00 am', open: true, ph: 'venue photo', coverPh: 'court photo',
+        courts: [ { name: 'PADDLE COURT A', players: 4, price: '$40/h', ph: 'court A photo' }, { name: 'PADDLE COURT B', players: 2, price: '$20/h', ph: 'court B photo' } ],
+        events: [ { name: 'PADDLE ADULT TOURNAMENT', dates: '21 Aug - 25 Aug', price: '$40/TEAM', ph: 'tournament photo' }, { name: 'PADDLE JUNIOR TOURNAMENT', dates: '18 Aug - 20 Aug', price: '$40/TEAM', ph: 'juniors photo' } ] },
+      { id: 'v2', name: 'Go Paddle', initials: 'GP', city: 'Tyre, Lebanon', sport: 'Paddle', dist: 1.6, days: 'Mon to Sun', hours: '9:00 am - 11:00 pm', open: true, ph: 'venue photo', coverPh: 'court photo',
+        courts: [ { name: 'CENTER COURT', players: 4, price: '$36/h', ph: 'court photo' } ], events: [] },
+      { id: 'v3', name: 'Iron Yard Courts', initials: 'IY', city: 'Jounieh, Lebanon', sport: 'Basketball', dist: 3.2, days: 'Mon to Sat', hours: '7:00 am - 10:00 pm', open: false, ph: 'venue photo', coverPh: 'court photo',
+        courts: [ { name: 'HALF COURT 1', players: 6, price: '$28/h', ph: 'court photo' } ], events: [] },
+    ];
+    const venue = VENUES.find(v => v.id === st.venueId) || VENUES[0];
+    const openRsvp = target => () => this.setState({ overlay: 'rsvp', rsvpTarget: target, rsvpType: 'Single', rsvpHours: 1, rsvpGear: false, rsvpCoach: false });
+    const rsvpBase = (() => { const c = venue.courts.find(c => c.name === st.rsvpTarget); return c ? parseInt(String(c.price).replace(/[^0-9]/g, ''), 10) : 40; })();
+    const rsvpTotal = rsvpBase * st.rsvpHours + (st.rsvpGear ? 6 * st.rsvpHours : 0) + (st.rsvpCoach ? 45 : 0);
+
+    const COMM = [
+      { id: 'running', code: 'RN', sport: 'Running', name: 'Lebanese Running Federation', tint: '#1F3A36', members: '4.9k', official: true, tags: 'Sports, Running', about: 'Welcome to the official Lebanese Running Federation.' },
+      { id: 'strength', code: 'ST', sport: 'Strength', name: 'Strength Crew Beirut', tint: '#22324A', members: '2.8k', official: false, tags: 'Sports, Strength', about: 'Barbell, hypertrophy and form checks.' },
+      { id: 'boxing', code: 'BX', sport: 'Boxing', name: 'Boxing Nights', tint: '#3A2330', members: '1.6k', official: false, tags: 'Sports, Boxing', about: 'Footwork, pads and controlled sparring.' },
+      { id: 'climbing', code: 'CL', sport: 'Climbing', name: 'Crag Club', tint: '#244046', members: '1.1k', official: false, tags: 'Sports, Climbing', about: 'Bouldering, belay partners and outdoor trips.' },
+      { id: 'chess', code: 'CH', sport: 'Chess', name: 'Beirut Chess Circle', tint: '#2F3A2A', members: '870', official: false, tags: 'Hobbies, Chess', about: 'Blitz nights and rated ladders.' },
+    ];
+    const community = COMM.find(c => c.id === st.communityId) || COMM[0];
+    const joinChip = id => {
+      const on = !!st.joined[id];
+      return { joinLabel: on ? 'Joined' : 'Join', joinBg: on ? 'var(--surface2)' : volt, joinFg: on ? 'var(--accent)' : INK, joinBorder: on ? 'var(--line)' : volt,
+        onJoin: () => this.setState(s => ({ joined: { ...s.joined, [id]: !s.joined[id] } })) };
+    };
+
+    const tabColor = t => st.tab === t && !st.overlay ? 'var(--accent)' : 'var(--txt3)';
+    const go = t => () => this.setState({ tab: t, overlay: null, sheet: null });
+    const seg = (on) => ({ bg: on ? volt : 'var(--surface)', fg: on ? INK : 'var(--txt2)', border: on ? volt : 'var(--line)' });
+    const pill = (on) => ({ bg: on ? volt : 'var(--surface2)', fg: on ? INK : 'var(--txt2)' });
+
+    const sheetDefs = {
+      story: { title: 'Add to gallery', sub: 'Photos post to the venue story for 24 h and stay in the album.', isDrop: true, cta: 'Upload' },
+      hours: { title: 'Active hours', sub: 'Set the hours you accept bookings. Trainees only see open slots.', isList: true, cta: 'Save hours',
+        rows: [ { code: 'AM', tint: '#2A3340', label: 'Mornings', sub: '6:00 – 11:00 · open' }, { code: 'PM', tint: '#2F3A2A', label: 'Evenings', sub: '17:00 – 21:30 · open' }, { code: 'WE', tint: '#3A2A33', label: 'Weekends', sub: 'Saturday only' } ] },
+      pkg: { title: 'Create a new package', sub: 'Name it, set the number of sessions and the price. Trainees book it from your profile.', isDrop: false, cta: 'Create package' },
+      venueReq: { title: 'List your venue', sub: 'Courts, halls and pitches can be listed in BOOK’D. Admins review and contact you to agree on the deal.', isDrop: false, cta: 'Send request to admins' },
+      myComm: { title: 'My communities', sub: 'Crews you joined. Tap one to open its news, events and gallery.', isList: true, cta: 'Done',
+        rows: COMM.filter(c => st.joined[c.id]).concat(st.joined.running ? [] : []).map(c => ({ code: c.code, tint: c.tint, label: c.sport, sub: c.members + ' members', onTap: () => this.setState({ overlay: 'community', communityId: c.id, sheet: null }) })) },
+      admin: { title: 'Admin console', sub: 'Approvals, misconduct reports, promotions, loyalty and the accounting module live here.', isList: true, cta: 'Close',
+        rows: [ { code: 'AP', tint: '#2A3340', label: 'Approvals', sub: '2 hobby requests · 1 shop deal' }, { code: 'AC', tint: '#2F3A2A', label: 'Accounting', sub: 'Expenses · margins · profit shares' }, { code: 'RP', tint: '#3A2A33', label: 'Reports', sub: '1 open misconduct case' } ] },
+    };
+    const sheet = sheetDefs[st.sheet] || { rows: [] };
+
+    const monthDays = Array.from({ length: 31 }, (_, i) => {
+      const n = i + 1, on = st.day === n;
+      return { n: String(n), bg: on ? volt : 'var(--surface)', fg: on ? INK : 'var(--strong)', border: on ? volt : 'var(--line)', onTap: () => this.setState({ day: n }) };
+    });
+    const SLOTS = ['6:30 AM', '8:00 AM', '12:00 PM', '5:30 PM', '6:30 PM', '7:30 PM'];
+    const coach = PEOPLE.find(p => p.id === st.coachId) || PEOPLE[0];
+    const PKGS = [
+      { id: 'p1', name: 'Single session', sub: '60 minutes · gym or outdoor', amount: coach.price || 45 },
+      { id: 'p2', name: '4-session block', sub: 'Best for a focused strength cycle', amount: (coach.price || 45) * 3.6 },
+    ];
+    const pkg = PKGS.find(p => p.id === st.pkgId) || PKGS[0];
+
+    const daySessions = [
+      { time: '6:30 AM', who: 'Sally Sanders.', count: '1/10' }, { time: '8:00 AM', who: 'Nour Kaawar', count: '3/10' },
+      { time: '12:00 PM', who: 'Mohammad Mahmoud', count: '5/5' }, { time: '5:30 PM', who: 'Ali Hassan', count: '1/1' },
+      { time: '6:30 PM', who: 'Ellas Koko', count: '6/12' }, { time: '7:30 PM', who: 'Sally Sanders.', count: '5/5' },
+    ].map(s => { const done = !!st.doneDay[s.time]; return { ...s, opacity: done ? '0.45' : '1',
+      border: st.doneAsk === s.time ? 'var(--volt)' : 'var(--line)', countFg: done ? 'var(--accent)' : 'var(--txt2)',
+      onTap: () => this.setState({ doneAsk: s.time }) }; });
+
+    return {
+      themeAttr: isDark ? 'dark' : 'light', isDark,
+      isCoachRole: st.role === 'Coach', isAdmin: st.role === 'Admin',
+
+      // auth
+      showAuth: st.authStep > 0,
+      auth1: st.authStep === 1, auth2: st.authStep === 2, auth3: st.authStep === 3,
+      authEmail: st.authEmail, onAuthEmail: e => this.setState({ authEmail: e.target.value }),
+      authSeek: st.authSeek, onAuthSeek: e => this.setState({ authSeek: e.target.value }),
+      authLoc: st.authLoc, onAuthLoc: e => this.setState({ authLoc: e.target.value }),
+      emailIconColor: st.authEmail ? '#C6F24E' : 'var(--txt3)',
+      searchIconColor: st.authSeek ? '#C6F24E' : 'var(--txt3)',
+      locIconColor: st.authLoc ? '#C6F24E' : 'var(--txt3)',
+      roleOptions: ['Coach/Teacher', 'Trainee/Student'].map(l => ({ label: l, onTap: () => this.setState({ authRole: l }), ...seg(st.authRole === l) })),
+      radiusVal: st.radius, radiusPct: st.radius + '%', radiusLabel: st.radius + ' Km',
+      onRadius: e => this.setState({ radius: parseInt(e.target.value, 10) }),
+      authNext: () => this.setState(s => ({ authStep: s.authStep + 1 })),
+      authDone: () => this.setState({ authStep: 0 }),
+      authDots: [1, 2, 3].map(n => ({ w: st.authStep === n ? '22px' : '6px', bg: st.authStep === n ? 'var(--volt)' : 'var(--line)' })),
+
+      // nav
+      isDiscover: st.tab === 'discover', isMaps: st.tab === 'maps', isCourts: st.tab === 'courts',
+      isCommunity: st.tab === 'community', isChat: st.tab === 'chat',
+      navDiscover: tabColor('discover'), navMaps: tabColor('maps'), navCourts: tabColor('courts'),
+      navCommunity: tabColor('community'), navChat: tabColor('chat'),
+      goDiscover: go('discover'), goMaps: go('maps'), goCourts: go('courts'), goCommunity: go('community'), goChat: go('chat'),
+      closeOverlay: () => this.setState({ overlay: null }),
+
+      // scroll-reactive FAB
+      onScroll: e => this.watchScroll(e.currentTarget || e.target),
+      fabTransform: st.fabUp ? 'translateY(0) scale(1)' : 'translateY(28px) scale(.85)',
+      fabOpacity: st.fabUp ? '1' : '0',
+
+      // discover
+      onCoaches: () => this.setState({ mode: 'coaches' }), onPartners: () => this.setState({ mode: 'partners' }),
+      coachTabBg: seg(wantCoach).bg, coachTabFg: seg(wantCoach).fg, coachTabBorder: seg(wantCoach).border,
+      partnerTabBg: seg(!wantCoach).bg, partnerTabFg: seg(!wantCoach).fg, partnerTabBorder: seg(!wantCoach).border,
+      sportLabel: st.sport, sportMenuOpen: st.sportMenu,
+      toggleSportMenu: () => this.setState(s => ({ sportMenu: !s.sportMenu })),
+      sportOptions: ['All sports and hobbies', 'Strength', 'Boxing', 'Running', 'Calisthenics', 'Chess'].map(l => ({ label: l,
+        onTap: () => this.setState({ sport: l, sportMenu: false }),
+        bg: st.sport === l ? 'var(--surface2)' : 'transparent', fg: st.sport === l ? 'var(--txt)' : 'var(--txt2)' })),
+      discSearch: st.discSearch, onDiscSearch: e => this.setState({ discSearch: e.target.value }),
+      discSearchIcon: st.discSearch ? '#C6F24E' : 'var(--txt3)',
+      featured, ranked,
+      listHeading: wantCoach ? 'All coaches' : 'All training partners',
+      sortOptions: [['rating', 'Rating'], ['price', 'Price'], ['distance', 'Distance']].map(([k, l]) => ({ label: l, onTap: () => this.setState({ sortBy: k }), ...pill(st.sortBy === k) })),
+      adVisible: !st.adHidden, commAdVisible: !st.commAdHidden,
+      onAdOpen: () => this.setState({ overlay: 'shop', shopView: 'list' }),
+      onAdHide: e => { if (e && e.stopPropagation) e.stopPropagation(); this.setState({ adHidden: true }); },
+
+      // maps
+      mapPins: PEOPLE.slice(0, 5).map((p, i) => ({ initials: p.initials, tint: p.tint, rating: p.rating.toFixed(1),
+        ring: p.boosted ? '#F2C84B' : 'rgba(198,242,78,0.45)',
+        top: ['28%', '38%', '58%', '22%', '68%'][i], left: ['30%', '64%', '38%', '72%', '62%'][i], onOpen: openPerson(p.id) })),
+      nearest: { ...deco(PEOPLE[0]), dist: fmtD(PEOPLE[0].dist), meta: PEOPLE[0].sport + ' - ' + fmtD(PEOPLE[0].dist) },
+      mapChips: ["GYM'S", 'BOXING', 'FOOTBALL', 'PADDLE', 'RUNNING'].map(l => ({ label: l,
+        onTap: () => this.setState({ mapChip: st.mapChip === l ? null : l }),
+        bg: st.mapChip === l ? volt : 'var(--surface)', fg: st.mapChip === l ? INK : 'var(--txt2)', border: st.mapChip === l ? volt : 'var(--line)' })),
+      bellDot: st.notifSeen ? 'var(--txt3)' : 'var(--volt)',
+
+      // courts
+      venues: VENUES.filter(v => st.courtSport.indexOf('All') === 0 || v.sport === st.courtSport)
+        .filter(v => !st.courtSearch || (v.name + ' ' + v.city).toLowerCase().indexOf(st.courtSearch.toLowerCase()) >= 0)
+        .map(v => ({ ...v, dist: fmtD(v.dist), openLabel: v.open ? 'Open now' : 'Closed',
+          onOpen: () => this.setState({ overlay: 'venue', venueId: v.id, venueTab: 'courts', fabUp: true }) })),
+      courtSportLabel: st.courtSport, courtSportMenuOpen: st.courtSportMenu,
+      toggleCourtSportMenu: () => this.setState(s => ({ courtSportMenu: !s.courtSportMenu })),
+      courtSportOptions: ['All sports and hobbies', 'Paddle', 'Basketball', 'Tennis'].map(l => ({ label: l,
+        onTap: () => this.setState({ courtSport: l, courtSportMenu: false }),
+        bg: st.courtSport === l ? 'var(--surface2)' : 'transparent', fg: st.courtSport === l ? 'var(--txt)' : 'var(--txt2)' })),
+      courtSearch: st.courtSearch, onCourtSearch: e => this.setState({ courtSearch: e.target.value }),
+      courtSearchIcon: st.courtSearch ? '#C6F24E' : 'var(--txt3)',
+      openVenueRequest: () => this.setState({ overlay: 'reg', regKind: 'venue', regSent: false, regName: '', regCat: null, regPhone: '', regEmail: '', regOfficial: null }),
+
+      showVenue: st.overlay === 'venue' || st.overlay === 'rsvp',
+      venue: { ...venue, openState: venue.open ? 'OPEN' : 'CLOSED' },
+      venueTabs: [['courts', 'Courts'], ['events', 'Events'], ['gallery', 'Gallery']].map(([k, l], i) => ({ label: l,
+        onTap: () => this.setState({ venueTab: k }),
+        fg: st.venueTab === k ? 'var(--txt)' : 'var(--txt3)', border: st.venueTab === k ? 'var(--volt)' : 'transparent',
+        divider: i < 2 ? 'var(--line)' : 'transparent' })),
+      venueCourtsTab: st.venueTab === 'courts', venueEventsTab: st.venueTab === 'events', venueGalleryTab: st.venueTab === 'gallery',
+      venueCourts: venue.courts.map(c => ({ ...c, onRsvp: openRsvp(c.name) })),
+      venueEvents: venue.events.map(e => ({ ...e, onRsvp: openRsvp(e.name) })),
+      albums: Array.from({ length: 6 }, (_, i) => ({ label: 'Album ' + (i + 1) })),
+      openCourtsGalleryTab: () => this.setState({ overlay: 'venue', venueTab: 'gallery' }),
+      openAddStory: () => this.setState({ sheet: 'story' }),
+      openActiveHours: () => this.setState({ sheet: 'hours' }),
+      openNewPackage: () => this.setState({ sheet: 'pkg' }),
+
+      // rsvp
+      showRsvp: st.overlay === 'rsvp',
+      rsvp: { target: st.rsvpTarget, priceLabel: '$' + rsvpBase + ' / hour', hoursLabel: st.rsvpHours + (st.rsvpHours === 1 ? ' hour' : ' hours'),
+        total: '$' + rsvpTotal, cta: st.rsvpCoach ? 'Continue to coach calendar' : 'Confirm RSVP' },
+      rsvpTypes: ['Single', 'Teams', 'Member of team'].map(l => ({ label: l, onTap: () => this.setState({ rsvpType: l }), ...seg(st.rsvpType === l) })),
+      rsvpHoursMinus: () => this.setState(s => ({ rsvpHours: Math.max(1, s.rsvpHours - 1) })),
+      rsvpHoursPlus: () => this.setState(s => ({ rsvpHours: Math.min(6, s.rsvpHours + 1) })),
+      toggleGear: () => this.setState(s => ({ rsvpGear: !s.rsvpGear })),
+      gearBg: st.rsvpGear ? volt : '#3A3F47', gearKnob: st.rsvpGear ? 'translateX(20px)' : 'translateX(0)',
+      toggleRsvpCoach: () => this.setState(s => ({ rsvpCoach: !s.rsvpCoach })),
+      coachBg: st.rsvpCoach ? volt : '#3A3F47', coachKnob: st.rsvpCoach ? 'translateX(20px)' : 'translateX(0)',
+      closeRsvp: () => this.setState({ overlay: 'venue' }),
+      confirmRsvp: () => this.setState(st.rsvpCoach ? { overlay: 'booking' } : { overlay: 'booked' }),
+
+      // community
+      communities: COMM.map(c => ({ ...c, ...joinChip(c.id),
+        onOpen: () => this.setState({ overlay: 'community', communityId: c.id, commTab: 'news', fabUp: true }) })),
+      homeEvents: [
+        { kind: 'MEETUP', title: 'Saturday Long Run', when: 'Sat 05 · 7:00 AM', where: 'Corniche', going: 18, ph: 'run photo', onOpen: () => this.setState({ overlay: 'community', communityId: 'running', commTab: 'events' }) },
+        { kind: 'EVENT', title: 'Open Sparring Night', when: 'Fri 04 · 6:00 PM', where: 'Mar Mikhael', going: 22, ph: 'boxing photo', onOpen: () => this.setState({ overlay: 'community', communityId: 'boxing', commTab: 'events' }) },
+      ],
+      openMyCommunities: () => this.setState({ sheet: 'myComm' }),
+      openStartCommunity: () => this.setState({ overlay: 'reg', regKind: 'community', regSent: false, regName: '', regCat: null, regPhone: '', regEmail: '', regOfficial: null }),
+
+      // shop
+      ...(() => {
+        const SHOPS = [
+          { id: 's1', code: 'PL', name: 'PaceLine Runners', tint: '#2A3A2E', category: 'Running gear', d: 0.6, rating: 4.8, reviews: 95, deal: '10% off in-app', pin: { top: '40%', left: '56%' },
+            items: [ { name: 'Tempo Racer 2', amount: 129, ph: 'shoe shot' }, { name: 'Featherlight run cap', amount: 18, ph: 'cap shot' }, { name: 'Energy gels · 12 pack', amount: 22, ph: 'gels shot' }, { name: 'Reflective shell jacket', amount: 74, ph: 'jacket shot' } ] },
+          { id: 's2', code: 'IW', name: 'IronWorks Supply', tint: '#3A2E2A', category: 'Strength & gym', d: 1.1, rating: 4.7, reviews: 61, deal: 'Free delivery', pin: { top: '26%', left: '34%' },
+            items: [ { name: 'Cast dumbbell pair · 10 kg', amount: 58, ph: 'dumbbell shot' }, { name: 'Leather lifting belt', amount: 42, ph: 'belt shot' }, { name: 'Chalk blocks · 8 pack', amount: 14, ph: 'chalk shot' }, { name: 'Resistance band set', amount: 27, ph: 'bands shot' } ] },
+          { id: 's3', code: 'CR', name: 'Corner Ring', tint: '#3A2A33', category: 'Boxing & MMA', d: 1.8, rating: 4.9, reviews: 142, deal: '15% first order', pin: { top: '62%', left: '30%' },
+            items: [ { name: 'Sparring gloves · 14 oz', amount: 89, ph: 'gloves shot' }, { name: 'Hand wraps · 4.5 m', amount: 12, ph: 'wraps shot' }, { name: 'Leather speed rope', amount: 24, ph: 'rope shot' }, { name: 'Gel mouthguard', amount: 16, ph: 'guard shot' } ] },
+          { id: 's4', code: 'SS', name: 'Spoke & Sprocket', tint: '#333A2A', category: 'Cycling', d: 3.4, rating: 4.8, reviews: 77, deal: '10% off in-app', pin: { top: '70%', left: '64%' },
+            items: [ { name: 'Road helmet', amount: 85, ph: 'helmet shot' }, { name: 'Clip-in pedals', amount: 64, ph: 'pedals shot' }, { name: 'Bottle cage duo', amount: 15, ph: 'cage shot' }, { name: 'Chain lube kit', amount: 12, ph: 'lube shot' } ] },
+        ];
+        const decoShop = s => ({ ...s, dist: fmtD(s.d), rating: s.rating.toFixed(1), reviews: '(' + s.reviews + ')',
+          onOpen: () => this.setState({ overlay: 'store', shopId: s.id }) });
+        const store = SHOPS.find(s => s.id === st.shopId) || SHOPS[0];
+        const cartVals = Object.values(st.cart);
+        return {
+          showShop: st.overlay === 'shop',
+          openShop: () => this.setState({ overlay: 'shop' }),
+          shops: [...SHOPS].sort((a, b) => a.d - b.d).map(decoShop),
+          shopPins: SHOPS.map(s => ({ ...decoShop(s), top: s.pin.top, left: s.pin.left })),
+          shopListMode: st.shopView === 'list', shopMapMode: st.shopView === 'map',
+          onShopList: () => this.setState({ shopView: 'list' }), onShopMap: () => this.setState({ shopView: 'map' }),
+          shopListBg: st.shopView === 'list' ? volt : 'transparent', shopListFg: st.shopView === 'list' ? INK : 'var(--txt2)',
+          shopMapBg: st.shopView === 'map' ? volt : 'transparent', shopMapFg: st.shopView === 'map' ? INK : 'var(--txt2)',
+          showStore: st.overlay === 'store', store: decoShop(store),
+          backToShop: () => this.setState({ overlay: 'shop' }),
+          storeItems: store.items.map((p, i) => { const key = store.id + ':' + i, on = !!st.cart[key]; return {
+            ...p, price: '$' + p.amount, addLabel: on ? 'Added ✓' : 'Add',
+            addBg: on ? 'var(--surface2)' : volt, addFg: on ? 'var(--accent)' : INK,
+            onAdd: () => this.setState(s => { const c = { ...s.cart }; if (c[key]) delete c[key]; else c[key] = p.amount; return { cart: c }; }) }; }),
+          hasCart: cartVals.length > 0,
+          cartLabel: 'Checkout · ' + cartVals.length + (cartVals.length === 1 ? ' item' : ' items') + ' · $' + cartVals.reduce((a, b) => a + b, 0),
+          openShopReg: () => this.setState({ overlay: 'reg', regKind: 'shop', regSent: false, regName: '', regCat: null, regPhone: '', regEmail: '', regOfficial: null, regChannel: null, regTime: '' }),
+        };
+      })(),
+
+      // registration form (community / venue)
+      showReg: st.overlay === 'reg',
+      regChannels: ['Phone call', 'WhatsApp', 'Email', 'In-app chat'].map(l => ({ label: l, onTap: () => this.setState({ regChannel: l }), ...seg(st.regChannel === l) })),
+      regTime: st.regTime, onRegTime: e => this.setState({ regTime: e.target.value }),
+      reg: st.regKind === 'shop'
+        ? { title: 'Shop registration', nameLabel: 'Shop name', namePh: 'e.g. Summit Trail Co.', officialQ: 'Is it a registered business (licence, VAT number)?',
+            footnote: 'An admin reviews every request and reaches out within 2 business days to discuss commission, delivery and store setup.',
+            sentLine: 'Your registration was forwarded to the BOOK\u2019D admins. They\u2019ll contact you to make the deal and open your store.' }
+        : st.regKind === 'venue'
+        ? { title: 'Venue registration', nameLabel: 'Venue name', namePh: 'e.g. Let\u2019s Go Paddle', officialQ: 'Is it a registered business (licence, VAT number)?',
+            footnote: 'An admin reviews every request and reaches out within 2 business days to agree on courts, hours and the commission.',
+            sentLine: 'Your venue was forwarded to the BOOK\u2019D admins. They\u2019ll contact you to set up courts and pricing.' }
+        : { title: 'Community registration', nameLabel: 'Community name', namePh: 'e.g. Summit Trail Co.', officialQ: 'Is it an official entity (federation, institute, club)?',
+            footnote: 'New communities start unofficial. The OFFICIAL badge is granted only by BOOK\u2019D admins after review.',
+            sentLine: 'The BOOK\u2019D team reviews every request. When it goes live, you\u2019ll be its first member automatically.' },
+      regNotSent: !st.regSent, regSent: st.regSent,
+      regName: st.regName, onRegName: e => this.setState({ regName: e.target.value }),
+      regPhone: st.regPhone, onRegPhone: e => this.setState({ regPhone: e.target.value }),
+      regEmail: st.regEmail, onRegEmail: e => this.setState({ regEmail: e.target.value }),
+      regCatLabel: st.regCat || 'Select a category', regCatFg: st.regCat ? 'var(--txt)' : 'var(--txt3)',
+      regCatOpen: st.regCatMenu, toggleRegCat: () => this.setState(s => ({ regCatMenu: !s.regCatMenu })),
+      regCats: ['Running', 'Strength', 'Boxing', 'Paddle', 'Basketball', 'Chess', 'Other'].map(l => ({ label: l,
+        onTap: () => this.setState({ regCat: l, regCatMenu: false }),
+        bg: st.regCat === l ? 'var(--surface2)' : 'transparent', fg: st.regCat === l ? 'var(--txt)' : 'var(--txt2)' })),
+      regOfficialOpts: ['YES', 'NO'].map(l => ({ label: l, onTap: () => this.setState({ regOfficial: l }), ...seg(st.regOfficial === l) })),
+      regBtnBg: (st.regName || '').trim().length > 1 ? volt : 'var(--surface2)',
+      regBtnFg: (st.regName || '').trim().length > 1 ? INK : 'var(--txt3)',
+      submitReg: () => { if ((st.regName || '').trim().length > 1) this.setState({ regSent: true }); },
+      showCommunity: st.overlay === 'community', community,
+      communityTabs: [['news', 'News'], ['events', 'Events'], ['gallery', 'Gallery']].map(([k, l]) => ({ label: l,
+        onTap: () => this.setState({ commTab: k }),
+        fg: st.commTab === k ? 'var(--txt)' : 'var(--txt3)', border: st.commTab === k ? 'var(--volt)' : 'transparent' })),
+      commNewsTab: st.commTab === 'news', commEventsTab: st.commTab === 'events', commGalleryTab: st.commTab === 'gallery',
+      commPosts: [
+        { id: 'n1', author: 'Naji Mohammad', initials: 'NM', tint: '#2A3340', when: '2 h ago', body: 'Beirut Marathon registration opens Monday — federation members get the early slot.', ph: 'race photo', likes: 46, comments: 12 },
+        { id: 'n2', author: 'Rima Haddad', initials: 'RH', tint: '#2F3A2A', when: 'Yesterday', body: 'Track night moved to 7 PM. Bring spikes if you have them.', ph: 'track photo', likes: 23, comments: 5 },
+      ].map(p => { const on = !!st.likes[p.id]; return { ...p, likes: p.likes + (on ? 1 : 0),
+        likeFill: on ? 'rgba(198,242,78,0.16)' : 'none', likeStroke: on ? 'var(--accent)' : 'var(--txt3)',
+        onLike: () => this.setState(s => ({ likes: { ...s.likes, [p.id]: !s.likes[p.id] } })) }; }),
+      commEvents: [
+        { title: 'Open Night Run', when: 'Fri 04 · 6:00 PM', where: 'Mar Mikhael', going: 22, ph: 'night run photo' },
+        { title: 'Federation 10K Trials', when: 'Sun 13 · 6:30 AM', where: 'Beirut Corniche', going: 64, ph: 'trials photo' },
+      ],
+
+      // chat
+      chats: [
+        { name: 'Marcus Reyes', initials: 'MR', tint: '#2A3340', preview: 'Great session today. Same time Thursday?', time: '2m', online: true, unread: true, unreadCount: '2' },
+        { name: 'Mai Lin', initials: 'ML', tint: '#3A2A33', preview: 'Meet at the south end of the court?', time: '1h', online: true, unread: false },
+        { name: 'Jordan K.', initials: 'JK', tint: '#22324A', preview: 'You crushed that pace.', time: '3h', online: false, unread: false },
+        { name: 'Aicha Bennani', initials: 'AB', tint: '#3A2E2A', preview: 'Do not forget your wraps next time.', time: 'Wed', online: false, unread: false },
+      ].map(c => ({ ...c, onOpen: () => this.setState({ overlay: 'thread', threadName: c.name }) })),
+      showThread: st.overlay === 'thread',
+      thread: { name: st.threadName || 'Marcus Reyes', placeholder: 'Message ' + (st.threadName || 'Marcus').split(' ')[0] },
+      threadMsgs: [
+        { text: 'Hey! Ready for the strength block this week?', me: true },
+        { text: 'Been ready. Same 6:30 slot works?', me: false },
+        { text: 'Locked in. Heavy squats first, then accessories.', me: true },
+        { text: 'Perfect. See you at Iron Yard.', me: false },
+        ...st.sent.map(t => ({ text: t, me: true })),
+      ].map(m => ({ text: m.text, align: m.me ? 'flex-end' : 'flex-start',
+        bg: m.me ? volt : 'var(--surface)', fg: m.me ? INK : 'var(--txt)',
+        radius: m.me ? '18px 18px 6px 18px' : '18px 18px 18px 6px' })),
+      draft: st.draft, onDraft: e => this.setState({ draft: e.target.value }),
+      sendMsg: () => this.setState(s => s.draft.trim() ? { sent: [...s.sent, s.draft.trim()], draft: '' } : null),
+
+      // profile
+      showProfile: st.overlay === 'profile',
+      openProfile: () => this.setState({ overlay: 'profile' }),
+      roleTabs: ['User', 'Coach', 'Admin'].map(l => ({ label: l, onTap: () => this.setState({ role: l }), ...seg(st.role === l) })),
+      trainingRows: [
+        { label: 'My bookings', sub: '2 upcoming sessions', badge: '2' },
+        { label: 'My communities', sub: 'Crews you joined', badge: String(Object.keys(st.joined).filter(k => st.joined[k]).length), sheet: 'myComm' },
+        { label: 'Notifications', sub: 'Daily plan briefing on', badge: '' },
+        { label: 'Calendar sync', sub: 'Google · sessions auto pushed', badge: 'On' },
+      ].map(r => ({ ...r, badgeFg: 'var(--accent)', badgeBg: r.badge ? 'var(--surface2)' : 'transparent',
+        onOpen: () => this.setState(r.sheet ? { sheet: r.sheet } : { overlay: r.label === 'My bookings' ? 'bookings' : 'notifs' }) })),
+      settingsRows: [
+        { label: 'Appearance', sub: 'Dark / light theme', badge: isDark ? 'Dark' : 'Light',
+          onOpen: () => { const next = isDark ? 'Light' : 'Dark'; try { localStorage.setItem('bookd-theme', next); } catch (e) {} this.setState({ theme: next }); } },
+        ...(st.role === 'Admin' ? [{ label: 'Admin console', sub: 'Approvals, reports, accounting', badge: '1', onOpen: () => this.setState({ sheet: 'admin' }) }] : []),
+        ...(st.role === 'Coach' ? [{ label: 'My day view', sub: 'Sessions to run today · mark as done', badge: '', onOpen: () => this.setState({ overlay: 'coachDay' }) }] : []),
+        { label: 'Shop', sub: 'Partner sports and hobby stores', badge: '', onOpen: () => this.setState({ overlay: 'shop' }) },
+        { label: 'Sign out', sub: 'Back to the sign-up flow', badge: '', onOpen: () => this.setState({ authStep: 1, overlay: null, tab: 'discover' }) },
+      ].map(r => ({ ...r, badgeBg: r.badge ? 'var(--surface2)' : 'transparent' })),
+      openCoachDay: () => this.setState({ overlay: 'coachDay' }),
+      darkBg: isDark ? volt : 'transparent', darkFg: isDark ? INK : 'var(--txt2)',
+      lightBg: !isDark ? volt : 'transparent', lightFg: !isDark ? INK : 'var(--txt2)',
+      onSetDark: () => { try { localStorage.setItem('bookd-theme', 'Dark'); } catch (e) {} this.setState({ theme: 'Dark' }); },
+      onSetLight: () => { try { localStorage.setItem('bookd-theme', 'Light'); } catch (e) {} this.setState({ theme: 'Light' }); },
+
+      // coach profile + booking
+      showCoach: st.overlay === 'coach',
+      coach: { ...coach, first: coach.name.split(' ')[0], rating: coach.rating.toFixed(1) },
+      coachOwner: st.role === 'Coach',
+      coachPackages: PKGS.map(p => ({ ...p, price: '$' + Math.round(p.amount), border: st.pkgId === p.id ? 'var(--volt)' : 'var(--line)', onSelect: () => this.setState({ pkgId: p.id }) })),
+      coachReviews: [
+        { who: 'Chris R.', stars: '★★★★★', text: 'Pushed me harder than I push myself. Form cues were spot on.' },
+        { who: 'Nadia B.', stars: '★★★★★', text: 'Booking was effortless and the session flew by.' },
+      ],
+      goBooking: () => this.setState({ overlay: 'booking' }),
+      showBooking: st.overlay === 'booking',
+      closeBooking: () => this.setState({ overlay: 'coach' }),
+      monthLabel: 'July 2026',
+      weekdays: ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(l => ({ l })),
+      monthDays,
+      slots: SLOTS.map(l => ({ label: l, onTap: () => this.setState({ slot: l }), ...seg(st.slot === l) })),
+      bookingTotal: '$' + Math.round(pkg.amount),
+      confirmBooking: () => this.setState({ overlay: 'booked' }),
+      showBooked: st.overlay === 'booked',
+      bookedLine: coach.name.split(' ')[0] + ' approved ' + st.slot + ' on July ' + st.day + ' at Iron Yard Gym.',
+      calSyncOn: true, calProvider: 'Google',
+      showBookings: st.overlay === 'bookings',
+      openBookings: () => this.setState({ overlay: 'bookings' }),
+      upcoming: [ { title: 'Strength technique', when: 'Thu 09 · 6:30 PM' }, { title: 'Tempo run', when: 'Sat 11 · 7:00 AM' } ],
+
+      // coach day view
+      showCoachDay: st.overlay === 'coachDay',
+      weekStrip: [1, 2, 3, 4, 5, 6, 7].map(n => ({ n: String(n), onTap: () => this.setState({ day: n }),
+        bg: st.day === n ? volt : 'var(--surface)', fg: st.day === n ? INK : 'var(--strong)', border: st.day === n ? volt : 'var(--line)' })),
+      daySessions,
+      showDonePrompt: !!st.doneAsk, donePromptTime: st.doneAsk,
+      askDone: () => this.setState({ doneAsk: '6:30 PM' }),
+      confirmDone: () => this.setState(s => ({ doneDay: { ...s.doneDay, [s.doneAsk]: true }, doneAsk: null })),
+      cancelDone: () => this.setState({ doneAsk: null }),
+
+      // notifications
+      showNotifs: st.overlay === 'notifs', hasNotif: !st.notifSeen,
+      openNotifs: () => this.setState({ overlay: 'notifs', notifSeen: true }),
+      notifs: [
+        { initials: 'MR', tint: '#2A3340', title: 'Marcus approved your session', body: 'Thursday 6:30 PM · Iron Yard Gym.', when: '2m ago' },
+        { initials: 'LGP', tint: '#2F3A2A', title: 'Paddle Court B is free tonight', body: '8:00 PM – 10:00 PM, 1.6 km from you.', when: '40m ago' },
+        { initials: 'RN', tint: '#1F3A36', title: 'Lebanese Running Federation', body: 'Beirut Marathon registration opens Monday.', when: '2h ago' },
+      ],
+
+      // sheets
+      showSheet: !!st.sheet, sheet, closeSheet: () => this.setState({ sheet: null }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

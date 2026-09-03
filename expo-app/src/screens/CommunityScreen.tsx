@@ -100,6 +100,7 @@ export function CommunityScreen() {
   const ad = D.ads.community;
   const soon = s.allEvents().slice(0, 6);
   const communities = s.communities();
+  const hasCrews = s.joinedCommunities.length > 0;
 
   useEffect(() => {
     let active = true;
@@ -134,14 +135,30 @@ export function CommunityScreen() {
           <Text style={[t.bodySm, { color: c.txt3 }]}>Train with people nearby</Text>
           <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Community</Text>
         </View>
-        {/* Board annotation: "My Communities" icon sits beside the volt + */}
+        {/* Board annotation: "My Communities" icon sits beside the volt +.
+            Delta section D → Community: it shows a volt dot when you have crews. */}
         <Pressable
           onPress={() => s.set('overlay', 'myCommunities')}
           accessibilityRole="button"
-          accessibilityLabel="My communities"
+          accessibilityLabel={hasCrews ? `My communities, ${s.joinedCommunities.length} joined` : 'My communities'}
           style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
         >
           <Icon name="users" size={22} color={c.txt2} />
+          {hasCrews && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 13,
+                width: 9,
+                height: 9,
+                borderRadius: 999,
+                backgroundColor: c.volt,
+                borderColor: c.surface,
+                borderWidth: 1.5,
+              }}
+            />
+          )}
         </Pressable>
         <Pressable onPress={s.openStartCommunity} accessibilityRole="button" accessibilityLabel="Start a community" style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="plus" size={24} color={c.ink} />

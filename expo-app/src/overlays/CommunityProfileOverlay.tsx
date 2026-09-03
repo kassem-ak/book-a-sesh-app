@@ -76,39 +76,62 @@ export function CommunityProfileOverlay() {
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
+        {/* cover photo — spec section 4 "Community profile: cover, verified
+            check, card with avatar…". The identity card overlaps it by 34px. */}
+        <View>
+          <StripedPlaceholder caption="community cover" height={176} radius={0} />
+          {cm.official && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 14,
+                right: 16,
+                width: 34,
+                height: 34,
+                borderRadius: 999,
+                backgroundColor: alpha(c.bg, 0.66),
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon name="check-circle" size={18} color={c.accent} />
+            </View>
+          )}
+        </View>
+
         {/* identity block */}
         <View style={{ paddingHorizontal: 18 }}>
-          <Row gap={14} style={{ alignItems: 'flex-start' }}>
-            {/* logo doubles as a story ring — board note "Stories can be added" */}
-            <View style={{ width: 74, height: 74, borderRadius: 999, borderWidth: 2, borderColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
-              <Avatar initials={cm.code} size={64} radius={999} bg={cm.tint} fontSize={20} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Row gap={7}>
-                <Text style={[t.overlayTitle, { color: c.txt }]}>{cm.sport}</Text>
-                <Icon name="check-circle" size={16} color={c.accent} />
-              </Row>
-              {cm.official && (
-                <View style={{ marginTop: 6, alignSelf: 'flex-start' }}>
-                  <MicroBadge label="Official Federation" bg={alpha(c.volt, 0.14)} fg={c.accent} />
-                </View>
-              )}
-              <Text style={[t.bodySm, { color: c.txt2, marginTop: 6 }]}>{cm.members} members</Text>
-              <Text style={[t.caption, { color: c.accent, marginTop: 2 }]}>Sports · {cm.sport}</Text>
-            </View>
-            {canManage && (
-              <Pressable
-                onPress={() => s.openEditCommunity()}
-                accessibilityRole="button"
-                accessibilityLabel="Edit community details"
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Icon name="edit-2" size={18} color={c.txt2} />
-              </Pressable>
-            )}
-          </Row>
+          <Card style={{ marginTop: -34, padding: 15 }}>
+            <Row gap={12} style={{ alignItems: 'flex-start' }}>
+              <Avatar initials={cm.code} size={58} radius={17} bg={cm.tint} fontSize={18} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Row gap={8} style={{ alignItems: 'flex-start' }}>
+                  <Text style={[t.overlayTitle, { color: c.txt, flex: 1 }]}>{cm.sport}</Text>
+                  {/* Verified check belongs to official communities only — it
+                      was rendering unconditionally, next to a missing badge. */}
+                  {cm.official && <Icon name="check-circle" size={17} color={c.accent} />}
+                  {canManage && (
+                    <Pressable
+                      onPress={() => s.openEditCommunity()}
+                      accessibilityRole="button"
+                      accessibilityLabel="Edit community details"
+                      hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    >
+                      <Icon name="edit-2" size={17} color={c.txt3} />
+                    </Pressable>
+                  )}
+                </Row>
+                <Row gap={8} style={{ marginTop: 6, flexWrap: 'wrap' }}>
+                  {cm.official && <MicroBadge label="Official Federation" bg={alpha(c.volt, 0.12)} fg={c.accent} />}
+                  <Text style={[t.labelSm, { color: c.soft }]}>{cm.members} Members</Text>
+                </Row>
+                <Text style={[t.bodySm, { color: c.txt2, marginTop: 4 }]}>Sports, {cm.sport}</Text>
+              </View>
+            </Row>
 
-          <Text style={[t.bodySm, { color: c.txt2, marginTop: 14, lineHeight: 20 }]}>{cm.about}</Text>
+            <Text style={[t.caption, { color: c.txt3, marginTop: 13, letterSpacing: 0.4 }]}>Bio:</Text>
+            <Text style={[t.bodySm, { color: c.soft, marginTop: 3, lineHeight: 20 }]}>{cm.about}</Text>
+          </Card>
 
           {/* tabs */}
           <Row style={{ marginTop: 18, borderBottomColor: c.line, borderBottomWidth: 1 }} gap={22}>

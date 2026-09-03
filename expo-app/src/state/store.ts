@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   approveSuggestion as approveSuggestionRemote,
+  fetchAccountRole,
   checkoutShopOrder as checkoutShopOrderRemote,
   createBooking as createBookingRemote,
   createCommunity as createCommunityRemote,
@@ -36,6 +37,7 @@ import {
   CalProvider,
   coachPackageOptions,
 } from './models';
+import { rsvpSubject } from './courtsData';
 import * as D from './sampleData';
 
 // ---- number helpers (mirror the Kotlin/JS behavior) ----
@@ -95,9 +97,31 @@ const communityCode = (name: string) => {
 const marginGet = (m: Margins, k: string) => m[k as MarginKey];
 const shareGet = (s: Shares, k: string) => s[k as ShareKey];
 
+// PostgREST rejects with a plain `{ message, details, hint, code }` object
+// rather than an Error, so `String(error)` rendered "[object Object]" in the
+// banner. Pull the message out of whatever shape actually arrives.
+export const errorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object') {
+    const e = error as Record<string, unknown>;
+    // Postgres constraint violations are accurate but unreadable — the raw
+    // "duplicate key value violates unique constraint" text reached the banner.
+    if (e.code === '23505') return 'That slot is already booked. Pick another time.';
+    if (e.code === '23503') return 'That item is no longer available.';
+    if (e.code === '42501') return 'You do not have permission to do that.';
+    const text = [e.message, e.error_description, e.details, e.hint].find(
+      (part): part is string => typeof part === 'string' && part.trim().length > 0,
+    );
+    if (text) return text;
+    if (typeof e.code === 'string') return `Request failed (${e.code}).`;
+  }
+  return 'Something went wrong. Please try again.';
+};
+
 const errorState = (error: unknown) => ({
   writeBusy: null,
-  writeError: error instanceof Error ? error.message : String(error),
+  writeError: errorMessage(error),
 });
 
 const roleFromDb = (role: string | null | undefined): CommunityRole =>
@@ -159,11 +183,47 @@ export interface SpotterState {
   role: Role;
   isDark: boolean;
   overlay: string | null;
+  // handoff v2 adds a second presentation layer: bottom sheets, distinct from
+  // full-screen overlays. Ids: story | hours | pkg | myComm | admin | rsvp
+  sheet: string | null;
   writeBusy: string | null;
   writeError: string | null;
   authEmail: string | null; // signed-in real account email (null = guest)
   authName: string | null;
   guestMode: boolean; // user chose "Continue as guest" on the landing gate
+
+  // --- onboarding (handoff v2) ---
+  authSeek: string;
+  authLoc: string;
+  searchRadius: number;
+
+  // --- court RSVP (handoff v2 section C) ---
+  rsvpTarget: string | null;      // display title, for copy only
+  rsvpRef: { venueId: string; kind: 'court' | 'event'; id: string } | null;
+  rsvpPricePerHour: number;       // per-hour for courts, flat fee for events
+  rsvpPerHour: boolean;
+  // Confirmed court reservations. There is no court_reservations table yet, so
+  // these live in the session and are surfaced in Bookings.
+  courtReservations: {
+    id: string; title: string; venue: string; kind: string;
+    type: string; hours: number; gear: boolean; coach: boolean; total: number;
+  }[];
+  rsvpType: string;
+  rsvpHours: number;
+  rsvpGear: boolean;
+  rsvpCoach: boolean;
+
+  // --- shared registration form: community | venue | shop ---
+  regKind: string;
+  // Registrations awaiting admin review. Shop rows persist through
+  // submitShopRegistration; community/venue have no server table yet, so they
+  // are held here and surfaced in the admin queue.
+  pendingRegistrations: { id: string; kind: string; name: string; meta: string; decision?: string }[];
+  regChannel: string | null;
+  regTime: string;
+
+  // --- discover live search ---
+  discSearch: string;
 
   // discover / shop
   mode: string;
@@ -341,6 +401,15 @@ export interface SpotterState {
   openEvent(id: string, from: string | null): void;
   openNotifs(): void;
   closeOverlay(): void;
+  openSheet(id: string): void;
+  closeSheet(): void;
+  openRsvp(ref: { venueId: string; kind: 'court' | 'event'; id: string }): boolean;
+  refreshRole(): Promise<void>;
+  rsvpTotal(): number;
+  confirmRsvp(): void;
+  openRegistration(kind: 'community' | 'venue' | 'shop'): void;
+  recordRegistration(kind: string, name: string, meta: string): void;
+  decideRegistration(id: string, decision: string): void;
 
   // accounting
   revenue: number;
@@ -407,11 +476,33 @@ export const useStore = create<SpotterState>((set, get) => ({
   role: 'USER',
   isDark: true,
   overlay: null,
+  sheet: null,
   writeBusy: null,
   writeError: null,
   authEmail: null,
   authName: null,
   guestMode: false,
+
+  authSeek: '',
+  authLoc: 'Beirut, Lebanon',
+  searchRadius: 12,
+
+  rsvpTarget: null,
+  rsvpRef: null,
+  rsvpPricePerHour: 40,
+  rsvpPerHour: true,
+  courtReservations: [],
+  rsvpType: 'Single',
+  rsvpHours: 1,
+  rsvpGear: false,
+  rsvpCoach: false,
+
+  regKind: 'community',
+  pendingRegistrations: [],
+  regChannel: null,
+  regTime: '',
+
+  discSearch: '',
 
   mode: 'coaches',
   sport: 'All',
@@ -834,6 +925,15 @@ export const useStore = create<SpotterState>((set, get) => ({
   cartTotal: () => Object.values(get().cart).reduce((a, b) => a + b, 0),
 
   openPerson: (id) => set({ openId: id, overlay: 'person', bookPkg: 0 }),
+  // Role follows the account, so it is read from the server rather than
+  // chosen in the UI. Failures leave the current value alone.
+  refreshRole: async () => {
+    try {
+      set({ role: await fetchAccountRole() });
+    } catch {
+      /* offline or unauthenticated - keep whatever we already had */
+    }
+  },
   openBooking: () => set({ overlay: 'booking', booked: false, bookPkg: 0, writeError: null }),
   backToPerson: () => set({ overlay: 'person', booked: false }),
   confirmBooking: async () => {
@@ -843,7 +943,12 @@ export const useStore = create<SpotterState>((set, get) => ({
     const pkg = coachPackageOptions(person)[s.bookPkg] ?? coachPackageOptions(person)[0];
     set({ writeBusy: 'booking', writeError: null });
     try {
-      await createBookingRemote(person.id, scheduledFor(s.bookDay, slot), `${pkg.name} - ${D.bookingMonthName} ${s.bookDay} - ${slot}`, pkg.packageId);
+      await createBookingRemote(
+        { id: person.id, name: person.name },
+        scheduledFor(s.bookDay, slot),
+        `${pkg.name} - ${D.bookingMonthName} ${s.bookDay} - ${slot}`,
+        pkg.packageId,
+      );
       set({ booked: true, writeBusy: null });
     } catch (error) {
       set(errorState(error));
@@ -857,6 +962,101 @@ export const useStore = create<SpotterState>((set, get) => ({
   openEvent: (id, from) => set({ eventId: id, returnTo: from, overlay: 'event' }),
   openNotifs: () => set({ overlay: 'notifications', notifSeen: true }),
   closeOverlay: () => set({ overlay: null }),
+
+  // ---- handoff v2: bottom-sheet layer ----
+  openSheet: (id) => set({ sheet: id }),
+  closeSheet: () => set({ sheet: null }),
+
+  // Court RSVP. The per-hour price is captured when the sheet opens so the
+  // total is computed from venue data, never from a client-typed number.
+  // Opening resolves the price from venue data by id. Returns false when the
+  // target cannot be priced, so the caller refuses rather than guesses.
+  openRsvp: (ref) => {
+    const subject = rsvpSubject(ref);
+    if (!subject) {
+      set({ writeError: 'That slot is unavailable right now.' });
+      return false;
+    }
+    set({
+      sheet: 'rsvp',
+      rsvpRef: ref,
+      rsvpTarget: subject.title,
+      rsvpPricePerHour: subject.price,
+      rsvpPerHour: subject.perHour,
+      rsvpType: 'Single',
+      rsvpHours: 1,
+      rsvpGear: false,
+      rsvpCoach: false,
+    });
+    return true;
+  },
+  // Courts bill per hour; tournament entry is a flat per-team fee, so hours and
+  // hourly equipment hire do not apply to it.
+  // Court charge only. "Add a coach" is a routing flag, not a line item: the
+  // coach's real rate depends on which coach and package you pick on the next
+  // screen, so folding a flat $45 in here billed the coach twice.
+  rsvpTotal: () => {
+    const st = get();
+    if (!st.rsvpPerHour) return st.rsvpPricePerHour;
+    const base = st.rsvpPricePerHour * st.rsvpHours;
+    const gear = st.rsvpGear ? 6 * st.rsvpHours : 0;
+    return base + gear;
+  },
+  confirmRsvp: () => {
+    const st = get();
+    const subject = rsvpSubject(st.rsvpRef);
+    if (!subject) {
+      set({ sheet: null, writeError: 'That slot is unavailable right now.' });
+      return;
+    }
+    set({
+      courtReservations: [
+        ...st.courtReservations,
+        {
+          id: `rsvp-${st.courtReservations.length}-${Date.now()}`,
+          title: subject.title,
+          venue: subject.venue.name,
+          kind: subject.ref.kind,
+          type: st.rsvpType,
+          hours: st.rsvpPerHour ? st.rsvpHours : 1,
+          gear: st.rsvpGear,
+          coach: st.rsvpCoach,
+          total: st.rsvpTotal(),
+        },
+      ],
+      sheet: null,
+    });
+    // "Add a coach" routes into the coach calendar; go through openBooking so a
+    // previous confirmation screen is cleared first.
+    if (st.rsvpCoach) get().openBooking();
+  },
+
+  recordRegistration: (kind, name, meta) =>
+    set((state) => ({
+      pendingRegistrations: [
+        ...state.pendingRegistrations,
+        { id: `reg-${state.pendingRegistrations.length}-${Date.now()}`, kind, name, meta },
+      ],
+    })),
+  decideRegistration: (id, decision) =>
+    set((state) => ({
+      pendingRegistrations: state.pendingRegistrations.map((r) =>
+        r.id === id ? { ...r, decision } : r
+      ),
+    })),
+
+  openRegistration: (kind) =>
+    set({
+      overlay: 'registration',
+      regKind: kind,
+      regChannel: null,
+      regTime: '',
+      shopRegName: '',
+      shopRegCat: null,
+      shopRegPhone: '',
+      shopRegEmail: '',
+      shopRegDone: false,
+    }),
   revenue: D.revenue,
   expTotal: () => get().acctExpItems.reduce((a, e) => a + e.amt, 0),
   net: () => round2(get().revenue - get().expTotal()),
