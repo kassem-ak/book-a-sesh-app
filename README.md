@@ -91,16 +91,26 @@ Accurate as of this branch. None of these are blockers for internal testing;
 all of them are blockers for charging real money.
 
 - **No payment step.** "Confirm booking" records a booking; nothing is charged.
-- **Booking price is client-supplied** and double-booking is not prevented
-  server-side. Fix written in `db/hardening.sql` §13, not applied.
-- **Google/Apple SSO is wired in the client but the providers are not enabled
-  server-side**, so those buttons do not complete a sign-in yet.
+- **Facebook / Google / Microsoft / Apple SSO is wired in the client, but none
+  of the four providers is enabled in Supabase Auth**, so the buttons report
+  "not set up yet" instead of signing anyone in. Enabling them needs an OAuth
+  client id and secret per provider, created in each provider's developer
+  console and pasted into the Supabase dashboard.
+- **Packages do not create session balances** — fixed for coach bookings
+  (`db/migrations/2026-09-03_package_redemption.sql`): a pack is charged once
+  and later sessions redeem at zero. Not re-verified on device.
 - **Accounting module is client-local.** The 3-admin approval ceremony mutates
   Zustand only; it does not change margins that bill.
 - **Shop discounts and coupons are advertised but not applied** at checkout.
-- **Packages do not create session balances** — a 5-pack buys one session.
 - **Some surfaces still read local sample data** rather than Supabase; those
-  fallbacks are being removed incrementally.
+  fallbacks are being removed incrementally. The Courts tab still renders the
+  hardcoded `expo-app/src/state/courtsData.ts` even though the venue, court and
+  reservation tables now exist and are seeded — wiring the screen to them is
+  the next step.
+- **Splash and store icons need real artwork.** The splash now shows a flat
+  brand colour because the previous image was a graph-paper placeholder;
+  `assets/icon.png` still has design-template construction guides baked in and
+  must be re-exported before store submission.
 - **No automated tests.** Verification so far is `tsc --noEmit`, a successful
   web export, and manual device click-through.
 
