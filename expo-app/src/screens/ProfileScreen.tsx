@@ -1,20 +1,38 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Segmented, Toggle } from '../components/ui';
+import { fetchMyBookings } from '../lib/bookings';
 import { signOutUser } from '../lib/session';
-import { calProviderLabel, CalProvider } from '../state/models';
+import { calProviderLabel, CalProvider, initials } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
-
-// Mirrors the sample "Upcoming" list rendered by BookingsOverlay — the store has
-// no bookings collection yet, so the badge count is pinned to that sample data.
-const UPCOMING_SESSIONS = 2;
 
 export function ProfileScreen() {
   const { c, t } = useTheme();
   const s = useStore();
   const role = s.role;
   const joinedCount = s.joinedCommunities.length;
+  // Identity is whatever the signed-in account says it is. A guest has no name,
+  // so this screen stays neutral rather than borrowing a sample person's.
+  const name = s.authName;
+  // `null` means "not loaded / could not load" and renders no badge at all —
+  // the same contract as joinedCount. A count is never invented.
+  const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchMyBookings()
+      .then((mine) => {
+        if (active) setUpcomingCount(mine.upcoming.length);
+      })
+      .catch(() => {
+        if (active) setUpcomingCount(null);
+      });
+    return () => {
+      active = false;
+    };
+    // Signing in or out changes whose bookings these are.
+  }, [s.authEmail]);
 
   const stats: [string, string][] =
     role === 'COACH'
@@ -28,10 +46,9 @@ export function ProfileScreen() {
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
           <Text style={[t.pageTitle, { color: c.txt }]}>Profile</Text>
-          {/* spec: "Alex Morgan - Beirut" under the title */}
-          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
-            {s.authName ?? 'Alex Morgan'} - Beirut
-          </Text>
+          {/* The board had "<name> - <city>" here, but no account or device city
+              exists to fill the second half, so only the real name is shown. */}
+          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{name ?? 'Guest'}</Text>
         </View>
         <Row gap={10}>
           <Pressable
@@ -53,11 +70,14 @@ export function ProfileScreen() {
 
       <Card style={{ marginTop: 18 }}>
         <Row style={{ padding: 15 }} gap={14}>
-          <Avatar initials="AM" size={64} radius={17} fontSize={22} />
+          {/* No name means a blank avatar — inventing initials would name a
+              person who is not the one holding the phone. */}
+          <Avatar initials={name ? initials(name) : ''} size={64} radius={17} fontSize={22} />
           <View style={{ flex: 1 }}>
             <Row gap={7}>
-              <Text style={[t.overlayTitle, { color: c.txt }]}>Alex Morgan</Text>
-              <Icon name="check-circle" size={17} color={c.accent} />
+              <Text style={[t.overlayTitle, { color: c.txt }]}>{name ?? 'Welcome'}</Text>
+              {/* The verified tick belongs to a real account, not to guest mode. */}
+              {name ? <Icon name="check-circle" size={17} color={c.accent} /> : null}
             </Row>
             <Text style={[t.bodySm, { color: c.txt2, marginTop: 4 }]}>
               {role === 'COACH' ? 'Strength coach · Iron Yard Gym, Hamra' : role === 'ADMIN' ? 'System administrator' : 'Training for first marathon 🏃'}
@@ -70,7 +90,7 @@ export function ProfileScreen() {
               ) : (
                 <MicroBadge label="User" bg={alpha(c.volt, 0.12)} fg={c.accent} />
               )}
-              <MicroBadge label="Beirut" bg={c.surface2} fg={c.txt2} />
+              {/* The city badge is gone with the header city: no real source. */}
             </Row>
           </View>
         </Row>
@@ -157,8 +177,12 @@ export function ProfileScreen() {
         <GroupRow
           icon="clock"
           title="My bookings"
-          body={`${UPCOMING_SESSIONS} upcoming sessions · packages and past ratings`}
-          badge={String(UPCOMING_SESSIONS)}
+          body={
+            upcomingCount === null
+              ? 'Sessions, packages and past ratings'
+              : `${upcomingCount} upcoming ${upcomingCount === 1 ? 'session' : 'sessions'} · packages and past ratings`
+          }
+          badge={upcomingCount ? String(upcomingCount) : undefined}
           onPress={s.openBookings}
         />
         <RowDivider />

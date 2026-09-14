@@ -1,4 +1,4 @@
-# Spotter database
+# BOOK'D database
 
 Postgres 15+ schema in [`schema.sql`](schema.sql). ~45 tables, money in integer cents, `uuid` PKs, PostGIS for distances. Supabase-ready (enable RLS + policies).
 

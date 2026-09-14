@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { Field, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import { getDevicePoint } from '../lib/geo';
 import { AuthForm } from '../overlays/AuthOverlay';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -35,10 +36,11 @@ export function AuthLanding() {
   // The chosen radius has to outlive onboarding: Discover and Maps filter by it.
   const radius = useStore((st) => st.searchRadius);
   const setRadius = (v: number) => useStore.getState().set('searchRadius', v);
-  // `authSeek` / `authLoc` are prototype state that the store does not carry yet,
-  // so they are read defensively and mirrored back on NEXT.
+  // `authSeek` is prototype state that the store does not carry yet, so it is
+  // read defensively and mirrored back on NEXT.
   const [seek, setSeek] = useState<string>(() => (useStore.getState() as any).authSeek ?? '');
-  const [loc, setLoc] = useState<string>(() => (useStore.getState() as any).authLoc ?? 'Beirut, Lebanon');
+  // Starts from whatever the user typed last, never from a pinned city.
+  const [loc, setLoc] = useState<string>(() => (useStore.getState() as any).authLoc ?? '');
 
   const stepIndex = STEPS.indexOf(step);
 
@@ -238,8 +240,28 @@ function RolePill({ label, active, onPress }: { label: string; active: boolean; 
 function LocationField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { c, t } = useTheme();
   const [focused, setFocused] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState<string | null>(null);
   const iconColor = focused || value.length > 0 ? c.accent : c.txt3;
+
+  // "Use my current location" used to write a fixed "Beirut, Lebanon". It now
+  // asks the device. There is no reverse geocoder wired up, so the field takes
+  // the real coordinates; when the device will not say, the field is left alone
+  // and the failure is stated rather than papered over with a guess.
+  const locate = async () => {
+    setLocating(true);
+    setLocateError(null);
+    const point = await getDevicePoint();
+    setLocating(false);
+    if (!point) {
+      setLocateError('Location unavailable — type your area instead.');
+      return;
+    }
+    onChange(`${point.latitude.toFixed(4)}, ${point.longitude.toFixed(4)}`);
+  };
+
   return (
+    <>
     <Row
       style={{
         marginTop: 26,
@@ -264,15 +286,19 @@ function LocationField({ value, onChange }: { value: string; onChange: (v: strin
         style={[t.body, { flex: 1, color: c.txt, padding: 0, paddingVertical: 10 }]}
       />
       <Pressable
-        onPress={() => onChange('Beirut, Lebanon')}
+        onPress={() => void locate()}
+        disabled={locating}
         accessibilityRole="button"
         accessibilityLabel="Use my current location"
+        accessibilityState={{ disabled: locating, busy: locating }}
         hitSlop={14}
-        style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}
+        style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center', opacity: locating ? 0.5 : 1 }}
       >
         <Icon name="crosshair" size={18} color={iconColor} />
       </Pressable>
     </Row>
+    {locateError ? <Text style={[t.caption, { color: c.danger, marginTop: 6 }]}>{locateError}</Text> : null}
+    </>
   );
 }
 

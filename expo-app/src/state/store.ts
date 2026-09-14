@@ -69,8 +69,6 @@ const byTime = (slots: string[]) => [...slots].sort((a, b) => SCHED_TIMES.indexO
 const randCode = () =>
   Array.from({ length: 4 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 30)]).join('');
 
-const CURRENT_USER_ID = 'alex';
-const CURRENT_USER_NAME = 'Alex Morgan';
 const EVENT_DAYS = [['WED', '02'], ['THU', '03'], ['FRI', '04'], ['SAT', '05'], ['SUN', '06'], ['MON', '07']];
 const canModerateRole = (role: CommunityRole) => role === 'ADMIN' || role === 'MODERATOR';
 const eventWhenLabel = (day: number, timeIdx: number) => {
@@ -141,29 +139,30 @@ const communityFromRemote = (row: any): Community => ({
   members: memberLabel(row.members_count),
   about: row.about ?? '',
   official: Boolean(row.official),
-  createdBy: CURRENT_USER_ID,
 });
 
 const eventFromRemote = (row: any, fallbackCommunity?: string): EventItem => ({
   id: row.id,
-  communityId: row.community_slug ?? row.community_id ?? fallbackCommunity ?? 'running',
+  communityId: row.community_slug ?? row.community_id ?? fallbackCommunity ?? '',
   subId: row.subgroup_id ?? null,
   type: row.type === 'event' ? 'Event' : 'Meetup',
   title: row.title,
   whenLabel: row.when_label ?? 'Upcoming',
   loc: row.location ?? 'TBD',
   attendees: row.attendees_count ?? 1,
-  host: row.host_name ?? CURRENT_USER_NAME,
+  // Unknown stays blank: stamping the reader's own name on someone else's event
+  // is how the prototype invented hosts.
+  host: row.host_name ?? '',
 });
 
 const suggestionFromRemote = (row: any, fallbackCommunity?: string): EventSuggestion => ({
   id: row.id,
-  communityId: row.community_slug ?? row.community_id ?? fallbackCommunity ?? 'running',
+  communityId: row.community_slug ?? row.community_id ?? fallbackCommunity ?? '',
   type: row.type === 'event' ? 'Event' : 'Meetup',
   title: row.title,
   whenLabel: row.when_label ?? 'Upcoming',
   loc: row.location ?? 'TBD',
-  requestedBy: row.requested_by ?? CURRENT_USER_NAME,
+  requestedBy: row.requested_by ?? '',
   status: row.status === 'approved' ? 'APPROVED' : 'PENDING',
 });
 
@@ -192,10 +191,13 @@ export interface SpotterState {
   writeError: string | null;
   authEmail: string | null; // signed-in real account email (null = guest)
   authName: string | null;
+  /** public.users.id of the signed-in account, resolved by refreshRole(). Null
+   *  until the server answers; never substitute a placeholder, because this is
+   *  compared against row ownership. */
+  authUserId: string | null;
   guestMode: boolean; // user chose "Continue as guest" on the landing gate
 
   // --- onboarding (handoff v2) ---
-  authSeek: string;
   authLoc: string;
   searchRadius: number;
 
@@ -217,15 +219,12 @@ export interface SpotterState {
 
   // --- shared registration form: community | venue | shop ---
   regKind: string;
+  regChannel: string | null;
+  regTime: string;
   // Registrations awaiting admin review. Shop rows persist through
   // submitShopRegistration; community/venue have no server table yet, so they
   // are held here and surfaced in the admin queue.
   pendingRegistrations: { id: string; kind: string; name: string; meta: string; decision?: string }[];
-  regChannel: string | null;
-  regTime: string;
-
-  // --- discover live search ---
-  discSearch: string;
 
   // discover / shop
   mode: string;
@@ -236,6 +235,17 @@ export interface SpotterState {
   sportMenu: boolean;
   remotePeople: Person[];
   remoteShops: Shop[];
+  /** Whether a fetch has completed for each remote collection. Empty results no
+   *  longer fall back to sample rows, so screens need this to tell "not fetched
+   *  yet" from "the server genuinely has none". Set by the setRemote* setters,
+   *  which every fetch already calls on both success and failure. */
+  loaded: {
+    people: boolean;
+    shops: boolean;
+    communities: boolean;
+    events: boolean;
+    suggestions: boolean;
+  };
 
   // selected ids
   openId: string;
@@ -253,7 +263,6 @@ export interface SpotterState {
   bookSlot: number;
   bookPkg: number;
   booked: boolean;
-  bookingChange: boolean;
 
   // prefs
   notifSeen: boolean;
@@ -279,7 +288,6 @@ export interface SpotterState {
   shopRegDoneCat: string | null;
   shopRegDoneMeta: string;
   shopOrderDone: boolean;
-  shopDecisions: Record<string, string>;
 
   // communities
   joinedCommunities: string[];
@@ -341,9 +349,7 @@ export interface SpotterState {
 
   // admin
   hobbyDecisions: Record<string, string>;
-  caseDecisions: Record<string, string>;
   caseId: string;
-  flagVerdicts: Record<string, string>;
   safetyCaseId: string;
   promoPct: number;
   promoAud: string;
@@ -442,8 +448,6 @@ export interface SpotterState {
   openCase(id: string): void;
   openSafetyCase(id: string): void;
   backToReports(): void;
-  decideCase(v: string): void;
-  decideFlag(v: string): void;
   genPromo(): void;
   loyaltyAdjust(key: string, delta: number): void;
   daySlots(): string[];
@@ -484,7 +488,9 @@ export const useStore = create<SpotterState>((set, get) => ({
   writeError: null,
   authEmail: null,
   authName: null,
+  authUserId: null,
   guestMode: false,
+  loaded: { people: false, shops: false, communities: false, events: false, suggestions: false },
 
   authSeek: '',
   authLoc: 'Beirut, Lebanon',
@@ -636,9 +642,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   cPromoCode: null,
 
   hobbyDecisions: {},
-  caseDecisions: {},
   caseId: 'r1',
-  flagVerdicts: {},
   safetyCaseId: 'sf-demo1',
   promoPct: 15,
   promoAud: 'All users',
@@ -754,7 +758,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   canModerateCommunity: (id) => canModerateRole(get().currentCommunityRole(id)),
   setCommunityMemberRole: (communityId, memberId, role) => {
     const s = get();
-    if (!s.canAdminCommunity(communityId) || memberId === CURRENT_USER_ID) return;
+    if (!s.canAdminCommunity(communityId) || memberId === s.authUserId) return;
     set({
       communityMemberRoles: {
         ...s.communityMemberRoles,
@@ -869,7 +873,8 @@ export const useStore = create<SpotterState>((set, get) => ({
         whenLabel: suggestion.whenLabel,
         loc: suggestion.loc,
         attendees: 1,
-        host: CURRENT_USER_NAME,
+        // Real account name; never a placeholder person.
+        host: s.authName ?? 'Member',
       };
       set({
         customEvents: [ev, ...s.customEvents],
@@ -1117,7 +1122,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     const d = s.acctDraft;
     if (!d) return;
     set({
-      acctProposal: { to: d, lines: chgLines(current(s), d), approvals: ['Alex Morgan (you)'] },
+      acctProposal: { to: d, lines: chgLines(current(s), d), approvals: [s.authName ?? 'This admin'] },
       acctDraft: null,
       acctEdits: {},
       acctAppliedNote: null,
@@ -1182,7 +1187,7 @@ export const useStore = create<SpotterState>((set, get) => ({
       whenLabel: 'Just now',
       title: editing ? 'Expense updated' : 'Expense added',
       detail: `${item.label}: ${fmtMoney(amt)} (${item.recur})`,
-      meta: 'By Alex Morgan (you)',
+      meta: `By ${s.authName ?? 'this admin'}`,
     };
     set({ acctExpItems: items, acctHistory: [entry, ...s.acctHistory], overlay: 'adminAccounting' });
   },
@@ -1194,7 +1199,7 @@ export const useStore = create<SpotterState>((set, get) => ({
         whenLabel: 'Just now',
         title: 'Expense removed',
         detail: `${e.label}: ${fmtMoney(e.amt)} (${e.recur})`,
-        meta: 'By Alex Morgan (you)',
+        meta: `By ${s.authName ?? 'this admin'}`,
       };
       set({ acctExpItems: s.acctExpItems.filter((x) => x.id !== s.acctExpId), acctHistory: [entry, ...s.acctHistory] });
     }
@@ -1211,8 +1216,6 @@ export const useStore = create<SpotterState>((set, get) => ({
   openCase: (id) => set({ caseId: id, overlay: 'adminCase' }),
   openSafetyCase: (id) => set({ safetyCaseId: id, overlay: 'safetyCase' }),
   backToReports: () => set({ overlay: 'adminReports' }),
-  decideCase: (v) => set((s) => ({ caseDecisions: { ...s.caseDecisions, [s.caseId]: v } })),
-  decideFlag: (v) => set((s) => ({ flagVerdicts: { ...s.flagVerdicts, [s.safetyCaseId]: v } })),
   genPromo: () => set((s) => ({ promoCode: `SPOT${s.promoPct}-${randCode()}` })),
   loyaltyAdjust: (key, delta) =>
     set((s) => ({ loyaltyPts: { ...s.loyaltyPts, [key]: Math.max(100, (s.loyaltyPts[key] ?? 100) + delta) } })),

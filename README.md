@@ -1,308 +1,136 @@
-# Spotter - Trainer and Training-Partner Finder
+# BOOK'D
 
-Spotter is an Android-first mobile app for finding sports coaches, training partners, communities, events, and partner shops nearby. The product prototype is set in Beirut, Lebanon and uses a dark athletic visual system with a volt accent.
+Book coaches, courts, communities, and partner-store gear in one app.
 
-This repository currently contains two things:
+BOOK'D is a cross-platform mobile app (Android, iOS, web) for finding sports
+coaches and training partners nearby, booking sessions, joining communities and
+events, and buying from partner stores. The product is set in Beirut, Lebanon
+and uses a dark athletic visual system with a volt accent.
 
-- The original HTML design handoff, kept as the source of truth for intended screens, copy, tokens, state, and interactions.
-- A native Android/Kotlin Compose implementation that has started recreating the handoff in app code.
+**Status: pre-release beta.** The app runs end to end against a live Supabase
+backend, but it is not feature-complete and has not been through a public beta.
+See [Known gaps](#known-gaps) before assuming any flow is production-ready, and
+[`BETA-RELEASE.md`](BETA-RELEASE.md) for the full audit record.
 
-## Current Status
+## Stack
 
-**v1.0.0 — first official release.** The Android app builds successfully and is signed for distribution (see Releases). It contains all five tabs — Discover, Community, Shop, Chat, and Profile — with the major state-backed overlays for booking, shops, communities, events, chat, notifications, admin approvals, and accounting wired, plus per-role profiles and the Supabase read/write data layer behind a sample-data fallback. The remaining work (polish, deeper real search/filter, payment checkout, real auth, push/calendar integrations, and automated tests) is tracked under Not Yet Implemented.
+| Layer | What |
+|---|---|
+| App | Expo SDK 57 / React Native 0.86 / React 19, TypeScript |
+| State | Zustand (single store, `expo-app/src/state/store.ts`) |
+| Backend | Supabase — Postgres + RLS + Auth (`db/`) |
+| Web deploy | Expo web export → GitHub Pages (`.github/workflows/deploy-web.yml`) |
+| Native builds | EAS Build (`expo-app/eas.json`) |
 
-Last verified build command:
+App identity: `BOOK'D`, slug `bookd`, bundle id / package `com.bookd.app`.
 
-```powershell
-.\gradlew.bat assembleRelease
+## Run it
+
+```bash
+cd expo-app
+npm install
+cp .env.example .env     # fill in EXPO_PUBLIC_SUPABASE_URL + EXPO_PUBLIC_SUPABASE_ANON_KEY
+npm start                # Expo dev server; press a / i / w
 ```
 
-Output APK:
+Other entry points:
+
+```bash
+npm run web              # web dev server
+npm run android          # local native Android build + run
+npm run ios              # local native iOS build + run
+npm run build:web        # static export to expo-app/dist
+npx tsc --noEmit         # typecheck
+```
+
+Without Supabase credentials the client still starts (`isSupabaseConfigured` is
+false) but no real data loads. Deployment options are in
+[`expo-app/DEPLOY.md`](expo-app/DEPLOY.md).
+
+## Where the code lives
 
 ```text
-app/build/outputs/apk/release/app-release.apk
+expo-app/
+|-- App.tsx                  # root component
+|-- app.json                 # Expo config: name, ids, plugins, web baseUrl
+|-- src/
+|   |-- navigation/          # Root, TabBar, OverlayRouter, SheetRouter
+|   |-- screens/             # Discover, DiscoverMap, Maps, Community, Courts,
+|   |                        # Shop, Chat, Profile, AuthLanding
+|   |-- overlays/            # full-screen flows: booking, shop, community,
+|   |                        # admin/accounting, auth, chat conversation
+|   |-- components/          # Overlay, Sheet, ErrorBanner, ScrollAwareFab, ui
+|   |-- state/               # store.ts (Zustand), models.ts, sampleData.ts
+|   |-- lib/                 # supabase.ts, session.ts, queries.ts, bookings.ts,
+|   |                        # chat.ts, notifications.ts, moderation.ts, geo.ts
+|   |-- theme/               # colors, typography
+db/                          # schema.sql, policies.sql, hardening.sql, migrations/
+design/                      # BOOK'D design specs + handoff-v2 (current source of truth)
+.github/workflows/           # web deploy, Supabase keep-alive cron
 ```
 
-## Releases
+Navigation is a five-tab shell — **Discover, Maps, Courts, Community, Chat** —
+with a full-screen overlay host and a bottom-sheet host layered above it.
+Overlay and sheet ids are routed from the Zustand store rather than a navigation
+library. Profile is reached from the header person icon rather than a tab, and
+the Shop tab is deferred to a second release (`ShopScreen.tsx` and the shop
+overlays are still in the tree but not reachable from the tab bar).
 
-- **v1.0.0** — first official release (tag `v1.0.0`). Native Android app, signed
-  with the local `spotter` release keystore (`~/.android/spotter-release.keystore`).
-  versionCode 1, versionName `1.0.0`. Includes all five tabs, full overlay set,
-  admin accounting, per-role profiles, and the Supabase read/write data layer
-  wired behind the sample-data fallback.
-- Distribute `app-release.apk` for sideload installs. For Google Play, re-key
-  with an upload key and publish an App Bundle; the current self-signed dev
-  keystore is for local distribution only.
+## Database
 
-## Versioning
+Postgres schema, RLS policies, and migrations live in [`db/`](db/README.md) —
+~45 tables, money in integer cents, `uuid` PKs, PostGIS for distances. Row-level
+security is the only access control; the anon key is publishable by design.
 
-`versionName` / `versionCode` live in `app/build.gradle.kts`. Release signing
-reads `RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and
-`RELEASE_KEY_PASSWORD` from the gitignored `local.properties`; without those the
-release build still compiles but is unsigned.
+`db/hardening.sql` contains security fixes that are **written but not fully
+applied** to the live database. See `BETA-RELEASE.md` for which ones landed.
 
-## Product Scope From The Handoff
+## Known gaps
 
-The full Spotter handoff describes:
+Accurate as of this branch. None of these are blockers for internal testing;
+all of them are blockers for charging real money.
 
-- Discover coaches and training partners using card and map views.
-- Search, sport/hobby filters, sorting, boosted profiles, and sponsored ads.
-- Coach and partner profiles with stats, qualifications, reviews, and tags.
-- Booking flow with calendar day picker, time slots, packages, confirmation, and calendar sync messaging.
-- Bookings view with active packages, upcoming sessions, change requests, and past sessions.
-- Community tab with events, community detail, start-community, request-hobby, create-event, RSVP, join, and leave flows.
-- Shop marketplace with list/map views, store profiles, product grid, cart, and checkout bar.
-- Shop partnership registration form that feeds admin approvals.
-- Chat list and conversation overlays.
-- Profile preferences, role switcher, notifications, calendar provider picker, and light/dark appearance.
-- Admin console with approvals, reports, promotions, loyalty, and accounting.
-- Accounting module with expenses, margins, admin profit shares, 3-admin approval, notifications, and history.
+- **No payment step.** "Confirm booking" records a booking; nothing is charged.
+- **Booking price is client-supplied** and double-booking is not prevented
+  server-side. Fix written in `db/hardening.sql` §13, not applied.
+- **Google/Apple SSO is wired in the client but the providers are not enabled
+  server-side**, so those buttons do not complete a sign-in yet.
+- **Accounting module is client-local.** The 3-admin approval ceremony mutates
+  Zustand only; it does not change margins that bill.
+- **Shop discounts and coupons are advertised but not applied** at checkout.
+- **Packages do not create session balances** — a 5-pack buys one session.
+- **Some surfaces still read local sample data** rather than Supabase; those
+  fallbacks are being removed incrementally.
+- **No automated tests.** Verification so far is `tsc --noEmit`, a successful
+  web export, and manual device click-through.
 
-## Implemented In Android
+## Legacy: the Kotlin `app/` directory
 
-### App Shell
+`app/` is a native Android/Kotlin Compose implementation — the original v1 of
+this product, built when it was named *Spotter*. It is **superseded** by
+`expo-app/` and is no longer developed:
 
-- Android Compose project with Gradle wrapper.
-- Single `MainActivity` entry point.
-- Edge-to-edge Compose layout.
-- Central `SpotterViewModel` for prototype-like state.
-- Five-tab bottom navigation:
-  - Discover
-  - Community
-  - Shop
-  - Chat
-  - Profile
-- Full-screen overlay host with slide/fade transition.
+- Last commit touching `app/` was 2026-07-20 (`22abd14`, "Kotlin app v1.0.0
+  release prep"); `expo-app/` has been the only app under development since.
+- The Expo app began as a port of it (`74dc800`, 2026-07-09, "Add Expo (React
+  Native) port"), so the screen set and overlay structure deliberately mirror it.
+- It still carries the old branding throughout — package `com.spotter.app`,
+  `SpotterViewModel`, `rootProject.name = "Spotter"` in `settings.gradle.kts`.
+  That branding has **not** been migrated, because the directory is not shipping.
 
-### Design System
+It is kept in the tree for reference only. It is not built by CI, not deployed,
+and not part of the BOOK'D release. If you are looking for the shipping app,
+it is `expo-app/`.
 
-- Dark and light semantic color tokens.
-- Archivo and Hanken Grotesk local font assets.
-- Shape/radius tokens matching the handoff.
-- Shared UI primitives:
-  - Cards
-  - Avatar tiles
-  - Badges
-  - Segmented controls
-  - Toggles
-  - Sort pills
-  - Volt CTA buttons
-  - Overlay scaffold/header
-  - Striped placeholders
-  - Sponsored ad card
+The original Spotter HTML design handoff it was built from is in
+`extracted/design_handoff_spotter_app/`; the current BOOK'D design source of
+truth is `design/handoff-v2/`.
 
-### Discover
+The Gradle build is still configured at the repo root (`./gradlew assembleDebug`,
+JDK 17, AGP 8.7.3, Kotlin 2.0.21, compileSdk 36, minSdk 26). It last built
+successfully at the v1.0.0 tag; it has not been rebuilt since and is not
+verified against the current tree.
 
-- Header, location, notification bell, and search field UI.
-- Coaches/training-partners segmented control.
-- Sport/hobby dropdown with request action.
-- Cards/map segmented control.
-- Featured boosted coach cards.
-- Sponsored ad card with dismiss behavior.
-- Coach/partner list cards.
-- Sorting by rating, price, and distance where applicable.
-- Basic ranked data filtering.
-- Dark map mock with grid texture, avatar pins, boosted marker, user location dot, floating search pill, view toggle, and nearest-person dock card.
+## License
 
-### Community
-
-- Community tab with happening-soon event cards.
-- Sponsored community ad with dismiss behavior.
-- Community list with official badges and join/leave state.
-- Community detail overlay with location groups and event list.
-- Event detail overlay with RSVP state.
-- Start-community, request-sport/hobby, and create-event overlays.
-
-### Shop
-
-- Shop tab with List/Map segmented control.
-- Closest-first partner store cards.
-- Map panel with shop pins, distance chips, and nearest-shop dock card.
-- Storefront overlay with partner badge, deal banner, product grid, add/added toggles, and live checkout bar.
-- Shop partnership registration form with validation and success state.
-
-### Chat
-
-- Conversation list with online dots, unread counts, previews, and timestamps.
-- Conversation overlay with message bubbles and composer UI.
-
-### Profile, Admin, And Booking
-
-- Profile tab with user card, training links, notification toggles, calendar sync/provider picker, theme toggle, and role switcher.
-- Admin role surface with approvals and accounting entry points.
-- Notifications overlay with platform update support.
-- Admin approvals overlay for hobby/community/shop requests.
-- Admin accounting overlay with expenses, margins, shares, 3-admin proposal approvals, notifications, expense editor, and history.
-- Person profile overlay for coaches and partners.
-- Stats, bio, tags, qualifications, packages, and reviews.
-- Coach booking overlay with:
-  - Month calendar
-  - Unavailable/full days
-  - Time slots
-  - Package selection
-  - Confirm/pay action
-  - Success state
-  - Calendar-sync success line when enabled in state
-- Bookings overlay with:
-  - Active package progress bars
-  - Upcoming sessions
-  - Calendar chip when calendar sync is on
-  - Request-change action
-  - Past sessions and rate affordance
-
-### Data And State
-
-Sample data is already ported for:
-
-- Coaches
-- Training partners
-- Reviews
-- Shops and products
-- Communities and sub-groups
-- Events
-- Chats and messages
-- Booking calendar metadata
-- Accounting revenue, expenses, margins, shares, history
-- Ads
-
-State and behavior are scaffolded for:
-
-- Top-level tab and overlay routing
-- Discover/shop view modes
-- Cart
-- Booking
-- Notification state
-- Calendar sync/provider
-- Ad dismissal
-- Shop registration fields
-- Community/event/request flows
-- Admin accounting proposals, approvals, expenses, history, and notifications
-
-## Not Yet Implemented As Real UI
-
-These areas still need production work or deeper fidelity:
-
-- Real ad tap destinations.
-- Real search behavior across coaches, partners, communities, shops, and chats.
-- Deeper filtering and sorting beyond the current prototype-level interactions.
-- Payment checkout implementation.
-- Real profile/report moderation workflow beyond the queued prototype screen.
-- Backend persistence for users, bookings, cart, events, shop requests, approvals, and accounting history.
-- Authentication and distinct admin identities for real 3-admin approval enforcement.
-- Push notifications and calendar OAuth integrations.
-- Automated unit and Compose UI tests.
-- Visual polish pass against the original HTML handoff on device/emulator screenshots.
-
-## Handoff Files
-The design handoff is tracked in:
-
-```text
-extracted/design_handoff_spotter_app/
-```
-
-Important files:
-
-```text
-extracted/design_handoff_spotter_app/README.md
-extracted/design_handoff_spotter_app/Spotter.dc.html
-extracted/design_handoff_spotter_app/Spotter App (standalone).html
-extracted/design_handoff_spotter_app/Spotter Figma Board.dc.html
-extracted/design_handoff_spotter_app/android-frame.jsx
-extracted/design_handoff_spotter_app/support.js
-```
-
-Use `README.md` and `Spotter.dc.html` in that folder as the source of truth for remaining behavior and screen details. The HTML files are design references, not production code.
-
-## Repository Layout
-
-```text
-.
-|-- app/
-|   |-- build.gradle.kts
-|   |-- src/main/AndroidManifest.xml
-|   |-- src/main/java/com/spotter/app/
-|   |   |-- MainActivity.kt
-|   |   |-- data/
-|   |   |-- state/
-|   |   |-- ui/
-|   |   |   |-- components/
-|   |   |   |-- nav/
-|   |   |   |-- overlays/
-|   |   |   |-- screens/
-|   |   |   |-- theme/
-|   |-- src/main/res/font/
-|   |-- src/main/res/values/
-|-- extracted/design_handoff_spotter_app/
-|-- gradle/wrapper/
-|-- build.gradle.kts
-|-- settings.gradle.kts
-```
-
-## Important Android Files
-
-- `app/src/main/java/com/spotter/app/MainActivity.kt` - app entry point.
-- `app/src/main/java/com/spotter/app/ui/SpotterApp.kt` - tab shell and overlay host.
-- `app/src/main/java/com/spotter/app/ui/OverlayRouter.kt` - overlay id router.
-- `app/src/main/java/com/spotter/app/state/SpotterViewModel.kt` - central app state and behavior.
-- `app/src/main/java/com/spotter/app/data/SampleData.kt` - static prototype data.
-- `app/src/main/java/com/spotter/app/data/Models.kt` - data models.
-- `app/src/main/java/com/spotter/app/ui/screens/DiscoverScreen.kt` - Discover cards view.
-- `app/src/main/java/com/spotter/app/ui/screens/DiscoverMap.kt` - Discover map view.
-- `app/src/main/java/com/spotter/app/ui/overlays/PersonOverlay.kt` - person profile overlay.
-- `app/src/main/java/com/spotter/app/ui/overlays/BookingOverlay.kt` - booking flow.
-- `app/src/main/java/com/spotter/app/ui/overlays/BookingsOverlay.kt` - bookings overlay.
-- `app/src/main/java/com/spotter/app/ui/theme/` - color, type, shape, and theme definitions.
-
-## Build Requirements
-
-- Android Studio or Android command-line tooling.
-- JDK 17.
-- Android Gradle Plugin 8.7.3.
-- Kotlin 2.0.21.
-- Compile SDK 36.
-- Min SDK 26.
-
-## Build
-
-From the repository root:
-
-```powershell
-.\gradlew.bat assembleDebug
-```
-
-The debug APK will be written to:
-
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-## Tests
-
-There are currently no automated tests in the repo. The following directories do not exist yet:
-
-```text
-app/src/test
-app/src/androidTest
-```
-
-Recommended future test coverage:
-
-- Unit tests for ranking/filtering logic.
-- Unit tests for booking calendar and slot selection logic.
-- Unit tests for accounting proposal approval behavior.
-- Compose UI tests for critical flows once the remaining screens are built.
-
-## Suggested Next Priorities
-
-1. Add unit tests for ranking, booking, cart, community/event, and accounting proposal logic.
-2. Add Compose UI tests for the main tab and overlay flows.
-3. Polish spacing/copy against the extracted HTML handoff on emulator screenshots.
-4. Implement real search and richer filters.
-5. Add backend persistence/auth boundaries for bookings, events, shop requests, approvals, and accounting.
-6. Replace sample-only payment, push notification, and calendar behavior with real integrations when product direction is ready.
-
-## Notes
-- The current app is a high-fidelity prototype implementation, not a production backend-connected app.
-- Product images are still placeholders in the handoff and should be replaced with real photography later.
-- The design handoff calls for high fidelity: keep colors, typography, spacing, radii, copy, and interactions aligned with the extracted handoff files.
-- The repo is currently Android-native; the original handoff HTML remains useful for reference and visual comparison only.
+See [`expo-app/LICENSE`](expo-app/LICENSE).

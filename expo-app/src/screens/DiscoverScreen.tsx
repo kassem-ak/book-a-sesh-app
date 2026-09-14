@@ -13,7 +13,7 @@ import {
 } from '../components/ui';
 import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, parseGeoPoint } from '../lib/geo';
 import { DiscoverSort, fetchCoaches } from '../lib/queries';
-import { CoachPkg, Person, initials } from '../state/models';
+import { CoachPkg, Person, firstName, initials } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -208,12 +208,15 @@ export function DiscoverScreen() {
       {/* header */}
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
-          <Text style={[t.bodySm, { color: c.txt3 }]}>Hey Alex —</Text>
-          <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Find your coach or partner</Text>
-          <Row style={{ marginTop: 8 }} gap={5}>
-            <Icon name="map-pin" size={13} color={c.accent} />
-            <Text style={[t.bodySm, { color: c.txt2 }]}>Beirut, Lebanon</Text>
-          </Row>
+          {/* Greeting only when the account actually has a name; a guest gets no
+              greeting rather than a stranger's first name. */}
+          {s.authName ? (
+            <Text style={[t.bodySm, { color: c.txt3 }]}>Hey {firstName(s.authName)} —</Text>
+          ) : null}
+          <Text style={[t.pageTitle, { color: c.txt, marginTop: s.authName ? 2 : 0 }]}>Find your coach or partner</Text>
+          {/* The "Beirut, Lebanon" pin is gone: there is no account city, and the
+              device only yields coordinates, not a place name. Restore this row
+              once a real city lands on the account. */}
         </View>
         <Row gap={10}>
           <Pressable

@@ -1,4 +1,4 @@
-# Deploy Spotter web (partner-reachable URL)
+# Deploy BOOK'D web (partner-reachable URL)
 
 The web build is a static single-page app in `dist/` (rebuild any time with
 `npm run build:web`). Host it anywhere static. Pick one:
@@ -13,7 +13,7 @@ Source = GitHub Actions** (the workflow also tries to enable this for you).
 Then:
 
 - It deploys automatically on every push to `main` that touches `expo-app/`.
-- Or trigger it now: **Actions → "Deploy Spotter web" → Run workflow**.
+- Or trigger it now: **Actions → "Deploy BOOK'D web" → Run workflow**.
 
 The site is served under the `/book-a-sesh-app/` path (set via
 `experiments.baseUrl` in `app.json`) so the repo-name subpath resolves.

@@ -1,4 +1,4 @@
-name: Deploy Spotter web
+name: "Deploy BOOK'D web"
 
 # Builds the Expo web export and publishes it to GitHub Pages.
 # URL: https://kassem-ak.github.io/book-a-sesh-app/
