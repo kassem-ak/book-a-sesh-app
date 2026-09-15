@@ -34,17 +34,6 @@ export function BookingOverlay() {
           <Text style={[t.bodySm, { color: c.txt3, marginTop: 8, textAlign: 'center' }]}>
             ${selectedPkg.price} is payable to {p.name.split(' ')[0]} directly at your session.
           </Text>
-          {s.calSyncOn && (
-            <>
-              <Row gap={8} style={{ marginTop: 16 }}>
-                <Icon name="calendar" size={16} color={c.accent} />
-                <Text style={[t.labelSm, { color: c.accent }]}>
-                  Added to your {s.calProvider === 'GOOGLE' ? 'Google' : s.calProvider === 'APPLE' ? 'Apple' : 'Outlook'} Calendar
-                </Text>
-              </Row>
-              <Text style={[t.caption, { color: c.txt3, marginTop: 6 }]}>Changes sync automatically</Text>
-            </>
-          )}
           <View style={{ height: 24 }} />
           <View style={{ width: '100%' }}>
             <VoltButton label="View in bookings" onPress={s.goToBookings} />

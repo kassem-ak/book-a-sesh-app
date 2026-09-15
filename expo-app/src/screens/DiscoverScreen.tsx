@@ -121,7 +121,7 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 24, paddingBottom: 24 }}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }} gap={12}>
         <View style={{ flex: 1 }}>
-          <Text style={[t.bodySm, { color: c.txt2 }]}>{s.authName ? `Hey ${firstName(s.authName)}` : 'Lets'}</Text>
+          <Text style={[t.bodySm, { color: c.txt2 }]}>{s.authName ? `Hey ${firstName(s.authName)}` : 'Let’s'}</Text>
           <Text style={[t.pageTitle, { color: c.txt, marginTop: 3 }]}>Find your coach{ '\n' }or partner</Text>
           {s.authLoc.trim() ? <Text style={[t.label, { color: c.accent, marginTop: 3 }]}>{s.authLoc.trim()}</Text> : null}
         </View>

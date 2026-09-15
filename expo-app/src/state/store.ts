@@ -78,12 +78,26 @@ const byTime = (slots: string[]) => [...slots].sort((a, b) => SCHED_TIMES.indexO
 const randCode = () =>
   Array.from({ length: 4 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 30)]).join('');
 
-const EVENT_DAYS = [['WED', '02'], ['THU', '03'], ['FRI', '04'], ['SAT', '05'], ['SUN', '06'], ['MON', '07']];
+// The day picker offers the next six real days. It used to be six frozen dates
+// copied off the design board, so every event a user created was stamped with a
+// day that had nothing to do with when it actually happened.
+export type EventDayOption = { label: string; date: Date };
+export const eventDayOptions = (from: Date = new Date()): EventDayOption[] =>
+  Array.from({ length: 6 }, (_, i) => {
+    const date = new Date(from);
+    date.setDate(from.getDate() + i + 1);
+    date.setHours(0, 0, 0, 0);
+    const dow = date.toLocaleDateString(undefined, { weekday: 'short' });
+    const mon = date.toLocaleDateString(undefined, { month: 'short' });
+    return { label: `${dow} ${date.getDate()} ${mon}`, date };
+  });
+
 const canModerateRole = (role: CommunityRole) => role === 'ADMIN' || role === 'MODERATOR';
 const eventWhenLabel = (day: number, timeIdx: number) => {
-  const [dow, num] = EVENT_DAYS[day] ?? EVENT_DAYS[0];
+  const options = eventDayOptions();
+  const option = options[day] ?? options[0];
   const time = D.slotDefs[timeIdx] ?? D.slotDefs[0];
-  return `${dow} ${num} · ${time}`;
+  return `${option.label.toUpperCase()} · ${time}`;
 };
 const communitySlug = (name: string) =>
   name
@@ -324,6 +338,7 @@ export interface SpotterState {
   newDay: number;
   newTime: number;
   newTitle: string;
+  newLoc: string;
   evtCreated: boolean;
   eventSuggested: boolean;
   commName: string;
@@ -597,9 +612,10 @@ export const useStore = create<SpotterState>((set, get) => ({
   newType: 'Meetup',
   newSport: '',
   newSub: null,
-  newDay: 3,
+  newDay: 0,
   newTime: 1,
   newTitle: '',
+  newLoc: '',
   evtCreated: false,
   eventSuggested: false,
   commName: '',
@@ -781,10 +797,11 @@ export const useStore = create<SpotterState>((set, get) => ({
         overlay: 'suggestEvent',
         eventSuggested: false,
         newTitle: '',
+        newLoc: '',
         newType: 'Meetup',
         newSport: s.communityId,
         newSub: null,
-        newDay: 3,
+        newDay: 0,
         newTime: 1,
         writeError: null,
       });
@@ -794,10 +811,11 @@ export const useStore = create<SpotterState>((set, get) => ({
       overlay: 'createEvent',
       evtCreated: false,
       newTitle: '',
+      newLoc: '',
       newType: 'Meetup',
       newSport: s.communityId,
       newSub: null,
-      newDay: 3,
+      newDay: 0,
       newTime: 1,
       writeError: null,
     });
@@ -811,7 +829,7 @@ export const useStore = create<SpotterState>((set, get) => ({
       newType: 'Meetup',
       newSport: s.communityId,
       newSub: null,
-      newDay: 3,
+      newDay: 0,
       newTime: 1,
       writeError: null,
     });
@@ -819,10 +837,10 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   submitEvent: async () => {
     const s = get();
-    if (!s.canModerateCommunity(s.newSport) || s.newTitle.trim() === '' || isExplicit(s.newTitle)) return;
+    if (!s.canModerateCommunity(s.newSport) || s.newTitle.trim() === '' || s.newLoc.trim() === '' || isExplicit(s.newTitle)) return;
     set({ writeBusy: 'event-create', writeError: null });
     try {
-      const row = await createEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), 'TBD');
+      const row = await createEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), s.newLoc.trim());
       const ev = eventFromRemote(row, s.newSport);
       set({ customEvents: [ev, ...s.customEvents], goingEvents: [...s.goingEvents, ev.id], evtCreated: true, overlay: 'community', writeBusy: null });
     } catch (error) {
@@ -831,10 +849,10 @@ export const useStore = create<SpotterState>((set, get) => ({
   },
   submitEventSuggestion: async () => {
     const s = get();
-    if (s.newTitle.trim() === '' || isExplicit(s.newTitle)) return;
+    if (s.newTitle.trim() === '' || s.newLoc.trim() === '' || isExplicit(s.newTitle)) return;
     set({ writeBusy: 'event-suggestion', writeError: null });
     try {
-      const row = await suggestEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), 'TBD');
+      const row = await suggestEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), s.newLoc.trim());
       const suggestion = suggestionFromRemote(row, s.newSport);
       set({
         eventSuggestions: [suggestion, ...s.eventSuggestions.filter((item) => item.id !== suggestion.id && item.id !== 'sg1')],

@@ -8,7 +8,6 @@ import { isMeetup } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
-type Tab = 'news' | 'events' | 'gallery';
 
 export function CommunityProfileOverlay() {
   const { c, t } = useTheme();
@@ -18,7 +17,6 @@ export function CommunityProfileOverlay() {
   const events = s.allEvents().filter((e) => e.communityId === cm?.id);
   const canManage = s.canModerateCommunity(cm?.id);
 
-  const [tab, setTab] = useState<Tab>('news');
   const [shownEvents, setShownEvents] = useState(3);
   const { anim, onScroll, visible } = useScrollAwareFab();
 
@@ -71,35 +69,17 @@ export function CommunityProfileOverlay() {
             <Text style={[t.caption, { color: c.txt3, marginTop: 13, letterSpacing: 0.4 }]}>Bio:</Text>
             <Text style={[t.bodySm, { color: c.soft, marginTop: 3, lineHeight: 20 }]}>{cm.about}</Text>
 
-          {/* tabs */}
-          <Row style={{ marginTop: 18 }}>
-            {(['news', 'events', 'gallery'] as Tab[]).map((k) => (
-              <Pressable
-                key={k}
-                onPress={() => setTab(k)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: tab === k }}
-                style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRightColor: c.line, borderRightWidth: k === 'gallery' ? 0 : 1 }}
-              >
-                <Text style={[t.labelSm, { color: tab === k ? c.accent : c.txt2, textTransform: 'capitalize' }]}>{k}</Text>
-              </Pressable>
-            ))}
-          </Row>
           </Card>
 
-          {tab === 'news' && (
-            <Text style={[t.bodySm, { color: c.txt2, marginTop: 22 }]}>Community news is not available yet.</Text>
-          )}
-
           {/* EVENTS — cards + Load More */}
-          {tab === 'events' && (
+          {(
             <View style={{ marginTop: 14, gap: 12 }}>
               {events.length === 0 && (
                 <Text style={[t.bodySm, { color: c.txt3, marginTop: 8 }]}>No events scheduled yet.</Text>
               )}
               {events.slice(0, shownEvents).map((ev) => (
                 <Card key={ev.id} onPress={() => s.openEvent(ev.id, 'communityProfile')} style={{ padding: 12 }}>
-                  <StripedPlaceholder caption={isMeetup(ev) ? 'meetup image' : 'event image'} height={110} />
+                  <StripedPlaceholder caption="" height={110} />
                   <View style={{ marginTop: 10 }}>
                     <MicroBadge
                       label={ev.type}
@@ -125,14 +105,10 @@ export function CommunityProfileOverlay() {
               )}
             </View>
           )}
-
-          {tab === 'gallery' && (
-            <Text style={[t.bodySm, { color: c.txt2, marginTop: 22 }]}>Community photos are not available yet.</Text>
-          )}
         </View>
       </ScrollView>
 
-      {canManage && tab === 'events' && (
+      {canManage && (
         <ScrollAwareFab anim={anim} visible={visible} label="Create event" onPress={() => s.openCreateEvent()} />
       )}
     </View>
