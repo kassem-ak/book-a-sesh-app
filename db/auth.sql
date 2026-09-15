@@ -67,20 +67,12 @@ begin
   end if;
 
   insert into users (auth_id, email, name, city)
-  values (auth.uid(), nullif(auth.jwt()->>'email', '')::citext, 'Alex Morgan', 'Beirut')
+  values (auth.uid(), nullif(auth.jwt()->>'email', '')::citext, 'Guest', 'Beirut')
   on conflict (auth_id) do update
-    set name = 'Alex Morgan', city = coalesce(users.city, 'Beirut')
+    set city = coalesce(users.city, 'Beirut')
   returning id into v_user;
 
   insert into notification_prefs (user_id) values (v_user) on conflict do nothing;
-
-  insert into community_members (community_id, user_id, role)
-  select id, v_user, 'owner'::community_role from communities where slug = 'running'
-  on conflict (community_id, user_id) do update set role = excluded.role;
-
-  insert into community_members (community_id, user_id, role)
-  select id, v_user, 'moderator'::community_role from communities where slug = 'strength'
-  on conflict (community_id, user_id) do update set role = excluded.role;
 
   return v_user;
 end $$;
@@ -126,7 +118,7 @@ begin
   if v_code is null then v_code := 'CM'; end if;
 
   insert into communities (slug, name, code, tint, about, official, created_by, members_count)
-  values (v_slug, trim(p_name), v_code, '#2F3A2A', trim(p_name) || ' community started by Alex Morgan. Share plans, create events, and grow the crew.', false, v_user, 1)
+  values (v_slug, trim(p_name), v_code, '#2F3A2A', '', false, v_user, 1)
   returning communities.id into v_id;
 
   insert into community_members (community_id, user_id, role)

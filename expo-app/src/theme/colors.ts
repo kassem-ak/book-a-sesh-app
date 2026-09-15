@@ -18,7 +18,7 @@ export interface Colors {
   mapBg: string;
   grid: string;
   accent: string; // text/link/price accent — darkens in light theme
-  volt: string; // brand volt — constant across themes
+  volt: string; // brand volt — #C6F24E dark, #A2C900 light (per BOOK'D SVG)
   amber: string;
   amberText: string;
   danger: string;
@@ -73,8 +73,8 @@ export const light: Colors = {
   mono: '#AEB4BE',
   mapBg: '#E6E8ED',
   grid: 'rgba(0,0,0,0.05)',
-  accent: '#5E7B10',
-  volt: '#B4E13A',
+  accent: '#5E8A00',
+  volt: '#A2C900',
   amber: '#F2C84B',
   amberText: '#9A7400',
   danger: '#E8543F',

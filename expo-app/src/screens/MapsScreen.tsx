@@ -1,50 +1,45 @@
-import React from 'react';
-import { ScrollView, Text, View } from 'react-native';
-import { Chip, Icon, Row } from '../components/ui';
-import * as D from '../state/sampleData';
+import React, { useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import { Field, Row } from '../components/ui';
 import { useStore } from '../state/store';
-import { useTheme } from '../theme';
+import { alpha, useTheme } from '../theme';
 import { DiscoverMap } from './DiscoverMap';
 
 const AREA_FILTERS = ["GYM'S", 'BOXING', 'FOOTBALL'];
 
-// Maps is its own tab on the redesigned board (promoted out of Discover).
-export function MapsScreen() {
+export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; onRetry?: () => void }) {
   const { c, t } = useTheme();
   const s = useStore();
-  const [filter, setFilter] = React.useState<string | null>(null);
-  const all = s.people(s.mode === 'partners' ? 'partners' : 'coaches');
-  // chips previously set state but never filtered the list
-  const people = filter
-    ? all.filter((p) => p.sport.toLowerCase().includes(filter.toLowerCase().replace(/'S$/i, '')))
-    : all;
+  const [filter, setFilter] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const people = s.people(s.mode).filter((p) => {
+    const sport = p.sport.toLowerCase();
+    const matchesArea = !filter || (filter === "GYM'S" ? /gym|strength|calisthenics|fitness/.test(sport) : sport.includes(filter.toLowerCase()));
+    return matchesArea && (!q || `${p.name} ${p.sport}`.toLowerCase().includes(q));
+  });
+  const emptyMessage = loadError ?? (!s.loaded.people ? 'Loading people...'
+    : people.length ? 'No public map locations available yet.'
+      : q || filter ? 'Nothing matches that search.' : 'Nobody listed in this area yet.');
 
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>
-      <Row
-        style={{
-          backgroundColor: c.surface,
-          borderColor: c.line,
-          borderWidth: 1,
-          borderRadius: 14,
-          paddingHorizontal: 14,
-          paddingVertical: 13,
-        }}
-        gap={10}
-      >
-        <Icon name="search" size={18} color={c.txt3} />
-        <Text style={[t.body, { color: c.txt3 }]}>Search this area</Text>
-      </Row>
-
-      <Row style={{ marginTop: 12, flexWrap: 'wrap' }} gap={8}>
-        {AREA_FILTERS.map((f) => (
-          <Chip key={f} label={f} active={filter === f} onPress={() => setFilter(filter === f ? null : f)} />
-        ))}
-      </Row>
-
-      <View style={{ marginTop: 14 }}>
-        <DiscoverMap people={people} />
+    <View style={{ flex: 1 }}>
+      <DiscoverMap people={people} emptyMessage={emptyMessage} />
+      <View style={{ position: 'absolute', top: 24, left: 18, right: 18 }}>
+        <Field value={query} onChange={setQuery} placeholder="Search this area" icon="search" />
+        <Row style={{ marginTop: 6, paddingHorizontal: 8 }} gap={5}>
+          {AREA_FILTERS.map((label) => (
+            <Pressable key={label} onPress={() => setFilter(filter === label ? null : label)} accessibilityRole="button" accessibilityLabel={`Filter by ${label === "GYM'S" ? 'gyms' : label.toLowerCase()}`} accessibilityState={{ selected: filter === label }} style={{ minHeight: 36, justifyContent: 'center' }}>
+              <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: alpha(c.volt, 0.24), backgroundColor: filter === label ? c.volt : alpha(c.volt, 0.1) }}>
+                <Text style={[t.microBadge, { fontSize: 10, color: filter === label ? c.ink : c.accent }]}>{label}</Text>
+              </View>
+            </Pressable>
+          ))}
+        </Row>
+        {loadError && onRetry && <Pressable onPress={onRetry} accessibilityRole="button" style={{ alignSelf: 'flex-start', padding: 12 }}>
+          <Text style={[t.labelSm, { color: c.accent }]}>Try again</Text>
+        </Pressable>}
       </View>
-    </ScrollView>
+    </View>
   );
 }

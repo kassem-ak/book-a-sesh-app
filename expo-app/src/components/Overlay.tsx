@@ -91,3 +91,28 @@ export function OverlayHeader({
     </View>
   );
 }
+
+// Shown when an overlay's subject (coach, shop, community, event) is not in the
+// fetched data. Before the release pass these overlays silently fell back to an
+// invented sample row, so a user could open — and pay for — someone who does not
+// exist. An honest dead end is the correct answer instead.
+export function MissingSubject({
+  title,
+  message,
+  onBack,
+}: {
+  title: string;
+  message: string;
+  onBack: () => void;
+}) {
+  const { c, t } = useTheme();
+  return (
+    <OverlayScaffold header={<OverlayHeader title={title} onBack={onBack} />}>
+      <View style={{ paddingHorizontal: 18 }}>
+        <Text accessibilityRole="text" style={[t.bodySm, { color: c.txt3, marginTop: 18 }]}>
+          {message}
+        </Text>
+      </View>
+    </OverlayScaffold>
+  );
+}

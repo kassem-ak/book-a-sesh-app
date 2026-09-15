@@ -1,4 +1,23 @@
-# Spotter database
+# BOOK'D database
+
+## Initial release data
+
+Live inventory on 2026-09-15 was already clean: 55 content tables empty,
+2 auth-linked app accounts (including one anonymous account), 2 notification
+preferences, 12 sports, and 3 platform margins. No rows were deleted in this
+verification; existing accounts and reference/configuration rows were preserved.
+New app visits can create additional anonymous accounts.
+
+Run `supabase db query --linked --file db/release_inventory.sql -o json` for
+read-only counts. `db/check_release_defaults.sql` checks guest bootstrap and
+community creation using an existing account and rolls every test write back.
+The community-default migration is `db/migrations/2026-09-15_release_community_defaults.sql`.
+
+Automatic seeding is disabled. `db/seed.sql` and the prototype venue inserts
+require `SET bookd.demo_seed = 'on'` in the same connection; enable this only
+on a disposable development database. Never use demo fixtures to initialize
+production. User GPS coordinates remain private; a public coach-map location
+model is not implemented.
 
 Postgres 15+ schema in [`schema.sql`](schema.sql). ~45 tables, money in integer cents, `uuid` PKs, PostGIS for distances. Supabase-ready (enable RLS + policies).
 

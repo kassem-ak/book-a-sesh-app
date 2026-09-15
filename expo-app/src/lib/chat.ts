@@ -227,3 +227,20 @@ export async function markConversationRead(conversationId: string) {
     .eq('user_id', me);
   if (error) throw error;
 }
+
+/**
+ * Open (or reuse) a one-to-one thread with someone.
+ *
+ * The client has no INSERT on `conversations` / `conversation_participants` --
+ * deliberately, so nobody can add themselves to a thread they were not put in.
+ * `start_conversation` is SECURITY DEFINER and writes both participant rows
+ * itself. It returns the existing thread when one already exists, so calling
+ * this twice cannot produce two inbox entries for the same pair.
+ */
+export async function startConversation(otherUserId: string): Promise<string> {
+  await ensureAppSession();
+  if (!isPersistedId(otherUserId)) throw new Error('That person is not available to message.');
+  const { data, error } = await supabase.rpc('start_conversation', { p_other: otherUserId });
+  if (error) throw error;
+  return data as string;
+}

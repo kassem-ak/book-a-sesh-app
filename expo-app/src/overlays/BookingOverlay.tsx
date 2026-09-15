@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
+import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import { coachPackageOptions } from '../state/models';
 import * as D from '../state/sampleData';
@@ -13,7 +13,10 @@ export function BookingOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const p = s.personById(s.openId);
-  const full = D.fullDaysByCoach[p.id] ?? [];
+  if (!p) return <MissingSubject title="Book a session" message="This coach is no longer available." onBack={s.backToPerson} />;
+  // Per-coach availability has no backend yet, so no day is marked full. It used
+  // to come from a hard-coded table of invented busy dates per sample coach.
+  const full: number[] = [];
   const pkgs = coachPackageOptions(p);
   const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Card, Icon, Row, SectionHeading } from '../components/ui';
+import { Avatar, Card, Icon, Row } from '../components/ui';
 import { fetchConversations, type ConversationSummary } from '../lib/chat';
 import { fetchNotifications, type AppNotification } from '../lib/notifications';
 import { useStore } from '../state/store';
@@ -40,10 +40,8 @@ export function ChatScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>
-      <Text style={[t.bodySm, { color: c.txt3 }]}>Messages from coaches and partners</Text>
-      <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Chat</Text>
-
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Conversations</SectionHeading>
+      <Text style={[t.pageTitle, { color: c.txt }]}>Chat</Text>
+      <Text style={[t.bodySm, { color: c.txt2, marginTop: 14, marginBottom: 42 }]}>Conversations and session updates</Text>
 
       {chats === null ? (
         <Card>
@@ -91,8 +89,11 @@ export function ChatScreen() {
             </View>
             <Text style={[t.name, { color: c.txt, marginTop: 12 }]}>No conversations yet</Text>
             <Text style={[t.bodySm, { color: c.txt2, marginTop: 5, textAlign: 'center' }]}>
-              Book a session or join a community — threads open once a coach or partner is matched with you.
+              Open a coach or training partner's profile and tap Message to start a conversation.
             </Text>
+            <Pressable accessibilityRole="button" onPress={() => s.set('tab', 'discover')} style={{ minHeight: 44, justifyContent: 'center', marginTop: 12 }}>
+              <Text style={[t.labelSm, { color: c.accent }]}>Find people</Text>
+            </Pressable>
           </View>
         </Card>
       ) : (
@@ -128,9 +129,9 @@ export function ChatScreen() {
 
       {/* spec 5: "Session reminders" card with an "Open booking" action. The copy
           is the newest real booking notification, not a scripted line. */}
-      <Card style={{ marginTop: 20 }}>
-        <View style={{ padding: 15 }}>
-          <SectionHeading style={{ marginBottom: 10 }}>Session reminders</SectionHeading>
+      <Card style={{ marginTop: 46 }} background={c.surface2}>
+        <View style={{ padding: 18 }}>
+          <Text style={[t.name, { color: c.txt, fontSize: 17, marginBottom: 10 }]}>Session reminders</Text>
           <Text style={[t.bodySm, { color: c.soft, lineHeight: 20 }]}>
             {reminder
               ? reminder.body ?? reminder.title
@@ -143,16 +144,18 @@ export function ChatScreen() {
             style={{
               marginTop: 12,
               minHeight: 44,
+              alignSelf: 'flex-start',
               alignItems: 'center',
               justifyContent: 'center',
               paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: c.surface2,
+              borderRadius: 999,
+              paddingHorizontal: 18,
+              backgroundColor: c.volt,
               borderColor: c.line,
               borderWidth: 1,
             }}
           >
-            <Text style={[t.labelSm, { color: c.txt }]}>Open booking</Text>
+            <Text style={[t.labelSm, { color: c.ink }]}>Open booking</Text>
           </Pressable>
         </View>
       </Card>

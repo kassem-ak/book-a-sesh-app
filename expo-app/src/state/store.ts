@@ -37,7 +37,16 @@ import {
   CalProvider,
   coachPackageOptions,
 } from './models';
-import { rsvpSubject } from './courtsData';
+import {
+  MyCourtReservation,
+  Venue,
+  enterVenueEvent,
+  equipmentRateCents,
+  fetchMyCourtReservations,
+  fetchVenues,
+  reserveCourt,
+} from '../lib/courts';
+import { RsvpRef, rsvpSubject } from './courtsData';
 import * as D from './sampleData';
 
 // ---- number helpers (mirror the Kotlin/JS behavior) ----
@@ -69,8 +78,6 @@ const byTime = (slots: string[]) => [...slots].sort((a, b) => SCHED_TIMES.indexO
 const randCode = () =>
   Array.from({ length: 4 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 30)]).join('');
 
-const CURRENT_USER_ID = 'alex';
-const CURRENT_USER_NAME = 'Alex Morgan';
 const EVENT_DAYS = [['WED', '02'], ['THU', '03'], ['FRI', '04'], ['SAT', '05'], ['SUN', '06'], ['MON', '07']];
 const canModerateRole = (role: CommunityRole) => role === 'ADMIN' || role === 'MODERATOR';
 const eventWhenLabel = (day: number, timeIdx: number) => {
@@ -95,7 +102,7 @@ const communityCode = (name: string) => {
 };
 
 const marginGet = (m: Margins, k: string) => m[k as MarginKey];
-const shareGet = (s: Shares, k: string) => s[k as ShareKey];
+const shareGet = (s: Shares, k: string) => s[k] ?? 0;
 
 // PostgREST rejects with a plain `{ message, details, hint, code }` object
 // rather than an Error, so `String(error)` rendered "[object Object]" in the
@@ -141,29 +148,30 @@ const communityFromRemote = (row: any): Community => ({
   members: memberLabel(row.members_count),
   about: row.about ?? '',
   official: Boolean(row.official),
-  createdBy: CURRENT_USER_ID,
 });
 
 const eventFromRemote = (row: any, fallbackCommunity?: string): EventItem => ({
   id: row.id,
-  communityId: row.community_slug ?? row.community_id ?? fallbackCommunity ?? 'running',
+  communityId: row.community_slug ?? row.community_id ?? fallbackCommunity ?? '',
   subId: row.subgroup_id ?? null,
   type: row.type === 'event' ? 'Event' : 'Meetup',
   title: row.title,
   whenLabel: row.when_label ?? 'Upcoming',
   loc: row.location ?? 'TBD',
-  attendees: row.attendees_count ?? 1,
-  host: row.host_name ?? CURRENT_USER_NAME,
+  attendees: row.attendees_count ?? 0,
+  // Unknown stays blank: stamping the reader's own name on someone else's event
+  // is how the prototype invented hosts.
+  host: row.host_name ?? '',
 });
 
 const suggestionFromRemote = (row: any, fallbackCommunity?: string): EventSuggestion => ({
   id: row.id,
-  communityId: row.community_slug ?? row.community_id ?? fallbackCommunity ?? 'running',
+  communityId: row.community_slug ?? row.community_id ?? fallbackCommunity ?? '',
   type: row.type === 'event' ? 'Event' : 'Meetup',
   title: row.title,
   whenLabel: row.when_label ?? 'Upcoming',
   loc: row.location ?? 'TBD',
-  requestedBy: row.requested_by ?? CURRENT_USER_NAME,
+  requestedBy: row.requested_by ?? '',
   status: row.status === 'approved' ? 'APPROVED' : 'PENDING',
 });
 
@@ -192,24 +200,33 @@ export interface SpotterState {
   writeError: string | null;
   authEmail: string | null; // signed-in real account email (null = guest)
   authName: string | null;
+  /** public.users.id of the signed-in account, resolved by refreshRole(). Null
+   *  until the server answers; never substitute a placeholder, because this is
+   *  compared against row ownership. */
+  authUserId: string | null;
   guestMode: boolean; // user chose "Continue as guest" on the landing gate
 
   // --- onboarding (handoff v2) ---
-  authSeek: string;
   authLoc: string;
+  authSeek: string;
+  discSearch: string;
   searchRadius: number;
+
+  // --- venues, courts and tournaments (server-backed) ---
+  venues: Venue[];
+  venuesLoading: boolean;
+  venuesError: string | null;
 
   // --- court RSVP (handoff v2 section C) ---
   rsvpTarget: string | null;      // display title, for copy only
-  rsvpRef: { venueId: string; kind: 'court' | 'event'; id: string } | null;
-  rsvpPricePerHour: number;       // per-hour for courts, flat fee for events
+  rsvpRef: RsvpRef | null;
+  rsvpPriceCents: number;         // per-hour for courts, flat entry fee for tournaments
   rsvpPerHour: boolean;
-  // Confirmed court reservations. There is no court_reservations table yet, so
-  // these live in the session and are surfaced in Bookings.
-  courtReservations: {
-    id: string; title: string; venue: string; kind: string;
-    type: string; hours: number; gear: boolean; coach: boolean; total: number;
-  }[];
+  /** Chosen start, ISO. Null until the user picks one — never defaulted, because
+   *  reserve_court charges for exactly this instant. */
+  rsvpStartsAt: string | null;
+  /** The signed-in user's reservations, as stored by the server. */
+  courtReservations: MyCourtReservation[];
   rsvpType: string;
   rsvpHours: number;
   rsvpGear: boolean;
@@ -217,15 +234,12 @@ export interface SpotterState {
 
   // --- shared registration form: community | venue | shop ---
   regKind: string;
+  regChannel: string | null;
+  regTime: string;
   // Registrations awaiting admin review. Shop rows persist through
   // submitShopRegistration; community/venue have no server table yet, so they
   // are held here and surfaced in the admin queue.
   pendingRegistrations: { id: string; kind: string; name: string; meta: string; decision?: string }[];
-  regChannel: string | null;
-  regTime: string;
-
-  // --- discover live search ---
-  discSearch: string;
 
   // discover / shop
   mode: string;
@@ -236,6 +250,17 @@ export interface SpotterState {
   sportMenu: boolean;
   remotePeople: Person[];
   remoteShops: Shop[];
+  /** Whether a fetch has completed for each remote collection. Empty results no
+   *  longer fall back to sample rows, so screens need this to tell "not fetched
+   *  yet" from "the server genuinely has none". Set by the setRemote* setters,
+   *  which every fetch already calls on both success and failure. */
+  loaded: {
+    people: boolean;
+    shops: boolean;
+    communities: boolean;
+    events: boolean;
+    suggestions: boolean;
+  };
 
   // selected ids
   openId: string;
@@ -253,7 +278,6 @@ export interface SpotterState {
   bookSlot: number;
   bookPkg: number;
   booked: boolean;
-  bookingChange: boolean;
 
   // prefs
   notifSeen: boolean;
@@ -263,7 +287,6 @@ export interface SpotterState {
   calProvider: CalProvider;
 
   // ads
-  adsHidden: Record<string, boolean>;
 
   // shop registration
   shopRegName: string;
@@ -279,7 +302,6 @@ export interface SpotterState {
   shopRegDoneCat: string | null;
   shopRegDoneMeta: string;
   shopOrderDone: boolean;
-  shopDecisions: Record<string, string>;
 
   // communities
   joinedCommunities: string[];
@@ -341,9 +363,7 @@ export interface SpotterState {
 
   // admin
   hobbyDecisions: Record<string, string>;
-  caseDecisions: Record<string, string>;
   caseId: string;
-  flagVerdicts: Record<string, string>;
   safetyCaseId: string;
   promoPct: number;
   promoAud: string;
@@ -359,16 +379,16 @@ export interface SpotterState {
   toggleGoing(id: string): Promise<void>;
   people(mode?: string): Person[];
   setRemotePeople(people: Person[]): void;
-  personById(id: string): Person;
+  personById(id: string): Person | undefined;
   shops(): Shop[];
   setRemoteShops(shops: Shop[]): void;
-  shopById(id: string): Shop;
+  shopById(id: string): Shop | undefined;
   submitShopRegistration(): Promise<void>;
   checkoutCart(): Promise<void>;
   communities(): Community[];
   setRemoteCommunities(communities: Community[]): void;
   setRemoteEvents(events: EventItem[]): void;
-  communityById(id: string): Community;
+  communityById(id: string): Community | undefined;
   communityAbout(id: string): string;
   currentCommunityRole(id?: string): CommunityRole;
   canAdminCommunity(id?: string): boolean;
@@ -405,10 +425,12 @@ export interface SpotterState {
   closeOverlay(): void;
   openSheet(id: string): void;
   closeSheet(): void;
-  openRsvp(ref: { venueId: string; kind: 'court' | 'event'; id: string }): boolean;
+  openRsvp(ref: RsvpRef): boolean;
   refreshRole(): Promise<void>;
+  loadVenues(): Promise<void>;
+  refreshCourtReservations(): Promise<void>;
   rsvpTotal(): number;
-  confirmRsvp(): void;
+  confirmRsvp(): Promise<void>;
   openRegistration(kind: 'community' | 'venue' | 'shop'): void;
   recordRegistration(kind: string, name: string, meta: string): void;
   decideRegistration(id: string, decision: string): void;
@@ -442,8 +464,6 @@ export interface SpotterState {
   openCase(id: string): void;
   openSafetyCase(id: string): void;
   backToReports(): void;
-  decideCase(v: string): void;
-  decideFlag(v: string): void;
   genPromo(): void;
   loyaltyAdjust(key: string, delta: number): void;
   daySlots(): string[];
@@ -484,16 +504,22 @@ export const useStore = create<SpotterState>((set, get) => ({
   writeError: null,
   authEmail: null,
   authName: null,
+  authUserId: null,
   guestMode: false,
+  loaded: { people: false, shops: false, communities: false, events: false, suggestions: false },
 
   authSeek: '',
-  authLoc: 'Beirut, Lebanon',
+  authLoc: '',
   searchRadius: 12,
 
+  venues: [],
+  venuesLoading: false,
+  venuesError: null,
   rsvpTarget: null,
   rsvpRef: null,
-  rsvpPricePerHour: 40,
+  rsvpPriceCents: 0,
   rsvpPerHour: true,
+  rsvpStartsAt: null,
   courtReservations: [],
   rsvpType: 'Single',
   rsvpHours: 1,
@@ -516,11 +542,11 @@ export const useStore = create<SpotterState>((set, get) => ({
   remotePeople: [],
   remoteShops: [],
 
-  openId: 'c1',
-  shopId: 's1',
-  chatId: 'm1',
-  communityId: 'running',
-  eventId: 'ev1',
+  openId: '',
+  shopId: '',
+  chatId: '',
+  communityId: '',
+  eventId: '',
   returnTo: null,
 
   cart: {},
@@ -537,7 +563,6 @@ export const useStore = create<SpotterState>((set, get) => ({
   calSyncOn: false,
   calProvider: 'GOOGLE',
 
-  adsHidden: {},
 
   shopRegName: '',
   shopRegCat: null,
@@ -556,34 +581,21 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   joinedCommunities: [],
   joinedSubs: [],
-  goingEvents: ['ev1', 'ev3'],
+  goingEvents: [],
   customCommunities: [],
   remoteCommunities: [],
   communityRoles: {},
-  communityMemberRoles: {
-    running: { rima: 'MODERATOR', karim: 'MEMBER', jordan: 'MEMBER', mei: 'MEMBER' },
-    strength: { rima: 'MEMBER', karim: 'ADMIN', jordan: 'MEMBER', mei: 'MEMBER' },
-  },
+  communityMemberRoles: {},
   communityAboutEdits: {},
-  eventSuggestions: [
-    {
-      id: 'sg1',
-      communityId: 'running',
-      type: 'Meetup',
-      title: 'Recovery jog for new runners',
-      whenLabel: 'SAT 05 · 8:00 AM',
-      loc: 'TBD',
-      requestedBy: 'Jordan K.',
-      status: 'PENDING',
-    },
-  ],
+  eventSuggestions: [],
 
-  setRemoteEventSuggestions: (suggestions) => set({ eventSuggestions: suggestions }),
+  setRemoteEventSuggestions: (suggestions) =>
+    set((state) => ({ eventSuggestions: suggestions, loaded: { ...state.loaded, suggestions: true } })),
 
   customEvents: [],
   remoteEvents: [],
   newType: 'Meetup',
-  newSport: 'running',
+  newSport: '',
   newSub: null,
   newDay: 3,
   newTime: 1,
@@ -597,8 +609,8 @@ export const useStore = create<SpotterState>((set, get) => ({
   reqType: 'Hobby',
   reqSent: false,
 
-  acctMargins: { session: 12, shop: 8, boost: 15 },
-  acctShares: { alex: 40, rima: 30, karim: 30 },
+  acctMargins: { session: 0, shop: 0, boost: 0 },
+  acctShares: {},
   acctDraft: null,
   acctProposal: null,
   acctAppliedNote: null,
@@ -611,39 +623,25 @@ export const useStore = create<SpotterState>((set, get) => ({
   acctExpAmt: '',
   acctExpRecur: 'Monthly',
 
-  myCerts: [{ id: 'ct1', name: 'First Aid & CPR', issuer: 'Red Cross Lebanon', year: '2025', verified: true }],
+  myCerts: [],
   apptDecisions: {},
   coachRate: 0,
   schedDay: 'THU',
   addTimeIdx: 4,
-  schedule: {
-    MON: ['6:30 AM', '8:00 AM', '5:30 PM', '6:30 PM'],
-    TUE: ['6:30 AM', '8:00 AM', '5:30 PM', '6:30 PM'],
-    WED: ['6:30 AM', '5:30 PM', '6:30 PM'],
-    THU: ['6:30 AM', '8:00 AM', '5:30 PM', '6:30 PM'],
-    FRI: ['6:30 AM', '8:00 AM', '5:30 PM'],
-    SAT: ['8:00 AM', '12:00 PM'],
-    SUN: [],
-  },
-  myPackages: [
-    { id: 'pk1', sessions: 1, price: 45 },
-    { id: 'pk2', sessions: 5, price: 203 },
-    { id: 'pk3', sessions: 12, price: 421 },
-  ],
+  schedule: {},
+  myPackages: [],
   newPkgSessions: 10,
-  newPkgPrice: 380,
+  newPkgPrice: 0,
   cPromoPct: 15,
   cPromoCode: null,
 
   hobbyDecisions: {},
-  caseDecisions: {},
-  caseId: 'r1',
-  flagVerdicts: {},
-  safetyCaseId: 'sf-demo1',
+  caseId: '',
+  safetyCaseId: '',
   promoPct: 15,
   promoAud: 'All users',
   promoCode: null,
-  loyaltyPts: { l1: 500, l2: 900, l3: 1500 },
+  loyaltyPts: {},
 
   set: (key, value) => set({ [key]: value } as Partial<SpotterState>),
 
@@ -688,19 +686,14 @@ export const useStore = create<SpotterState>((set, get) => ({
     }
   },
 
-  people: (mode = get().mode) => {
-    const remote = get().remotePeople;
-    if (mode === 'coaches') return remote.length > 0 ? remote : D.coaches;
-    return D.partners;
-  },
-  setRemotePeople: (people) => set({ remotePeople: people }),
-  personById: (id) => get().remotePeople.find((person) => person.id === id) ?? D.personById(id),
-  shops: () => {
-    const remote = get().remoteShops;
-    return remote.length > 0 ? remote : D.shops;
-  },
-  setRemoteShops: (shops) => set({ remoteShops: shops }),
-  shopById: (id) => get().remoteShops.find((shop) => shop.id === id) ?? D.shopById(id),
+  // Whatever the server returned, nothing else. An empty list is a real answer;
+  // inventing rows here put bookable strangers in front of paying users.
+  people: (mode = get().mode) => get().remotePeople.filter((person) => person.isCoach === (mode === 'coaches')),
+  setRemotePeople: (people) => set((state) => ({ remotePeople: people, loaded: { ...state.loaded, people: true } })),
+  personById: (id) => get().people().find((person) => person.id === id) ?? get().remotePeople.find((person) => person.id === id),
+  shops: () => get().remoteShops,
+  setRemoteShops: (shops) => set((state) => ({ remoteShops: shops, loaded: { ...state.loaded, shops: true } })),
+  shopById: (id) => get().remoteShops.find((shop) => shop.id === id),
   submitShopRegistration: async () => {
     const s = get();
     const shopName = s.shopRegName.trim();
@@ -725,6 +718,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   checkoutCart: async () => {
     const s = get();
     const shop = s.shopById(s.shopId);
+    if (!shop) return;
     const items = shop.products
       .filter((product) => product.id && `${shop.id}:${product.id}` in s.cart)
       .map((product) => ({ product_id: product.id!, qty: 1 }));
@@ -740,21 +734,19 @@ export const useStore = create<SpotterState>((set, get) => ({
       set(errorState(error));
     }
   },
-  communities: () => {
-    const remote = get().remoteCommunities;
-    return [...get().customCommunities, ...(remote.length > 0 ? remote : D.communities)];
-  },
-  setRemoteCommunities: (communities) => set({ remoteCommunities: communities }),
-  setRemoteEvents: (events) => set({ remoteEvents: events }),
+  communities: () => [...get().customCommunities, ...get().remoteCommunities],
+  setRemoteCommunities: (communities) =>
+    set((state) => ({ remoteCommunities: communities, loaded: { ...state.loaded, communities: true } })),
+  setRemoteEvents: (events) => set((state) => ({ remoteEvents: events, loaded: { ...state.loaded, events: true } })),
   communityById: (id) =>
-    get().customCommunities.find((cm) => cm.id === id) ?? get().remoteCommunities.find((cm) => cm.id === id) ?? D.communityById(id),
-  communityAbout: (id) => get().communityAboutEdits[id] ?? get().communityById(id).about,
+    get().customCommunities.find((cm) => cm.id === id) ?? get().remoteCommunities.find((cm) => cm.id === id),
+  communityAbout: (id) => get().communityAboutEdits[id] ?? get().communityById(id)?.about ?? '',
   currentCommunityRole: (id) => get().communityRoles[id ?? get().communityId] ?? 'MEMBER',
   canAdminCommunity: (id) => get().currentCommunityRole(id) === 'ADMIN',
   canModerateCommunity: (id) => canModerateRole(get().currentCommunityRole(id)),
   setCommunityMemberRole: (communityId, memberId, role) => {
     const s = get();
-    if (!s.canAdminCommunity(communityId) || memberId === CURRENT_USER_ID) return;
+    if (!s.canAdminCommunity(communityId) || memberId === s.authUserId) return;
     set({
       communityMemberRoles: {
         ...s.communityMemberRoles,
@@ -869,7 +861,8 @@ export const useStore = create<SpotterState>((set, get) => ({
         whenLabel: suggestion.whenLabel,
         loc: suggestion.loc,
         attendees: 1,
-        host: CURRENT_USER_NAME,
+        // Real account name; never a placeholder person.
+        host: s.authName ?? 'Member',
       };
       set({
         customEvents: [ev, ...s.customEvents],
@@ -912,10 +905,7 @@ export const useStore = create<SpotterState>((set, get) => ({
       set(errorState(error));
     }
   },
-  allEvents: () => {
-    const remote = get().remoteEvents;
-    return [...get().customEvents, ...(remote.length > 0 ? remote : D.events)];
-  },
+  allEvents: () => [...get().customEvents, ...get().remoteEvents],
 
   toggleCartItem: (key, price) =>
     set((s) => {
@@ -942,6 +932,10 @@ export const useStore = create<SpotterState>((set, get) => ({
   confirmBooking: async () => {
     const s = get();
     const person = s.personById(s.openId);
+    if (!person) {
+      set({ writeError: 'That coach is no longer available.' });
+      return;
+    }
     const slot = D.slotDefs[s.bookSlot] ?? D.slotDefs[0];
     const pkg = coachPackageOptions(person)[s.bookPkg] ?? coachPackageOptions(person)[0];
     set({ writeBusy: 'booking', writeError: null });
@@ -970,65 +964,107 @@ export const useStore = create<SpotterState>((set, get) => ({
   openSheet: (id) => set({ sheet: id }),
   closeSheet: () => set({ sheet: null }),
 
-  // Court RSVP. The per-hour price is captured when the sheet opens so the
-  // total is computed from venue data, never from a client-typed number.
-  // Opening resolves the price from venue data by id. Returns false when the
-  // target cannot be priced, so the caller refuses rather than guesses.
+  loadVenues: async () => {
+    set({ venuesLoading: true, venuesError: null });
+    try {
+      set({ venues: await fetchVenues(), venuesLoading: false });
+    } catch (error) {
+      set({ venues: [], venuesLoading: false, venuesError: errorMessage(error) });
+    }
+  },
+
+  // Reservations are read back rather than assembled locally: the server owns
+  // the totals, so its rows are the only honest source for "what I booked".
+  refreshCourtReservations: async () => {
+    try {
+      set({ courtReservations: await fetchMyCourtReservations() });
+    } catch {
+      /* browsing must not break because the reservation list failed to load */
+    }
+  },
+
+  // Opening resolves the subject from the loaded venues by id. Returns false
+  // when it cannot be resolved, so the caller refuses rather than guesses.
   openRsvp: (ref) => {
-    const subject = rsvpSubject(ref);
+    const subject = rsvpSubject(get().venues, ref);
     if (!subject) {
       set({ writeError: 'That slot is unavailable right now.' });
+      return false;
+    }
+    // A closed venue is a guaranteed 'this venue is closed' from the RPC; say so
+    // here instead of charging the user a round-trip to find out.
+    if (subject.venue.status !== 'open') {
+      set({ writeError: `${subject.venue.name} is closed right now.` });
       return false;
     }
     set({
       sheet: 'rsvp',
       rsvpRef: ref,
       rsvpTarget: subject.title,
-      rsvpPricePerHour: subject.price,
+      rsvpPriceCents: subject.priceCents,
       rsvpPerHour: subject.perHour,
+      rsvpStartsAt: null,
       rsvpType: 'Single',
       rsvpHours: 1,
       rsvpGear: false,
       rsvpCoach: false,
+      writeError: null,
     });
     return true;
   },
-  // Courts bill per hour; tournament entry is a flat per-team fee, so hours and
-  // hourly equipment hire do not apply to it.
-  // Court charge only. "Add a coach" is a routing flag, not a line item: the
-  // coach's real rate depends on which coach and package you pick on the next
-  // screen, so folding a flat $45 in here billed the coach twice.
+
+  /**
+   * DISPLAY ESTIMATE ONLY, in cents. The server is authoritative: reserve_court
+   * re-reads the court rate and the venue's gear rate and writes its own
+   * total_cents, so this number exists to show a figure before the tap and is
+   * never sent, recorded, or trusted afterwards.
+   */
   rsvpTotal: () => {
     const st = get();
-    if (!st.rsvpPerHour) return st.rsvpPricePerHour;
-    const base = st.rsvpPricePerHour * st.rsvpHours;
-    const gear = st.rsvpGear ? 6 * st.rsvpHours : 0;
-    return base + gear;
+    if (!st.rsvpPerHour) return st.rsvpPriceCents;
+    const subject = rsvpSubject(st.venues, st.rsvpRef);
+    const gearRate = subject ? (equipmentRateCents(subject.venue, subject.court) ?? 0) : 0;
+    return st.rsvpPriceCents * st.rsvpHours + (st.rsvpGear ? gearRate * st.rsvpHours : 0);
   },
-  confirmRsvp: () => {
+
+  confirmRsvp: async () => {
     const st = get();
-    const subject = rsvpSubject(st.rsvpRef);
+    const subject = rsvpSubject(st.venues, st.rsvpRef);
     if (!subject) {
       set({ sheet: null, writeError: 'That slot is unavailable right now.' });
       return;
     }
-    set({
-      courtReservations: [
-        ...st.courtReservations,
-        {
-          id: `rsvp-${st.courtReservations.length}-${Date.now()}`,
-          title: subject.title,
-          venue: subject.venue.name,
-          kind: subject.ref.kind,
-          type: st.rsvpType,
-          hours: st.rsvpPerHour ? st.rsvpHours : 1,
-          gear: st.rsvpGear,
-          coach: st.rsvpCoach,
-          total: st.rsvpTotal(),
-        },
-      ],
-      sheet: null,
-    });
+    // reserve_court requires an instant; there is no safe default for "when",
+    // so refuse rather than invent one.
+    if (subject.perHour && !st.rsvpStartsAt) {
+      set({ writeError: 'Pick a day and a start time first.' });
+      return;
+    }
+
+    set({ writeBusy: 'rsvp', writeError: null });
+    try {
+      if (subject.perHour && subject.court) {
+        await reserveCourt({
+          courtId: subject.court.id,
+          startsAt: st.rsvpStartsAt as string,
+          hours: st.rsvpHours,
+          kind: st.rsvpType as 'Single' | 'Teams' | 'Member of team',
+          equipment: st.rsvpGear,
+        });
+      } else if (subject.event) {
+        await enterVenueEvent(subject.event.id);
+      } else {
+        throw new Error('That slot is unavailable right now.');
+      }
+    } catch (error) {
+      // The sheet stays open on failure so the user can change the time or the
+      // court rather than losing what they picked.
+      set(errorState(error));
+      return;
+    }
+
+    set({ sheet: null, writeBusy: null });
+    await get().refreshCourtReservations();
     // "Add a coach" routes into the coach calendar; go through openBooking so a
     // previous confirmation screen is cleared first.
     if (st.rsvpCoach) get().openBooking();
@@ -1069,10 +1105,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     return s.acctDraft !== null && !eq(s.acctDraft, current(s));
   },
   acctEditable: () => get().acctProposal === null,
-  sharesTotal: () => {
-    const sh = get().effective().shares;
-    return sh.alex + sh.rima + sh.karim;
-  },
+  sharesTotal: () => Object.values(get().effective().shares).reduce((sum, share) => sum + share, 0),
   sharesOk: () => Math.abs(get().sharesTotal() - 100) < 0.005,
 
   acctAdjust: (group, key, delta) => {
@@ -1117,7 +1150,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     const d = s.acctDraft;
     if (!d) return;
     set({
-      acctProposal: { to: d, lines: chgLines(current(s), d), approvals: ['Alex Morgan (you)'] },
+      acctProposal: { to: d, lines: chgLines(current(s), d), approvals: [s.authName ?? 'This admin'] },
       acctDraft: null,
       acctEdits: {},
       acctAppliedNote: null,
@@ -1182,7 +1215,7 @@ export const useStore = create<SpotterState>((set, get) => ({
       whenLabel: 'Just now',
       title: editing ? 'Expense updated' : 'Expense added',
       detail: `${item.label}: ${fmtMoney(amt)} (${item.recur})`,
-      meta: 'By Alex Morgan (you)',
+      meta: `By ${s.authName ?? 'this admin'}`,
     };
     set({ acctExpItems: items, acctHistory: [entry, ...s.acctHistory], overlay: 'adminAccounting' });
   },
@@ -1194,7 +1227,7 @@ export const useStore = create<SpotterState>((set, get) => ({
         whenLabel: 'Just now',
         title: 'Expense removed',
         detail: `${e.label}: ${fmtMoney(e.amt)} (${e.recur})`,
-        meta: 'By Alex Morgan (you)',
+        meta: `By ${s.authName ?? 'this admin'}`,
       };
       set({ acctExpItems: s.acctExpItems.filter((x) => x.id !== s.acctExpId), acctHistory: [entry, ...s.acctHistory] });
     }
@@ -1211,8 +1244,6 @@ export const useStore = create<SpotterState>((set, get) => ({
   openCase: (id) => set({ caseId: id, overlay: 'adminCase' }),
   openSafetyCase: (id) => set({ safetyCaseId: id, overlay: 'safetyCase' }),
   backToReports: () => set({ overlay: 'adminReports' }),
-  decideCase: (v) => set((s) => ({ caseDecisions: { ...s.caseDecisions, [s.caseId]: v } })),
-  decideFlag: (v) => set((s) => ({ flagVerdicts: { ...s.flagVerdicts, [s.safetyCaseId]: v } })),
   genPromo: () => set((s) => ({ promoCode: `SPOT${s.promoPct}-${randCode()}` })),
   loyaltyAdjust: (key, delta) =>
     set((s) => ({ loyaltyPts: { ...s.loyaltyPts, [key]: Math.max(100, (s.loyaltyPts[key] ?? 100) + delta) } })),

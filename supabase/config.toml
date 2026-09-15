@@ -64,11 +64,11 @@ enabled = true
 schema_paths = []
 
 [db.seed]
-# If enabled, seeds the database after migrations during a db reset.
-enabled = true
+# Demo fixtures require an explicit opt-in on a development database.
+enabled = false
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed.sql"]
+sql_paths = []
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -170,8 +170,8 @@ additional_redirect_urls = [
   "http://localhost:8081/",
   "http://127.0.0.1:8081",
   "http://127.0.0.1:8081/",
-  "spotter://auth-callback",
-  "spotter://auth-callback/"
+  "bookd://auth-callback",
+  "bookd://auth-callback/"
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
@@ -331,9 +331,27 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# BOOK'D offers Facebook, Google, Microsoft and Apple on the sign-in screen
+# (expo-app/src/lib/session.ts, SSO_LABELS). All four are declared here so the
+# set is version-controlled rather than living only in the dashboard.
+#
+# Secrets are NEVER literals. Supply them as environment variables before
+# `supabase start` / `supabase config push`:
+#   SUPABASE_AUTH_EXTERNAL_FACEBOOK_CLIENT_ID / _SECRET
+#   SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID   / _SECRET
+#   SUPABASE_AUTH_EXTERNAL_AZURE_CLIENT_ID    / _SECRET   (Microsoft Entra)
+#   SUPABASE_AUTH_EXTERNAL_APPLE_CLIENT_ID    / _SECRET
+#
+# Each provider's console needs this callback on its allow-list:
+#   https://qievymkkprhbvxrsdukb.supabase.co/auth/v1/callback
+#
+# NOTE: this file configures the LOCAL stack and `supabase config push`. It does
+# not by itself switch the providers on in the hosted project -- that is a
+# dashboard action (Authentication -> Providers).
+
 [auth.external.apple]
-enabled = false
-client_id = ""
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_APPLE_CLIENT_ID)"
 # DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
 secret = "env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)"
 # Overrides the default auth callback URL derived from auth.external_url.
@@ -344,6 +362,36 @@ url = ""
 # If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
 skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
+email_optional = false
+
+[auth.external.facebook]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_FACEBOOK_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_FACEBOOK_SECRET)"
+redirect_uri = ""
+url = ""
+skip_nonce_check = false
+email_optional = false
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+# Required for local sign in with Google auth.
+skip_nonce_check = true
+email_optional = false
+
+# Microsoft accounts / Entra ID. Supabase calls this provider `azure`.
+[auth.external.azure]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_AZURE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_AZURE_SECRET)"
+redirect_uri = ""
+# Single-tenant Entra directories override this with the tenant-specific URL.
+url = ""
+skip_nonce_check = false
 email_optional = false
 
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.

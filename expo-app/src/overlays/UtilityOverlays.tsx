@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
+import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, Row, VoltButton } from '../components/ui';
 import {
   fetchCounterpart,
@@ -431,6 +431,7 @@ export function ReportOverlay() {
     if (!reason || busy) return;
     setBusy(true);
     try {
+      if (!subject) return;
       await submitReport(subject.id, reason, summary);
       setFiled(true);
     } catch (e) {
@@ -439,6 +440,9 @@ export function ReportOverlay() {
       setBusy(false);
     }
   }
+
+  // Guard sits after the hooks so the hook order never changes.
+  if (!subject) return <MissingSubject title="Report" message="This profile is no longer available." onBack={s.closeOverlay} />;
 
   // Only shown after the insert succeeded, so "open case" is a fact: reports
   // land with status 'open' and are what the admin console lists.

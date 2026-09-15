@@ -23,11 +23,15 @@
     "android": {
       "package": "com.bookd.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0D0E11",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -47,13 +51,13 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0D0E11",
-          "image": "./assets/splash-icon.png",
-          "imageWidth": 180,
+          "image": "./assets/android-icon-foreground.png",
+          "imageWidth": 160,
           "resizeMode": "contain",
+          "backgroundColor": "#0D0E11",
           "dark": {
-            "backgroundColor": "#0D0E11",
-            "image": "./assets/splash-icon.png"
+            "image": "./assets/android-icon-foreground.png",
+            "backgroundColor": "#0D0E11"
           }
         }
       ],

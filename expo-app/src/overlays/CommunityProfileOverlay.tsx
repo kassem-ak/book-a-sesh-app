@@ -1,74 +1,36 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OverlayHeader } from '../components/Overlay';
+import { MissingSubject, OverlayHeader } from '../components/Overlay';
 import { ScrollAwareFab, useScrollAwareFab } from '../components/ScrollAwareFab';
 import { Avatar, Card, Icon, MicroBadge, Row, StripedPlaceholder } from '../components/ui';
 import { isMeetup } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
-// Spec section 5, "Community profile": identity block with verified check,
-// Official Federation badge, member count, category, bio and edit pencil, then
-// News | Events | Gallery tabs. News is a post feed with a reactions row and
-// pager dots; Events and Gallery both page with "Load More"; all three carry a
-// volt + FAB, and Gallery's hides on scroll down (board annotation).
 type Tab = 'news' | 'events' | 'gallery';
-
-type Post = {
-  id: string;
-  author: string;
-  initials: string;
-  whenLabel: string;
-  body: string;
-  images: number;
-  likes: number;
-  comments: number;
-};
-
-const POSTS: Post[] = [
-  {
-    id: 'p1',
-    author: 'Jordan K.',
-    initials: 'JK',
-    whenLabel: '2h ago',
-    body: 'Sunday long run is moving to 6:30 AM while the heat lasts. Meet at the Corniche steps.',
-    images: 3,
-    likes: 42,
-    comments: 8,
-  },
-  {
-    id: 'p2',
-    author: 'Rima Haddad',
-    initials: 'RH',
-    whenLabel: 'Yesterday',
-    body: 'Race kits arrived for everyone signed up to the 10k time trial. Grab yours at the clubhouse.',
-    images: 2,
-    likes: 65,
-    comments: 14,
-  },
-];
 
 export function CommunityProfileOverlay() {
   const { c, t } = useTheme();
   const insets = useSafeAreaInsets();
   const s = useStore();
   const cm = s.communityById(s.communityId);
-  const events = s.allEvents().filter((e) => e.communityId === cm.id);
-  const canManage = s.canModerateCommunity(cm.id);
+  const events = s.allEvents().filter((e) => e.communityId === cm?.id);
+  const canManage = s.canModerateCommunity(cm?.id);
 
   const [tab, setTab] = useState<Tab>('news');
   const [shownEvents, setShownEvents] = useState(3);
-  const [shownAlbums, setShownAlbums] = useState(6);
-  const [liked, setLiked] = useState<Record<string, boolean>>({});
   const { anim, onScroll, visible } = useScrollAwareFab();
 
-  const albums = Array.from({ length: 12 }, (_, i) => `Album ${i + 1}`);
+
+  // After the hooks so hook order is stable: a community id that is not in the
+  // fetched list used to resolve to an invented sample community.
+  if (!cm) return <MissingSubject title="Community" message="This community is no longer listed." onBack={s.closeOverlay} />;
 
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.bg }}>
       <View style={{ paddingTop: insets.top }}>
-        <OverlayHeader title="Community" onBack={s.closeOverlay} />
+        <OverlayHeader title={cm.sport} onBack={s.closeOverlay} />
       </View>
 
       <ScrollView
@@ -76,32 +38,9 @@ export function CommunityProfileOverlay() {
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
-        {/* cover photo — spec section 4 "Community profile: cover, verified
-            check, card with avatar…". The identity card overlaps it by 34px. */}
-        <View>
-          <StripedPlaceholder caption="community cover" height={176} radius={0} />
-          {cm.official && (
-            <View
-              style={{
-                position: 'absolute',
-                top: 14,
-                right: 16,
-                width: 34,
-                height: 34,
-                borderRadius: 999,
-                backgroundColor: alpha(c.bg, 0.66),
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Icon name="check-circle" size={18} color={c.accent} />
-            </View>
-          )}
-        </View>
-
         {/* identity block */}
         <View style={{ paddingHorizontal: 18 }}>
-          <Card style={{ marginTop: -34, padding: 15 }}>
+          <Card style={{ marginTop: 12, padding: 15 }}>
             <Row gap={12} style={{ alignItems: 'flex-start' }}>
               <Avatar initials={cm.code} size={58} radius={17} bg={cm.tint} fontSize={18} />
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -131,81 +70,25 @@ export function CommunityProfileOverlay() {
 
             <Text style={[t.caption, { color: c.txt3, marginTop: 13, letterSpacing: 0.4 }]}>Bio:</Text>
             <Text style={[t.bodySm, { color: c.soft, marginTop: 3, lineHeight: 20 }]}>{cm.about}</Text>
-          </Card>
 
           {/* tabs */}
-          <Row style={{ marginTop: 18, borderBottomColor: c.line, borderBottomWidth: 1 }} gap={22}>
+          <Row style={{ marginTop: 18 }}>
             {(['news', 'events', 'gallery'] as Tab[]).map((k) => (
               <Pressable
                 key={k}
                 onPress={() => setTab(k)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: tab === k }}
-                style={{ paddingBottom: 10, paddingTop: 4 }}
+                style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRightColor: c.line, borderRightWidth: k === 'gallery' ? 0 : 1 }}
               >
                 <Text style={[t.labelSm, { color: tab === k ? c.accent : c.txt2, textTransform: 'capitalize' }]}>{k}</Text>
               </Pressable>
             ))}
           </Row>
+          </Card>
 
-          {/* NEWS — post feed with reactions row and pager dots */}
           {tab === 'news' && (
-            <View style={{ marginTop: 14, gap: 12 }}>
-              {POSTS.map((post) => (
-                <Card key={post.id} style={{ padding: 12 }}>
-                  <Row gap={11}>
-                    <Avatar initials={post.initials} size={38} radius={11} fontSize={13} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[t.labelSm, { color: c.txt }]}>{post.author}</Text>
-                      <Text style={[t.caption, { color: c.txt3, marginTop: 1 }]}>{post.whenLabel}</Text>
-                    </View>
-                  </Row>
-                  <Text style={[t.bodySm, { color: c.soft, marginTop: 10 }]}>{post.body}</Text>
-
-                  <View style={{ marginTop: 10 }}>
-                    <StripedPlaceholder caption="post image" height={150} />
-                  </View>
-                  {/* pager dots */}
-                  <Row style={{ justifyContent: 'center', marginTop: 8 }} gap={5}>
-                    {Array.from({ length: post.images }).map((_, i) => (
-                      <View
-                        key={i}
-                        style={{
-                          width: i === 0 ? 16 : 5,
-                          height: 5,
-                          borderRadius: 999,
-                          backgroundColor: i === 0 ? c.volt : c.mono,
-                        }}
-                      />
-                    ))}
-                  </Row>
-
-                  {/* reactions row */}
-                  <Row style={{ marginTop: 12 }} gap={18}>
-                    <Pressable
-                      onPress={() => setLiked({ ...liked, [post.id]: !liked[post.id] })}
-                      accessibilityRole="button"
-                      accessibilityLabel={liked[post.id] ? 'Remove like' : 'Like post'}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Row gap={6}>
-                        <Icon name="heart" size={17} color={liked[post.id] ? c.accent : c.txt2} />
-                        <Text style={[t.caption, { color: liked[post.id] ? c.accent : c.txt2 }]}>
-                          {post.likes + (liked[post.id] ? 1 : 0)}
-                        </Text>
-                      </Row>
-                    </Pressable>
-                    <Row gap={6}>
-                      <Icon name="message-circle" size={17} color={c.txt2} />
-                      <Text style={[t.caption, { color: c.txt2 }]}>{post.comments}</Text>
-                    </Row>
-                    <Row gap={6}>
-                      <Icon name="share-2" size={17} color={c.txt2} />
-                    </Row>
-                  </Row>
-                </Card>
-              ))}
-            </View>
+            <Text style={[t.bodySm, { color: c.txt2, marginTop: 22 }]}>Community news is not available yet.</Text>
           )}
 
           {/* EVENTS — cards + Load More */}
@@ -243,42 +126,14 @@ export function CommunityProfileOverlay() {
             </View>
           )}
 
-          {/* GALLERY — album grid + Load More */}
           {tab === 'gallery' && (
-            <View style={{ marginTop: 14 }}>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 }}>
-                {albums.slice(0, shownAlbums).map((a) => (
-                  <View key={a} style={{ width: '48.5%' }}>
-                    <StripedPlaceholder caption={a} height={104} />
-                    <Text style={[t.caption, { color: c.txt2, marginTop: 6 }]}>{a}</Text>
-                  </View>
-                ))}
-              </View>
-              {shownAlbums < albums.length && (
-                <Pressable
-                  onPress={() => setShownAlbums(shownAlbums + 6)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Load more albums"
-                  style={{ alignItems: 'center', paddingVertical: 12, marginTop: 4 }}
-                >
-                  <Text style={[t.labelSm, { color: c.txt2 }]}>Load More</Text>
-                  <Icon name="chevron-down" size={18} color={c.txt3} />
-                </Pressable>
-              )}
-            </View>
+            <Text style={[t.bodySm, { color: c.txt2, marginTop: 22 }]}>Community photos are not available yet.</Text>
           )}
         </View>
       </ScrollView>
 
-      {/* volt + FAB on every tab; the Gallery one hides while scrolling down */}
-      {canManage && (
-        <ScrollAwareFab
-          anim={tab === 'gallery' ? anim : undefined}
-          visible={tab === 'gallery' ? visible : true}
-          icon={tab === 'gallery' ? 'image' : tab === 'events' ? 'calendar' : 'edit-3'}
-          label={tab === 'gallery' ? 'Add photo' : tab === 'events' ? 'Create event' : 'Write a post'}
-          onPress={tab === 'events' ? () => s.openCreateEvent() : undefined}
-        />
+      {canManage && tab === 'events' && (
+        <ScrollAwareFab anim={anim} visible={visible} label="Create event" onPress={() => s.openCreateEvent()} />
       )}
     </View>
   );

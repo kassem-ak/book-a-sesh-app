@@ -144,7 +144,7 @@ export interface HistoryEntry {
 }
 
 export type MarginKey = 'session' | 'shop' | 'boost';
-export type ShareKey = 'alex' | 'rima' | 'karim';
+export type ShareKey = string;
 export type Margins = Record<MarginKey, number>;
 export type Shares = Record<ShareKey, number>;
 
@@ -163,17 +163,6 @@ export interface Notif {
   whenLabel: string;
   title: string;
   body: string;
-}
-
-export interface AdDef {
-  key: string;
-  brand: string;
-  logo: string;
-  tint: string;
-  headline: string;
-  body: string;
-  cta: string;
-  why: string;
 }
 
 export type Role = 'USER' | 'COACH' | 'ADMIN';

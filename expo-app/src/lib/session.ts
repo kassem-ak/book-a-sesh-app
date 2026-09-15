@@ -7,10 +7,9 @@ WebBrowser.maybeCompleteAuthSession();
 
 let pendingSession: Promise<string> | null = null;
 
-// Ensures there is *some* Supabase session before a write. Guests get an
-// anonymous session bootstrapped into the demo user (Alex, with community
-// roles). Real email users skip the demo bootstrap — their public.users row
-// is created by the handle_new_user trigger at signup.
+// Ensures a Supabase session before a write. The legacy-named bootstrap RPC
+// links an anonymous session to its own Guest row without demo memberships.
+// Real email users get their public.users row from handle_new_user at signup.
 export async function ensureAppSession() {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured');
   if (pendingSession) return pendingSession;
@@ -22,7 +21,10 @@ export async function ensureAppSession() {
     let user = existing.session?.user ?? null;
     if (!user) {
       const { data, error } = await supabase.auth.signInAnonymously({
-        options: { data: { name: 'Alex Morgan' } },
+        // A guest is not a specific person. This metadata lands on the
+        // real public.users row, so naming it after a demo character put
+        // "Alex Morgan" on every anonymous account's bookings.
+        options: { data: { name: 'Guest' } },
       });
       if (error) throw error;
       user = data.user;
