@@ -50,3 +50,33 @@ command needed (build is already done). For Vercel: `npx vercel --prod` from
 
 - The web build reads Supabase config from EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY at build time. GitHub Pages gets these from repo variables/secrets.
 - Native builds (real iOS/Android apps) use `npx eas-cli build -p android|ios`.
+
+## Native store builds (EAS)
+
+The build profiles in `eas.json` declare `"environment"`, so EAS injects the
+Supabase config from variables stored on EAS rather than from `.env` (which is
+gitignored and never reaches a cloud build). Set them once per environment:
+
+```bash
+eas env:set --name EXPO_PUBLIC_SUPABASE_URL --value "https://<project>.supabase.co" --environment production --visibility plaintext
+```
+
+```bash
+eas env:set --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<anon key>" --environment production --visibility plaintext
+```
+
+Repeat with `--environment preview` for internal builds. Plain-text visibility is
+correct here: both values are embedded in the client anyway, and RLS — not
+secrecy — is what enforces access.
+
+Without these, `src/lib/supabase.ts` falls back to `http://localhost` and the
+installed app cannot reach the backend at all.
+
+Then:
+
+```bash
+eas build --profile production --platform android
+```
+
+Requires EAS CLI 14 or newer (`eas.json` pins `>= 14.0.0`); older CLIs ignore the
+`environment` field and would silently produce the localhost build described above.
