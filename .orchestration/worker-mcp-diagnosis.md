@@ -92,3 +92,60 @@ from the installed and latest published Codex.
 
 Until one of those happens, any instruction to "dispatch to codex/gemma4" cannot
 be carried out, and work routed to them silently does not happen.
+
+
+---
+
+# RESOLVED (2026-09-15)
+
+## What actually happened
+
+The official changelog names it exactly:
+
+> **The deprecated `codex mcp-server` entry point is no longer available. (#42993)**
+> -- `rust-v0.154.0`
+
+So `codex mcp-server` was deprecated, then removed **in 0.154.0** -- precisely
+the version installed here. The last release that still ships it is **0.153.4**,
+where `codex --help` lists:
+
+```
+mcp-server        Start Codex as an MCP server (stdio)
+```
+
+and a stdio handshake returns a valid response (with a deprecation warning).
+
+## The fix, applied
+
+Both entries in `~/.claude.json` now launch the pinned release through npx
+instead of the installed binary: command becomes `npx.cmd`, and the args gain
+`-y @openai/codex@0.153.4` in front of the existing list.
+
+Every pre-existing flag was preserved -- gemma4 keeps its Ollama model config --
+and the 0.154.0 install is untouched, so the interactive `codex` CLI stays
+current. Only the MCP entries are pinned.
+
+Verified by launching each entry exactly as the harness does and reading the
+stdio handshake:
+
+```
+codex:  HANDSHAKE OK -> codex-mcp-server v0.153.4
+gemma4: HANDSHAKE OK -> codex-mcp-server v0.153.4
+```
+
+**Takes effect on the next session.** MCP connections are established at session
+start, so the session that made this change still sees the old failing entries.
+
+## A wrong turn worth recording
+
+The first attempt installed 0.153.4 under `AppData\Local` and pointed the config
+at that path. It failed: shell writes outside the project land in a sandbox
+overlay, so the directory existed to the shell but **not** to a real Windows
+process -- while the edit to `.claude.json` *did* reach the real file. That left
+the config pointing at a nonexistent binary, i.e. worse than the original
+breakage. It was reverted as soon as a real-process check (`os.path.isfile`)
+disagreed with `find`.
+
+The lesson for this environment: verify any host path a *different* process must
+execute with a real-process check, not with the shell that wrote it. Using npx
+sidesteps the problem entirely -- resolution happens on the host at launch.
