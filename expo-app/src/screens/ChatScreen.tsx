@@ -25,7 +25,10 @@ export function ChatScreen() {
       try {
         const [rows, notifs] = await Promise.all([fetchConversations(), fetchNotifications(20)]);
         if (!live) return;
-        setChats(rows);
+        // A blocked member's thread stays on the server -- the block is
+        // enforced there, on the send -- but it should not sit in the list.
+        const blocked = useStore.getState().blockedIds;
+        setChats(rows.filter((row) => !row.counterpartId || !blocked.includes(row.counterpartId)));
         setReminder(notifs.find((n) => n.type === 'booking') ?? null);
       } catch (e) {
         if (!live) return;
