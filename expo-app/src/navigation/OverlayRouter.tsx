@@ -40,10 +40,6 @@ import {
   CoachScheduleOverlay,
   CoachPackagesOverlay,
 } from '../overlays/CoachOverlays';
-import {
-  ShopStorefrontOverlay,
-  ShopRegisterOverlay,
-} from '../overlays/ShopOverlays';
 
 export function OverlayRouter({ id }: { id: string }) {
   switch (id) {
@@ -65,10 +61,6 @@ export function OverlayRouter({ id }: { id: string }) {
       return <BookingOverlay />;
     case 'bookings':
       return <BookingsOverlay />;
-    case 'shop':
-      return <ShopStorefrontOverlay />;
-    case 'shopRegister':
-      return <ShopRegisterOverlay />;
     case 'community':
       return <CommunityDetailOverlay />;
     case 'event':

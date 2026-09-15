@@ -23,11 +23,12 @@
     "android": {
       "package": "com.bookd.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0D0E11",
+        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "blockedPermissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"

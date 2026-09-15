@@ -4,11 +4,10 @@ import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Ov
 import { Avatar, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Segmented, StripedPlaceholder, VoltButton } from '../components/ui';
 import { CommunityRole, EventSuggestion, isMeetup } from '../state/models';
 import * as D from '../state/sampleData';
-import { isExplicit, useStore } from '../state/store';
+import { eventDayOptions, isExplicit, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 const roleLabel: Record<CommunityRole, string> = { ADMIN: 'Admin', MODERATOR: 'Moderator', MEMBER: 'Member' };
-const days = ['Wed 02', 'Thu 03', 'Fri 04', 'Sat 05', 'Sun 06', 'Mon 07'];
 
 export function CommunityDetailOverlay() {
   const { c, t } = useTheme();
@@ -101,7 +100,7 @@ export function EventDetailOverlay() {
       }
     >
       <View style={{ paddingHorizontal: 18 }}>
-        <StripedPlaceholder caption={isMeetup(ev) ? 'meetup image' : 'event image'} height={180} radius={18} />
+        <StripedPlaceholder caption="" height={180} radius={18} />
         <View style={{ marginTop: 14 }}>
           <MicroBadge label={ev.type} bg={isMeetup(ev) ? alpha(c.volt, 0.12) : alpha(c.amber, 0.2)} fg={isMeetup(ev) ? c.accent : c.amberText} />
         </View>
@@ -121,7 +120,8 @@ export function CreateEventOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const blocked = isExplicit(s.newTitle);
-  const canCreate = s.newTitle.trim().length > 0 && !blocked && s.canModerateCommunity(s.newSport);
+  const named = s.newTitle.trim().length > 0 && s.newLoc.trim().length > 0;
+  const canCreate = named && !blocked && s.canModerateCommunity(s.newSport);
   if (!s.canModerateCommunity(s.newSport)) return <EventSuggestionOverlay />;
   if (s.evtCreated) {
     return (
@@ -133,7 +133,7 @@ export function CreateEventOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Create event" onBack={() => s.set('overlay', 'community')} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Blocked - flagged to admins' : canCreate ? 'Create event' : 'Name it first'} enabled={canCreate} onPress={s.submitEvent} /></View>}
+      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Blocked - flagged to admins' : canCreate ? 'Create event' : 'Add a title and a place'} enabled={canCreate} onPress={s.submitEvent} /></View>}
     >
       <EventForm blocked={blocked} blockedCopy="Contains blocked content - this will be flagged." />
     </OverlayScaffold>
@@ -144,7 +144,7 @@ export function EventSuggestionOverlay() {
   const { c } = useTheme();
   const s = useStore();
   const blocked = isExplicit(s.newTitle);
-  const canSend = s.newTitle.trim().length > 0 && !blocked;
+  const canSend = s.newTitle.trim().length > 0 && s.newLoc.trim().length > 0 && !blocked;
   if (s.eventSuggested) {
     return (
       <OverlayScaffold header={<OverlayHeader title="Suggest event" onBack={() => s.set('overlay', 'community')} />}>
@@ -155,7 +155,7 @@ export function EventSuggestionOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Suggest event" onBack={() => s.set('overlay', 'community')} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Blocked - flagged to admins' : canSend ? 'Send suggestion' : 'Name it first'} enabled={canSend} onPress={s.submitEventSuggestion} /></View>}
+      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Blocked - flagged to admins' : canSend ? 'Send suggestion' : 'Add a title and a place'} enabled={canSend} onPress={s.submitEventSuggestion} /></View>}
     >
       <EventForm blocked={blocked} blockedCopy="Contains blocked content - this will be sent for review." />
     </OverlayScaffold>
@@ -253,7 +253,7 @@ function EventForm({ blocked, blockedCopy }: { blocked: boolean; blockedCopy: st
 
       <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Day</SectionHeading>
       <Row style={{ flexWrap: 'wrap' }} gap={8}>
-        {days.map((d, i) => <Chip key={d} label={d} active={s.newDay === i} onPress={() => s.set('newDay', i)} />)}
+        {eventDayOptions().map((d, i) => <Chip key={d.label} label={d.label} active={s.newDay === i} onPress={() => s.set('newDay', i)} />)}
       </Row>
 
       <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Time</SectionHeading>
@@ -263,6 +263,9 @@ function EventForm({ blocked, blockedCopy }: { blocked: boolean; blockedCopy: st
 
       <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Title</SectionHeading>
       <Field value={s.newTitle} onChange={(v) => s.set('newTitle', v)} placeholder="Saturday long run..." />
+
+      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Where</SectionHeading>
+      <Field value={s.newLoc} onChange={(v) => s.set('newLoc', v)} placeholder="Corniche, Beirut..." />
       {blocked && <Text style={[t.caption, { color: c.danger, marginTop: 8 }]}>{blockedCopy}</Text>}
     </View>
   );

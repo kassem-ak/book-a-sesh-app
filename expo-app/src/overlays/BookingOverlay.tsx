@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import { coachPackageOptions } from '../state/models';
+import { fetchPackageUsage } from '../lib/queries';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -20,6 +21,28 @@ export function BookingOverlay() {
   const pkgs = coachPackageOptions(p);
   const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
 
+  // What the server will actually charge. `create_booking_for_coach` bills a
+  // pack once, on purchase, and writes 0 for every later redemption -- so
+  // quoting the list price on session 2 of a 5-pack tells the user to hand over
+  // $203 that nobody is owed.
+  const [usage, setUsage] = React.useState<Record<string, number>>({});
+  React.useEffect(() => {
+    let live = true;
+    fetchPackageUsage().then((rows) => { if (live) setUsage(rows); });
+    return () => { live = false; };
+  }, [p.id]);
+
+  const used = selectedPkg?.packageId ? usage[selectedPkg.packageId] ?? 0 : 0;
+  const remaining = selectedPkg ? selectedPkg.sessions - used : 0;
+  const redeeming = used > 0 && remaining > 0;
+  const exhausted = used > 0 && remaining <= 0;
+  const dueNow = redeeming ? 0 : selectedPkg?.price ?? 0;
+  const priceLabel = redeeming
+    ? 'Included'
+    : dueNow > 0
+      ? `$${dueNow}`
+      : 'To agree';
+
   if (s.booked) {
     return (
       <OverlayScaffold header={<OverlayHeader title="Booking confirmed" onBack={s.closeOverlay} />}>
@@ -31,17 +54,13 @@ export function BookingOverlay() {
           <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
             {selectedPkg.name} with {p.name.split(' ')[0]} · {D.bookingMonthName} {s.bookDay} · {D.slotDefs[s.bookSlot]}
           </Text>
-          {s.calSyncOn && (
-            <>
-              <Row gap={8} style={{ marginTop: 16 }}>
-                <Icon name="calendar" size={16} color={c.accent} />
-                <Text style={[t.labelSm, { color: c.accent }]}>
-                  Added to your {s.calProvider === 'GOOGLE' ? 'Google' : s.calProvider === 'APPLE' ? 'Apple' : 'Outlook'} Calendar
-                </Text>
-              </Row>
-              <Text style={[t.caption, { color: c.txt3, marginTop: 6 }]}>Changes sync automatically</Text>
-            </>
-          )}
+          <Text style={[t.bodySm, { color: c.txt3, marginTop: 8, textAlign: 'center' }]}>
+            {redeeming
+              ? `Already covered by your pack — nothing to pay ${p.name.split(' ')[0]} for this one.`
+              : dueNow > 0
+                ? `$${dueNow} is payable to ${p.name.split(' ')[0]} directly at your session.`
+                : `Agree the price with ${p.name.split(' ')[0]} directly — BOOK'D does not take payment.`}
+          </Text>
           <View style={{ height: 24 }} />
           <View style={{ width: '100%' }}>
             <VoltButton label="View in bookings" onPress={s.goToBookings} />
@@ -56,11 +75,26 @@ export function BookingOverlay() {
       header={<OverlayHeader title="Book a session" onBack={s.backToPerson} subtitle={p.name} />}
       bottomBar={
         <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
-          <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-            <Text style={[t.body, { color: c.txt2 }]}>Total</Text>
-            <Text style={[t.price, { color: c.accent }]}>${selectedPkg.price}</Text>
+          <Row style={{ justifyContent: 'space-between', marginBottom: 2 }}>
+            <Text style={[t.body, { color: c.txt2 }]}>{redeeming ? 'Due now' : 'Total'}</Text>
+            <Text style={[t.price, { color: c.accent }]}>{priceLabel}</Text>
           </Row>
-          <VoltButton label="Confirm and pay" onPress={s.confirmBooking} busy={s.writeBusy === 'booking'} busyLabel="Booking..." />
+          <Text style={[t.caption, { color: c.txt3, marginBottom: 12 }]}>
+            {exhausted
+              ? 'Every session in this pack has been used. Pick another option.'
+              : redeeming
+                ? `Already paid for — ${remaining} of ${selectedPkg.sessions} sessions left in this pack.`
+                : dueNow > 0
+                  ? "Payable to the coach at your session — BOOK'D does not take payment."
+                  : "This coach has not set a price. Agree it with them directly — BOOK'D does not take payment."}
+          </Text>
+          <VoltButton
+            label={exhausted ? 'Pack already used' : 'Confirm booking'}
+            enabled={!exhausted}
+            onPress={s.confirmBooking}
+            busy={s.writeBusy === 'booking'}
+            busyLabel="Booking..."
+          />
         </View>
       }
     >

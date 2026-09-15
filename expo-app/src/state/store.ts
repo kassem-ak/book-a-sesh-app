@@ -46,6 +46,7 @@ import {
   fetchVenues,
   reserveCourt,
 } from '../lib/courts';
+import { blockUser, fetchBlockedUsers, unblockUser } from '../lib/moderation';
 import { RsvpRef, rsvpSubject } from './courtsData';
 import * as D from './sampleData';
 
@@ -78,12 +79,26 @@ const byTime = (slots: string[]) => [...slots].sort((a, b) => SCHED_TIMES.indexO
 const randCode = () =>
   Array.from({ length: 4 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 30)]).join('');
 
-const EVENT_DAYS = [['WED', '02'], ['THU', '03'], ['FRI', '04'], ['SAT', '05'], ['SUN', '06'], ['MON', '07']];
+// The day picker offers the next six real days. It used to be six frozen dates
+// copied off the design board, so every event a user created was stamped with a
+// day that had nothing to do with when it actually happened.
+export type EventDayOption = { label: string; date: Date };
+export const eventDayOptions = (from: Date = new Date()): EventDayOption[] =>
+  Array.from({ length: 6 }, (_, i) => {
+    const date = new Date(from);
+    date.setDate(from.getDate() + i + 1);
+    date.setHours(0, 0, 0, 0);
+    const dow = date.toLocaleDateString(undefined, { weekday: 'short' });
+    const mon = date.toLocaleDateString(undefined, { month: 'short' });
+    return { label: `${dow} ${date.getDate()} ${mon}`, date };
+  });
+
 const canModerateRole = (role: CommunityRole) => role === 'ADMIN' || role === 'MODERATOR';
 const eventWhenLabel = (day: number, timeIdx: number) => {
-  const [dow, num] = EVENT_DAYS[day] ?? EVENT_DAYS[0];
+  const options = eventDayOptions();
+  const option = options[day] ?? options[0];
   const time = D.slotDefs[timeIdx] ?? D.slotDefs[0];
-  return `${dow} ${num} · ${time}`;
+  return `${option.label.toUpperCase()} · ${time}`;
 };
 const communitySlug = (name: string) =>
   name
@@ -324,6 +339,7 @@ export interface SpotterState {
   newDay: number;
   newTime: number;
   newTitle: string;
+  newLoc: string;
   evtCreated: boolean;
   eventSuggested: boolean;
   commName: string;
@@ -427,6 +443,11 @@ export interface SpotterState {
   closeSheet(): void;
   openRsvp(ref: RsvpRef): boolean;
   refreshRole(): Promise<void>;
+  /** Members this account has blocked. The server enforces the block; this
+   *  copy is only what stops the lists from showing them. */
+  blockedIds: string[];
+  refreshBlocked(): Promise<void>;
+  toggleBlock(userId: string): Promise<void>;
   loadVenues(): Promise<void>;
   refreshCourtReservations(): Promise<void>;
   rsvpTotal(): number;
@@ -496,6 +517,7 @@ const chgLines = (from: MarginsShares, to: MarginsShares): string[] => {
 export const useStore = create<SpotterState>((set, get) => ({
   tab: 'discover',
   role: 'USER',
+  blockedIds: [],
   signupIntent: null,
   isDark: true,
   overlay: null,
@@ -597,9 +619,10 @@ export const useStore = create<SpotterState>((set, get) => ({
   newType: 'Meetup',
   newSport: '',
   newSub: null,
-  newDay: 3,
+  newDay: 0,
   newTime: 1,
   newTitle: '',
+  newLoc: '',
   evtCreated: false,
   eventSuggested: false,
   commName: '',
@@ -688,7 +711,13 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   // Whatever the server returned, nothing else. An empty list is a real answer;
   // inventing rows here put bookable strangers in front of paying users.
-  people: (mode = get().mode) => get().remotePeople.filter((person) => person.isCoach === (mode === 'coaches')),
+  // Blocked members drop out of discovery. `personById` deliberately still
+  // resolves them from remotePeople, so their profile stays reachable and the
+  // block can be lifted.
+  people: (mode = get().mode) =>
+    get().remotePeople.filter(
+      (person) => person.isCoach === (mode === 'coaches') && !get().blockedIds.includes(person.id),
+    ),
   setRemotePeople: (people) => set((state) => ({ remotePeople: people, loaded: { ...state.loaded, people: true } })),
   personById: (id) => get().people().find((person) => person.id === id) ?? get().remotePeople.find((person) => person.id === id),
   shops: () => get().remoteShops,
@@ -781,10 +810,11 @@ export const useStore = create<SpotterState>((set, get) => ({
         overlay: 'suggestEvent',
         eventSuggested: false,
         newTitle: '',
+        newLoc: '',
         newType: 'Meetup',
         newSport: s.communityId,
         newSub: null,
-        newDay: 3,
+        newDay: 0,
         newTime: 1,
         writeError: null,
       });
@@ -794,10 +824,11 @@ export const useStore = create<SpotterState>((set, get) => ({
       overlay: 'createEvent',
       evtCreated: false,
       newTitle: '',
+      newLoc: '',
       newType: 'Meetup',
       newSport: s.communityId,
       newSub: null,
-      newDay: 3,
+      newDay: 0,
       newTime: 1,
       writeError: null,
     });
@@ -811,7 +842,7 @@ export const useStore = create<SpotterState>((set, get) => ({
       newType: 'Meetup',
       newSport: s.communityId,
       newSub: null,
-      newDay: 3,
+      newDay: 0,
       newTime: 1,
       writeError: null,
     });
@@ -819,10 +850,10 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   submitEvent: async () => {
     const s = get();
-    if (!s.canModerateCommunity(s.newSport) || s.newTitle.trim() === '' || isExplicit(s.newTitle)) return;
+    if (!s.canModerateCommunity(s.newSport) || s.newTitle.trim() === '' || s.newLoc.trim() === '' || isExplicit(s.newTitle)) return;
     set({ writeBusy: 'event-create', writeError: null });
     try {
-      const row = await createEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), 'TBD');
+      const row = await createEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), s.newLoc.trim());
       const ev = eventFromRemote(row, s.newSport);
       set({ customEvents: [ev, ...s.customEvents], goingEvents: [...s.goingEvents, ev.id], evtCreated: true, overlay: 'community', writeBusy: null });
     } catch (error) {
@@ -831,10 +862,10 @@ export const useStore = create<SpotterState>((set, get) => ({
   },
   submitEventSuggestion: async () => {
     const s = get();
-    if (s.newTitle.trim() === '' || isExplicit(s.newTitle)) return;
+    if (s.newTitle.trim() === '' || s.newLoc.trim() === '' || isExplicit(s.newTitle)) return;
     set({ writeBusy: 'event-suggestion', writeError: null });
     try {
-      const row = await suggestEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), 'TBD');
+      const row = await suggestEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), s.newLoc.trim());
       const suggestion = suggestionFromRemote(row, s.newSport);
       set({
         eventSuggestions: [suggestion, ...s.eventSuggestions.filter((item) => item.id !== suggestion.id && item.id !== 'sg1')],
@@ -925,6 +956,25 @@ export const useStore = create<SpotterState>((set, get) => ({
       set({ role: await fetchAccountRole() });
     } catch {
       /* offline or unauthenticated - keep whatever we already had */
+    }
+  },
+  refreshBlocked: async () => {
+    try {
+      set({ blockedIds: (await fetchBlockedUsers()).map((row) => row.id) });
+    } catch {
+      /* offline or unauthenticated - keep whatever we already had */
+    }
+  },
+  toggleBlock: async (userId) => {
+    const blocked = get().blockedIds.includes(userId);
+    set({ writeBusy: 'block', writeError: null });
+    try {
+      if (blocked) await unblockUser(userId);
+      else await blockUser(userId);
+      await get().refreshBlocked();
+      set({ writeBusy: null });
+    } catch (error) {
+      set(errorState(error));
     }
   },
   openBooking: () => set({ overlay: 'booking', booked: false, bookPkg: 0, writeError: null }),

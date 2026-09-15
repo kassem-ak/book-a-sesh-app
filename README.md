@@ -123,8 +123,13 @@ coordinates must stay private.
   model exists, so maps cannot show real nearby coach pins yet.
 - **Community media:** news and gallery show their unavailable state; there
   is no connected publishing backend for either.
-- **Payments:** booking RPCs record server-priced bookings; no payment is
-  collected. Package redemption exists but still needs current release testing.
+- **Payments:** first release does not take payment in-app, by design. Booking
+  RPCs record a server-priced booking and the platform commission; the client
+  pays the coach directly at the session, and the booking screen says so rather
+  than implying a charge. Courts and Shop -- the two surfaces with a real
+  checkout shape -- are both deferred, so coach booking is the only money path
+  in scope. Taking payment in-app is a later change and needs a payment
+  provider. Package redemption exists but still needs current-release testing.
 - **Accounting:** invented seed figures/names are removed, but the accounting
   screen still uses local state and is not a connected financial ledger.
 - **Deferred commerce:** Courts and Shop code remains in the tree. Coupons and

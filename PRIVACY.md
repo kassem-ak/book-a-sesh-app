@@ -1,0 +1,137 @@
+# BOOK'D — Privacy Policy
+
+**Last updated: 15 September 2026**
+
+> **Before you publish this.** Everything below describes what the app and the
+> database actually do today — it was written from the live schema, not from a
+> template. But three things are placeholders only you can fill in, marked
+> `[LIKE THIS]`: the legal entity that operates BOOK'D, the contact address, and
+> the governing jurisdiction. It also has not been reviewed by a lawyer. Both
+> app stores require a reachable URL for this document before you can submit.
+
+BOOK'D connects people who want coaching or a training partner with people who
+offer it. This policy explains what we collect, why, and what you can do about
+it.
+
+BOOK'D is operated by **[LEGAL ENTITY NAME, REGISTERED ADDRESS]** ("we", "us").
+
+---
+
+## 1. What we collect
+
+### You give us this directly
+
+| Data | Where it comes from | Why |
+|---|---|---|
+| Email address | Sign-up, or your Google / Facebook / Microsoft / Apple account if you use one of those to sign in | To identify your account and let you sign back in |
+| Display name | Sign-up or your sign-in provider | Shown to other members on your profile, messages and community posts |
+| City / area | You type it during onboarding | To show you people and venues near you |
+| Profile details — headline, bio, sport, level, session price, specialties | You, if you set up a coach profile | Shown publicly to other members so they can decide whether to book you |
+| Message content | You, when you chat with another member | To deliver your messages |
+| Community content — events you create, their title, place and time | You | Shown to members of that community |
+| Reports you file about another member | You | So we can review conduct on the platform |
+
+### Collected automatically
+
+| Data | Why | Can you refuse? |
+|---|---|---|
+| Approximate location (city-level / ~100m) | To sort coaches, partners and venues by distance | Yes. The app asks first, and works without it — you can type your area instead. We request *approximate* location only; we do not ask for precise GPS. |
+| Booking records — who, when, the amount and our commission | To show you your bookings and to account for platform commission | No, if you make a booking |
+
+### We do **not** collect
+
+- Payment card details. **BOOK'D does not process payments.** You pay your coach
+  directly, at your session. No card, bank or payment credential ever reaches
+  us, because there is nowhere in the app to enter one.
+- Photos, camera, contacts, calendar, microphone or health data. The app does
+  not request these permissions.
+- Advertising identifiers. There are no ad networks, no analytics SDKs and no
+  third-party trackers in the app.
+
+---
+
+## 2. Who can see what
+
+- **Your public profile** — name, city, and (for coaches) headline, bio, sport,
+  level and price — is visible to other members. Treat it as public.
+- **Your messages** are visible to the people in that conversation, and to us
+  only where we need to investigate a report.
+- **Your email, phone number and account identifiers are never shown to other
+  members.** This is enforced in the database itself: the client application has
+  no permission to read those columns at all, not merely a rule against showing
+  them.
+- **Blocking is private.** If you block someone, they are not told. Neither of
+  you can message the other.
+
+---
+
+## 3. Who we share it with
+
+We do not sell your personal data, and we do not share it for advertising.
+
+We use these processors to run the service:
+
+| Processor | What it handles |
+|---|---|
+| Supabase | Hosts the database, your account and authentication |
+| Google / Meta / Microsoft / Apple | Only if you choose to sign in with them, and only to confirm who you are |
+
+We disclose data otherwise only where the law requires it, or where it is
+necessary to investigate abuse or protect someone's safety.
+
+---
+
+## 4. How long we keep it
+
+We keep your data while your account exists.
+
+**You can delete your account from inside the app**, under Profile. When you do:
+
+- Your identifying details — name, email, phone, avatar, city and precise
+  location — are erased immediately, and your sign-in credential is removed so
+  the account cannot be used again.
+- Some records are kept in anonymised form, no longer linked to you by name or
+  contact details: booking and commission records, which we must retain for
+  accounting, and messages you already sent, which belong to the conversation
+  the other person also took part in. Deleting your account cannot un-send a
+  message someone else has already read, and we do not claim otherwise.
+
+---
+
+## 5. Your rights
+
+Depending on where you live, you can ask us to give you a copy of your data,
+correct it, delete it, or stop certain processing. Account deletion is in the
+app; for anything else, contact us at **[SUPPORT EMAIL]** and we will respond
+within 30 days.
+
+---
+
+## 6. Children
+
+BOOK'D is not intended for children under 13 (or the minimum age in your
+country, if it is higher). We do not knowingly collect their data. If you
+believe a child has an account, contact us and we will remove it.
+
+---
+
+## 7. Security
+
+Access is enforced in the database by row-level security, so a rule about who
+may read a row is applied by the server on every request rather than trusted to
+the app. Money amounts are calculated server-side and cannot be set by the app.
+No system is perfectly secure, and we will not pretend otherwise.
+
+---
+
+## 8. Changes
+
+If we change this policy we will update the date at the top and, for a
+significant change, tell you in the app.
+
+---
+
+## 9. Contact
+
+**[SUPPORT EMAIL]** — questions, requests or complaints.
+Governing law: **[JURISDICTION]**.

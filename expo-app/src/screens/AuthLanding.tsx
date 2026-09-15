@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { BrandIcon, Field, Icon, Row } from '../components/ui';
-import { signInWithProvider } from '../lib/session';
+import { signInWithProvider, SSO_LABELS, SsoProvider } from '../lib/session';
 import { getDevicePoint } from '../lib/geo';
 import { AuthForm } from '../overlays/AuthOverlay';
 import { useStore } from '../state/store';
@@ -44,7 +44,7 @@ export function AuthLanding() {
     s.set('discSearch', seek.trim());
     s.set('guestMode', true);
   };
-  const socialSignIn = async (provider: 'facebook' | 'google') => {
+  const socialSignIn = async (provider: SsoProvider) => {
     setBusy(true);
     setError(null);
     try { await signInWithProvider(provider); }
@@ -80,10 +80,19 @@ export function AuthLanding() {
               s.set('authSeek', seek.trim());
               setStep('role');
             }} />
-            <Row gap={44} style={{ justifyContent: 'center', marginTop: 27 }}>
-              {(['facebook', 'google'] as const).map((provider) => (
-                <Pressable key={provider} onPress={() => void socialSignIn(provider)} disabled={busy} accessibilityRole="button" accessibilityLabel={`Continue with ${provider === 'facebook' ? 'Facebook' : 'Google'}`} accessibilityState={{ disabled: busy }} style={{ width: 48, height: 48, borderRadius: 9, borderWidth: 1, borderColor: c.txt, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.5 : 1 }}>
-                  <BrandIcon name={provider} size={28} color={c.txt} />
+            {/* The board draws two square icon buttons (Facebook, Google).
+                All four providers ship, so the same square treatment is used
+                for each: Apple is not optional -- the App Store requires Sign
+                in with Apple wherever other third-party sign-in is offered. */}
+            <Row gap={20} style={{ justifyContent: 'center', marginTop: 27 }}>
+              {([
+                ['facebook', 'facebook'],
+                ['google', 'google'],
+                ['azure', 'windows'],
+                ['apple', 'apple'],
+              ] as const).map(([provider, icon]) => (
+                <Pressable key={provider} onPress={() => void socialSignIn(provider)} disabled={busy} accessibilityRole="button" accessibilityLabel={`Continue with ${SSO_LABELS[provider]}`} accessibilityState={{ disabled: busy }} style={{ width: 48, height: 48, borderRadius: 9, borderWidth: 1, borderColor: c.txt, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.5 : 1 }}>
+                  <BrandIcon name={icon} size={26} color={c.txt} />
                 </Pressable>
               ))}
             </Row>
@@ -103,6 +112,11 @@ export function AuthLanding() {
             <View style={{ height: 54 }} />
             <NextButton label="NEXT" accessibilityLabel="Next, choose your area" onPress={() => {
               s.set('signupIntent', kind);
+              // Make the answer mean something. It was recorded and then read
+              // nowhere, so this step of onboarding changed nothing at all.
+              // A coach is looking for training partners and clients; someone
+              // training is looking for coaches.
+              s.set('mode', kind === 'coach' ? 'partners' : 'coaches');
               setStep('where');
             }} />
           </>

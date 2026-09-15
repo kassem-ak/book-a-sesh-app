@@ -25,6 +25,7 @@ export function PersonOverlay() {
       setMessaging(false);
     }
   };
+  const blocked = s.blockedIds.includes(p.id);
   const packageOptions = coachPackageOptions(p);
   const metrics = (p.isCoach
     ? [[Number(p.sessions) > 0 ? p.sessions : '', 'Sessions'], [p.reply === 'Not provided' ? '' : p.reply, 'Replies']]
@@ -113,6 +114,39 @@ export function PersonOverlay() {
               ))}
             </View>
           </>
+        )}
+
+        {/* Safety.
+            Both stores require an app carrying user-generated content to offer
+            a way to report and a way to block. Reporting already existed but
+            nothing opened it, so neither was reachable before this. */}
+        <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Safety</SectionHeading>
+        <Row gap={10}>
+          <Pressable
+            onPress={() => s.set('overlay', 'report')}
+            accessibilityRole="button"
+            accessibilityLabel={`Report ${p.name}`}
+            style={{ flex: 1, minHeight: 46, borderRadius: 14, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text style={[t.labelSm, { color: c.txt2 }]}>Report</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => void s.toggleBlock(p.id)}
+            disabled={s.writeBusy === 'block'}
+            accessibilityRole="button"
+            accessibilityLabel={`${blocked ? 'Unblock' : 'Block'} ${p.name}`}
+            accessibilityState={{ disabled: s.writeBusy === 'block' }}
+            style={{ flex: 1, minHeight: 46, borderRadius: 14, borderColor: blocked ? c.line : c.danger, borderWidth: 1, alignItems: 'center', justifyContent: 'center', opacity: s.writeBusy === 'block' ? 0.5 : 1 }}
+          >
+            <Text style={[t.labelSm, { color: blocked ? c.txt2 : c.danger }]}>
+              {s.writeBusy === 'block' ? 'Saving...' : blocked ? 'Unblock' : 'Block'}
+            </Text>
+          </Pressable>
+        </Row>
+        {blocked && (
+          <Text style={[t.caption, { color: c.txt3, marginTop: 8 }]}>
+            Blocked. Neither of you can message the other, and they are not told.
+          </Text>
         )}
 
       </View>
