@@ -1,9 +1,8 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
+import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Stars, StripedPlaceholder, VoltButton } from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
-import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -11,16 +10,30 @@ export function PersonOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const p = s.personById(s.openId);
+  if (!p) return <MissingSubject title="Profile" message="This profile is no longer available." onBack={s.closeOverlay} />;
   const packageOptions = coachPackageOptions(p);
   return (
     <OverlayScaffold
-      header={<OverlayHeader title={p.isCoach ? 'Coach' : 'Training partner'} onBack={s.closeOverlay} trailing={<Pressable onPress={() => s.openChat('m1')}><Icon name="message-square" size={22} color={c.txt2} /></Pressable>} />}
+      header={<OverlayHeader title={p.isCoach ? 'Coach' : 'Training partner'} onBack={s.closeOverlay} trailing={
+        <Pressable
+          onPress={() => s.set('writeError', 'Messaging is not open yet - a conversation cannot be started from here.')}
+          accessibilityRole="button"
+          accessibilityLabel="Message this person"
+          accessibilityState={{ disabled: true }}
+        >
+          <Icon name="message-square" size={22} color={c.txt3} />
+        </Pressable>
+      } />}
       bottomBar={
         <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
           {p.isCoach ? (
             <VoltButton label={`Book a session · $${p.price}`} onPress={s.openBooking} />
           ) : (
-            <VoltButton label="Message to train together" onPress={() => s.openChat('m1')} />
+            <VoltButton
+              label="Message to train together"
+              enabled={false}
+              onPress={() => s.set('writeError', 'Messaging is not open yet - a conversation cannot be started from here.')}
+            />
           )}
         </View>
       }
@@ -128,24 +141,9 @@ export function PersonOverlay() {
           </>
         )}
 
-        <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Reviews</SectionHeading>
-        <View style={{ gap: 10 }}>
-          {D.personReviews.map((r, i) => (
-            <Card key={i} style={{ padding: 14 }}>
-              <Row gap={11}>
-                <Avatar initials={r.initials} size={38} radius={11} fontSize={13} />
-                <View style={{ flex: 1 }}>
-                  <Row style={{ justifyContent: 'space-between' }}>
-                    <Text style={[t.labelSm, { color: c.txt }]}>{r.name}</Text>
-                    <Text style={[t.caption, { color: c.txt3 }]}>{r.whenLabel}</Text>
-                  </Row>
-                  <Stars value={r.stars} />
-                </View>
-              </Row>
-              <Text style={[t.bodySm, { color: c.txt2, marginTop: 8 }]}>{r.text}</Text>
-            </Card>
-          ))}
-        </View>
+        {/* Review list removed: there is no reviews table yet, and the old list
+            showed the same three invented reviews on every profile. The rating
+            and review count below the name come from the coach row itself. */}
       </View>
     </OverlayScaffold>
   );

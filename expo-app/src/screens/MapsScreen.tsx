@@ -1,7 +1,6 @@
 import React from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Chip, Icon, Row } from '../components/ui';
-import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 import { DiscoverMap } from './DiscoverMap';
@@ -42,6 +41,13 @@ export function MapsScreen() {
         ))}
       </Row>
 
+      {/* The map no longer falls back to sample people, so an empty map needs
+          to say so rather than look broken. */}
+      {people.length === 0 && (
+        <Text accessibilityRole="text" style={[t.bodySm, { color: c.txt3, marginTop: 12 }]}>
+          {s.loaded.people ? 'Nobody listed in this area yet.' : 'Loading people…'}
+        </Text>
+      )}
       <View style={{ marginTop: 14 }}>
         <DiscoverMap people={people} />
       </View>

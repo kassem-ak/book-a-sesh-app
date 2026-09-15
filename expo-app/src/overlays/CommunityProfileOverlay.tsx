@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OverlayHeader } from '../components/Overlay';
+import { MissingSubject, OverlayHeader } from '../components/Overlay';
 import { ScrollAwareFab, useScrollAwareFab } from '../components/ScrollAwareFab';
 import { Avatar, Card, Icon, MicroBadge, Row, StripedPlaceholder } from '../components/ui';
 import { isMeetup } from '../state/models';
@@ -54,8 +54,8 @@ export function CommunityProfileOverlay() {
   const insets = useSafeAreaInsets();
   const s = useStore();
   const cm = s.communityById(s.communityId);
-  const events = s.allEvents().filter((e) => e.communityId === cm.id);
-  const canManage = s.canModerateCommunity(cm.id);
+  const events = s.allEvents().filter((e) => e.communityId === cm?.id);
+  const canManage = s.canModerateCommunity(cm?.id);
 
   const [tab, setTab] = useState<Tab>('news');
   const [shownEvents, setShownEvents] = useState(3);
@@ -64,6 +64,10 @@ export function CommunityProfileOverlay() {
   const { anim, onScroll, visible } = useScrollAwareFab();
 
   const albums = Array.from({ length: 12 }, (_, i) => `Album ${i + 1}`);
+
+  // After the hooks so hook order is stable: a community id that is not in the
+  // fetched list used to resolve to an invented sample community.
+  if (!cm) return <MissingSubject title="Community" message="This community is no longer listed." onBack={s.closeOverlay} />;
 
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.bg }}>

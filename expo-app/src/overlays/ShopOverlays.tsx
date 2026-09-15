@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
+import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Stars, StripedPlaceholder, VoltButton } from '../components/ui';
 import { formatDistanceKm } from '../lib/geo';
 import * as D from '../state/sampleData';
@@ -12,6 +12,7 @@ export function ShopStorefrontOverlay() {
   const s = useStore();
   const sh = s.shopById(s.shopId);
   const count = s.cartCount();
+  if (!sh) return <MissingSubject title="Partner store" message="This store is no longer listed." onBack={s.closeOverlay} />;
   const distanceLabel = formatDistanceKm((sh as { distanceKm?: number | null }).distanceKm);
 
   if (s.shopOrderDone) {

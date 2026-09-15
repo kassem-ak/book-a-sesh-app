@@ -378,16 +378,16 @@ export interface SpotterState {
   toggleGoing(id: string): Promise<void>;
   people(mode?: string): Person[];
   setRemotePeople(people: Person[]): void;
-  personById(id: string): Person;
+  personById(id: string): Person | undefined;
   shops(): Shop[];
   setRemoteShops(shops: Shop[]): void;
-  shopById(id: string): Shop;
+  shopById(id: string): Shop | undefined;
   submitShopRegistration(): Promise<void>;
   checkoutCart(): Promise<void>;
   communities(): Community[];
   setRemoteCommunities(communities: Community[]): void;
   setRemoteEvents(events: EventItem[]): void;
-  communityById(id: string): Community;
+  communityById(id: string): Community | undefined;
   communityAbout(id: string): string;
   currentCommunityRole(id?: string): CommunityRole;
   canAdminCommunity(id?: string): boolean;
@@ -603,7 +603,8 @@ export const useStore = create<SpotterState>((set, get) => ({
     },
   ],
 
-  setRemoteEventSuggestions: (suggestions) => set({ eventSuggestions: suggestions }),
+  setRemoteEventSuggestions: (suggestions) =>
+    set((state) => ({ eventSuggestions: suggestions, loaded: { ...state.loaded, suggestions: true } })),
 
   customEvents: [],
   remoteEvents: [],
@@ -711,19 +712,19 @@ export const useStore = create<SpotterState>((set, get) => ({
     }
   },
 
+  // Whatever the server returned, nothing else. An empty list is a real answer;
+  // inventing rows here put bookable strangers in front of paying users.
   people: (mode = get().mode) => {
-    const remote = get().remotePeople;
-    if (mode === 'coaches') return remote.length > 0 ? remote : D.coaches;
-    return D.partners;
+    // Training partners have no backend table and no fetch yet, so there is
+    // genuinely nothing to show. See DiscoverScreen for the honest empty state.
+    if (mode !== 'coaches') return [];
+    return get().remotePeople;
   },
-  setRemotePeople: (people) => set({ remotePeople: people }),
-  personById: (id) => get().remotePeople.find((person) => person.id === id) ?? D.personById(id),
-  shops: () => {
-    const remote = get().remoteShops;
-    return remote.length > 0 ? remote : D.shops;
-  },
-  setRemoteShops: (shops) => set({ remoteShops: shops }),
-  shopById: (id) => get().remoteShops.find((shop) => shop.id === id) ?? D.shopById(id),
+  setRemotePeople: (people) => set((state) => ({ remotePeople: people, loaded: { ...state.loaded, people: true } })),
+  personById: (id) => get().remotePeople.find((person) => person.id === id),
+  shops: () => get().remoteShops,
+  setRemoteShops: (shops) => set((state) => ({ remoteShops: shops, loaded: { ...state.loaded, shops: true } })),
+  shopById: (id) => get().remoteShops.find((shop) => shop.id === id),
   submitShopRegistration: async () => {
     const s = get();
     const shopName = s.shopRegName.trim();
@@ -748,6 +749,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   checkoutCart: async () => {
     const s = get();
     const shop = s.shopById(s.shopId);
+    if (!shop) return;
     const items = shop.products
       .filter((product) => product.id && `${shop.id}:${product.id}` in s.cart)
       .map((product) => ({ product_id: product.id!, qty: 1 }));
@@ -763,15 +765,13 @@ export const useStore = create<SpotterState>((set, get) => ({
       set(errorState(error));
     }
   },
-  communities: () => {
-    const remote = get().remoteCommunities;
-    return [...get().customCommunities, ...(remote.length > 0 ? remote : D.communities)];
-  },
-  setRemoteCommunities: (communities) => set({ remoteCommunities: communities }),
-  setRemoteEvents: (events) => set({ remoteEvents: events }),
+  communities: () => [...get().customCommunities, ...get().remoteCommunities],
+  setRemoteCommunities: (communities) =>
+    set((state) => ({ remoteCommunities: communities, loaded: { ...state.loaded, communities: true } })),
+  setRemoteEvents: (events) => set((state) => ({ remoteEvents: events, loaded: { ...state.loaded, events: true } })),
   communityById: (id) =>
-    get().customCommunities.find((cm) => cm.id === id) ?? get().remoteCommunities.find((cm) => cm.id === id) ?? D.communityById(id),
-  communityAbout: (id) => get().communityAboutEdits[id] ?? get().communityById(id).about,
+    get().customCommunities.find((cm) => cm.id === id) ?? get().remoteCommunities.find((cm) => cm.id === id),
+  communityAbout: (id) => get().communityAboutEdits[id] ?? get().communityById(id)?.about ?? '',
   currentCommunityRole: (id) => get().communityRoles[id ?? get().communityId] ?? 'MEMBER',
   canAdminCommunity: (id) => get().currentCommunityRole(id) === 'ADMIN',
   canModerateCommunity: (id) => canModerateRole(get().currentCommunityRole(id)),
@@ -936,10 +936,7 @@ export const useStore = create<SpotterState>((set, get) => ({
       set(errorState(error));
     }
   },
-  allEvents: () => {
-    const remote = get().remoteEvents;
-    return [...get().customEvents, ...(remote.length > 0 ? remote : D.events)];
-  },
+  allEvents: () => [...get().customEvents, ...get().remoteEvents],
 
   toggleCartItem: (key, price) =>
     set((s) => {
@@ -966,6 +963,10 @@ export const useStore = create<SpotterState>((set, get) => ({
   confirmBooking: async () => {
     const s = get();
     const person = s.personById(s.openId);
+    if (!person) {
+      set({ writeError: 'That coach is no longer available.' });
+      return;
+    }
     const slot = D.slotDefs[s.bookSlot] ?? D.slotDefs[0];
     const pkg = coachPackageOptions(person)[s.bookPkg] ?? coachPackageOptions(person)[0];
     set({ writeBusy: 'booking', writeError: null });

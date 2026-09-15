@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
+import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Segmented, StripedPlaceholder, VoltButton } from '../components/ui';
 import { CommunityRole, EventSuggestion, isMeetup } from '../state/models';
 import * as D from '../state/sampleData';
@@ -8,19 +8,16 @@ import { isExplicit, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 const roleLabel: Record<CommunityRole, string> = { ADMIN: 'Admin', MODERATOR: 'Moderator', MEMBER: 'Member' };
-const roleShort: Record<CommunityRole, string> = { ADMIN: 'Admin', MODERATOR: 'Mod', MEMBER: 'Member' };
 const days = ['Wed 02', 'Thu 03', 'Fri 04', 'Sat 05', 'Sun 06', 'Mon 07'];
-const roleChoices: CommunityRole[] = ['MEMBER', 'MODERATOR', 'ADMIN'];
 
 export function CommunityDetailOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const cm = s.communityById(s.communityId);
-  const subs = D.subGroups[cm.id] ?? [];
+  if (!cm) return <MissingSubject title="Community" message="This community is no longer listed." onBack={s.closeOverlay} />;
   const evs = s.allEvents().filter((e) => e.communityId === cm.id);
   const role = s.currentCommunityRole(cm.id);
   const canModerate = s.canModerateCommunity(cm.id);
-  const canAdmin = s.canAdminCommunity(cm.id);
   const suggestions = s.eventSuggestions.filter((item) => item.communityId === cm.id);
 
   return (
@@ -78,58 +75,9 @@ export function CommunityDetailOverlay() {
           </>
         )}
 
-        {canAdmin && (
-          <>
-            <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Roles</SectionHeading>
-            <View style={{ gap: 10 }}>
-              {D.communityPeople.map((person) => {
-                const personRole = person.id === 'alex' ? role : s.communityMemberRoles[cm.id]?.[person.id] ?? 'MEMBER';
-                return (
-                  <Card key={person.id} style={{ padding: 14 }}>
-                    <Row gap={12} style={{ alignItems: 'flex-start' }}>
-                      <Avatar initials={person.initials} size={42} radius={12} fontSize={14} />
-                      <View style={{ flex: 1 }}>
-                        <Row gap={8} style={{ flexWrap: 'wrap' }}>
-                          <Text style={[t.name, { color: c.txt }]}>{person.name}</Text>
-                          <RoleBadge role={personRole} />
-                        </Row>
-                        {person.id === 'alex' ? (
-                          <Text style={[t.caption, { color: c.txt3, marginTop: 6 }]}>Creator admin</Text>
-                        ) : (
-                          <Row style={{ flexWrap: 'wrap', marginTop: 10 }} gap={8}>
-                            {roleChoices.map((nextRole) => (
-                              <Chip key={nextRole} label={roleShort[nextRole]} active={personRole === nextRole} onPress={() => s.setCommunityMemberRole(cm.id, person.id, nextRole)} />
-                            ))}
-                          </Row>
-                        )}
-                      </View>
-                    </Row>
-                  </Card>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Local groups</SectionHeading>
-        <View style={{ gap: 10 }}>
-          {subs.map((sub) => {
-            const joined = s.joinedSubs.includes(sub.id);
-            return (
-              <Card key={sub.id} style={{ padding: 14 }}>
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1, paddingRight: 10 }}>
-                    <Text style={[t.name, { color: c.txt }]}>{sub.name}</Text>
-                    <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{sub.area} - {sub.members} members</Text>
-                  </View>
-                  <Pressable onPress={() => s.toggleSub(sub.id)} style={{ borderRadius: 999, borderColor: c.line, borderWidth: 1, backgroundColor: joined ? 'transparent' : c.volt, paddingHorizontal: 16, paddingVertical: 9 }}>
-                    <Text style={[t.labelSm, { color: joined ? c.txt2 : c.ink }]}>{joined ? 'Joined' : 'Join'}</Text>
-                  </Pressable>
-                </Row>
-              </Card>
-            );
-          })}
-        </View>
+        {/* The Roles roster and the "Local groups" list were dropped for release:
+            both rendered a hard-coded set of invented members and sub-groups.
+            Restore each once a real members / sub-groups table exists. */}
       </View>
     </OverlayScaffold>
   );
@@ -138,8 +86,9 @@ export function CommunityDetailOverlay() {
 export function EventDetailOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
-  const ev = s.allEvents().find((item) => item.id === s.eventId) ?? D.eventById(s.eventId);
-  const going = s.goingEvents.includes(ev.id);
+  const ev = s.allEvents().find((item) => item.id === s.eventId);
+  const going = ev ? s.goingEvents.includes(ev.id) : false;
+  if (!ev) return <MissingSubject title="Event" message="This event is no longer listed." onBack={() => s.set('overlay', s.returnTo)} />;
   return (
     <OverlayScaffold
       header={<OverlayHeader title={ev.type} onBack={() => s.set('overlay', s.returnTo)} />}

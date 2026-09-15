@@ -204,6 +204,12 @@ export function ShopScreen() {
       ) : (
         <>
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>{shopListHeading}</SectionHeading>
+          {/* No sample-shop fallback any more, so say which empty this is. */}
+          {shops.length === 0 && (
+            <Text accessibilityRole="text" style={[t.bodySm, { color: c.txt3 }]}>
+              {s.loaded.shops ? 'No partner stores listed yet.' : 'Loading stores…'}
+            </Text>
+          )}
           <View style={{ gap: 11 }}>
             {shops.map((entry) => (
               <ShopCard key={entry.shop.id} entry={entry} onPress={() => s.openShop(entry.shop.id)} />

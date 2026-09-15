@@ -127,6 +127,15 @@ const SPORT_ICONS: { name: string; icon: 'activity' | 'zap' | 'wind' | 'triangle
   { name: 'Chess', icon: 'grid' },
 ];
 
+function Note({ children }: { children: React.ReactNode }) {
+  const { c, t } = useTheme();
+  return (
+    <Text accessibilityRole="text" style={[t.bodySm, { color: c.txt3, marginTop: 4 }]}>
+      {children}
+    </Text>
+  );
+}
+
 export function DiscoverScreen() {
   const { c, t } = useTheme();
   const s = useStore();
@@ -137,11 +146,18 @@ export function DiscoverScreen() {
   const remoteSort: DiscoverSort = s.sortBy === 'price' ? 'price' : 'rating';
 
   useEffect(() => {
-    if (!isCoaches) return;
+    // Training partners have no table and no query yet, so clear the coach rows
+    // rather than leave them on screen under the "partners" tab.
+    if (!isCoaches) {
+      setRemotePeople([]);
+      return;
+    }
     let active = true;
     fetchCoaches(remoteSort)
       .then((rows) => {
-        if (active && Array.isArray(rows)) setRemotePeople(rows.map((row) => fromRemoteCoach(row as RemoteCoach)));
+        // Always call the setter, including for an unexpected response shape, so
+        // `loaded.people` flips and the screen shows "none" instead of spinning.
+        if (active) setRemotePeople(Array.isArray(rows) ? rows.map((row) => fromRemoteCoach(row as RemoteCoach)) : []);
       })
       .catch(() => {
         if (active) setRemotePeople([]);
@@ -200,6 +216,14 @@ export function DiscoverScreen() {
     { key: 'price', label: 'Price' },
     ...(canSortByDistance ? [{ key: 'distance', label: 'Distance' }] : []),
   ];
+  // No invented fallback rows any more, so an empty list has to say why.
+  const emptyMessage = !isCoaches
+    ? 'Training partners are not open yet. Coaches are listed under the Coaches tab.'
+    : !s.loaded.people
+      ? 'Loading coaches…'
+      : s.sport === 'All'
+        ? 'No coaches listed yet.'
+        : `No coaches listed for ${s.sport} yet.`;
   const adHidden = s.adsHidden['discover'];
   const ad = D.ads.discover;
 
@@ -381,6 +405,7 @@ export function DiscoverScreen() {
               })}
             </Row>
           </Row>
+          {entries.length === 0 && <Note>{emptyMessage}</Note>}
           <View style={{ gap: 11 }}>
             {rest.map(({ person, distanceLabel }) => (
               <PersonCard key={person.id} p={person} distanceLabel={distanceLabel} onPress={() => s.openPerson(person.id)} />

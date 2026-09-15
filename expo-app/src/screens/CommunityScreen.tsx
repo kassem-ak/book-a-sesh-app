@@ -90,6 +90,15 @@ const fromRemoteCommunity = (row: RemoteCommunity): Community => ({
   about: row.about ?? '',
   official: Boolean(row.official),
 });
+function Note({ children }: { children: React.ReactNode }) {
+  const { c, t } = useTheme();
+  return (
+    <Text accessibilityRole="text" style={[t.bodySm, { color: c.txt3, marginTop: 4 }]}>
+      {children}
+    </Text>
+  );
+}
+
 export function CommunityScreen() {
   const { c, t } = useTheme();
   const s = useStore();
@@ -101,28 +110,33 @@ export function CommunityScreen() {
   const soon = s.allEvents().slice(0, 6);
   const communities = s.communities();
   const hasCrews = s.joinedCommunities.length > 0;
+  // `loaded` tells "the fetch has not finished" from "the server has none";
+  // neither list falls back to invented rows any more.
+  const loaded = s.loaded;
 
   useEffect(() => {
     let active = true;
     fetchCommunities()
       .then((rows) => {
-        if (active && Array.isArray(rows)) setRemoteCommunities(rows.map((row) => fromRemoteCommunity(row as RemoteCommunity)));
+        if (active) setRemoteCommunities(Array.isArray(rows) ? rows.map((row) => fromRemoteCommunity(row as RemoteCommunity)) : []);
       })
       .catch(() => {
         if (active) setRemoteCommunities([]);
       });
     fetchEvents()
       .then((rows) => {
-        if (active && Array.isArray(rows)) setRemoteEvents(rows.map((row) => fromRemoteEvent(row as RemoteEvent)));
+        if (active) setRemoteEvents(Array.isArray(rows) ? rows.map((row) => fromRemoteEvent(row as RemoteEvent)) : []);
       })
       .catch(() => {
         if (active) setRemoteEvents([]);
       });
     fetchEventSuggestions()
       .then((rows) => {
-        if (active && Array.isArray(rows)) setRemoteEventSuggestions(rows.map((row) => fromRemoteSuggestion(row as RemoteSuggestion)));
+        if (active) setRemoteEventSuggestions(Array.isArray(rows) ? rows.map((row) => fromRemoteSuggestion(row as RemoteSuggestion)) : []);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setRemoteEventSuggestions([]);
+      });
     return () => {
       active = false;
     };
@@ -166,11 +180,15 @@ export function CommunityScreen() {
       </Row>
 
       <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Happening soon</SectionHeading>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 8 }}>
-        {soon.map((ev) => (
-          <EventCard key={ev.id} ev={ev} onPress={() => s.openEvent(ev.id, 'community')} />
-        ))}
-      </ScrollView>
+      {soon.length === 0 ? (
+        <Note>{loaded.events ? 'No events scheduled yet.' : 'Loading events…'}</Note>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 8 }}>
+          {soon.map((ev) => (
+            <EventCard key={ev.id} ev={ev} onPress={() => s.openEvent(ev.id, 'community')} />
+          ))}
+        </ScrollView>
+      )}
 
       {!adHidden && (
         <Card style={{ marginTop: 22 }}>
@@ -197,6 +215,9 @@ export function CommunityScreen() {
           <Text style={[t.label, { color: c.accent }]}>Request a sport</Text>
         </Pressable>
       </Row>
+      {communities.length === 0 && (
+        <Note>{loaded.communities ? 'No communities yet.' : 'Loading communities…'}</Note>
+      )}
       <View style={{ gap: 11 }}>
         {communities.map((cm) => (
           <CommunityCard key={cm.id} cm={cm} joined={s.joinedCommunities.includes(cm.id)} role={s.currentCommunityRole(cm.id)} onOpen={() => { s.set('communityId', cm.id); s.set('overlay', 'communityProfile'); }} onToggle={() => s.toggleCommunity(cm.id)} />
