@@ -102,10 +102,15 @@ all of them are blockers for charging real money.
 - **Accounting module is client-local.** The 3-admin approval ceremony mutates
   Zustand only; it does not change margins that bill.
 - **Shop discounts and coupons are advertised but not applied** at checkout.
-- **Some surfaces still read local sample data** rather than Supabase, and the
-  store falls back to invented coaches, partners, shops, communities and events
-  whenever a fetch returns empty — so a network blip can put a bookable person
-  who does not exist in front of a user. Being removed.
+- **Training partners are not implemented.** There is no partners table and no
+  query for one, so the Discover "Training partners" tab is empty and says so.
+- **Messaging cannot start a conversation.** The client has SELECT-only on
+  `conversations` / `conversation_participants` and there is no RPC to open a
+  thread, so the Message action on a profile is disabled. Existing threads read
+  and send correctly.
+- **Accounting is seeded with invented figures.** `revenue` is a hardcoded
+  12480 and the admin list is three invented names. Admin-only, no backend
+  tables behind it.
 - **Courts is wired to the database** and an RSVP now goes through
   `reserve_court`, which prices it server-side and refuses double-bookings.
   Not yet re-verified on a device.

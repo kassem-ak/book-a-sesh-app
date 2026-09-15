@@ -22,7 +22,10 @@ export async function ensureAppSession() {
     let user = existing.session?.user ?? null;
     if (!user) {
       const { data, error } = await supabase.auth.signInAnonymously({
-        options: { data: { name: 'Alex Morgan' } },
+        // A guest is not a specific person. This metadata lands on the
+        // real public.users row, so naming it after a demo character put
+        // "Alex Morgan" on every anonymous account's bookings.
+        options: { data: { name: 'Guest' } },
       });
       if (error) throw error;
       user = data.user;
