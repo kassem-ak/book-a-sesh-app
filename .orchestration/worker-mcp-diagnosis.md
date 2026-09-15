@@ -59,3 +59,36 @@ file is present at the configured path.
 
 This is a host-configuration fix and needs an interactive session — it cannot be
 repaired from inside a run whose workers are already failing to start.
+
+## Follow-up evidence (2026-09-15, second attempt)
+
+Re-probed after the session limit reset. The conclusion is unchanged and now
+rests on three independent checks:
+
+1. **Subcommand list.** `codex --help` lists `mcp` (manage *external* MCP
+   servers: list / get / add / remove / login / logout). There is no serve mode.
+   `codex mcp serve` -> `error: unrecognized subcommand 'serve'`.
+2. **Binary strings.** Searching the 298 MB `codex.exe` for `mcp-server` returns
+   only `mcpServers` config-key references (plugin.json / .mcp.json handling).
+   The subcommand does not exist even as a hidden or deprecated alias.
+3. **npm.** `npm view @openai/codex version` is also `0.154.0` - the installed
+   build is current, so upgrading restores nothing. Newer tags are
+   `0.155.0-alpha.*` prereleases.
+
+So this cannot be repaired by changing the invocation: the capability is absent
+from the installed and latest published Codex.
+
+### The only real options
+
+- **Pin an older Codex for the MCP entries**, without touching the current
+  install, e.g. `"command": "npx", "args": ["-y", "@openai/codex@<version>",
+  "mcp-server"]` once you identify a version that still had it. Verify with
+  `npx -y @openai/codex@<version> --help | grep mcp-server` before relying on it.
+  I did not install an older build unilaterally - that is a downgrade of your
+  tooling and your call.
+- **Remove the two entries** so sessions stop attempting a server that cannot
+  start, and use in-process subagents (which is what this branch's work used
+  throughout).
+
+Until one of those happens, any instruction to "dispatch to codex/gemma4" cannot
+be carried out, and work routed to them silently does not happen.
