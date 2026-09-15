@@ -19,10 +19,103 @@ import {
   fetchReports,
   formatFiled,
 } from '../lib/moderation';
+import { currentAppUserId } from '../lib/bookings';
+import { ensureAppSession } from '../lib/session';
+import { supabase } from '../lib/supabase';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
-const loyaltyDefs: [string, string][] = [['l1', 'Free session with any coach'], ['l2', '20% off a 5-session pack'], ['l3', 'Free month of coach subscription']];
+// ---------------------------------------------------------------------------
+// Promotions & loyalty data access
+//
+// `platform_promos` and `loyalty_rewards` are gated by `promo_adm` /
+// `reward_adm` (is_platform_admin()), so a non-admin reads what is public and
+// cannot write. Every write is selected back — RLS turns a forbidden write into
+// a silent zero-row success, and `.single()` turns that into an error instead
+// of a green tick over nothing. Pattern: lib/moderation.ts.
+// ---------------------------------------------------------------------------
+
+// Exactly the live `promo_audience` enum.
+type PromoAudience = 'all' | 'new' | 'inactive_30d';
+
+const AUDIENCES: [PromoAudience, string][] = [
+  ['all', 'All users'],
+  ['new', 'New users'],
+  ['inactive_30d', 'Inactive 30d'],
+];
+
+type PlatformPromo = { id: string; code: string; pct: number; audience: PromoAudience };
+type LoyaltyReward = { id: string; label: string; pointCost: number };
+
+async function fetchPlatformPromos(): Promise<PlatformPromo[]> {
+  await ensureAppSession();
+  const { data, error } = await supabase
+    .from('platform_promos')
+    .select('id, code, pct, audience')
+    .eq('active', true)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((row) => ({
+    id: row.id,
+    code: row.code,
+    pct: row.pct,
+    audience: row.audience,
+  }));
+}
+
+// ponytail: random suffix; `platform_promos.code` is unique, so a collision
+// surfaces as a save error rather than a silent duplicate. Server-side
+// generation if codes ever need to be unguessable.
+function promoSuffix() {
+  return Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 4).toUpperCase().padEnd(4, 'X');
+}
+
+async function createPlatformPromo(pct: number, audience: PromoAudience) {
+  const adminId = await currentAppUserId();
+  const { error } = await supabase
+    .from('platform_promos')
+    .insert({ code: `BOOKD${pct}-${promoSuffix()}`, pct, audience, created_by: adminId })
+    .select('id, code')
+    .single();
+  if (error) throw error;
+}
+
+// Retire rather than delete: a redemption record could reference the promo, and
+// deactivating is reversible.
+async function retirePlatformPromo(id: string) {
+  await ensureAppSession();
+  const { error } = await supabase
+    .from('platform_promos')
+    .update({ active: false })
+    .eq('id', id)
+    .select('id')
+    .single();
+  if (error) throw error;
+}
+
+async function fetchLoyaltyRewards(): Promise<LoyaltyReward[]> {
+  await ensureAppSession();
+  const { data, error } = await supabase
+    .from('loyalty_rewards')
+    .select('id, label, point_cost')
+    .order('point_cost', { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((row) => ({ id: row.id, label: row.label, pointCost: row.point_cost }));
+}
+
+async function setRewardCost(id: string, pointCost: number) {
+  await ensureAppSession();
+  const { error } = await supabase
+    .from('loyalty_rewards')
+    .update({ point_cost: pointCost })
+    .eq('id', id)
+    .select('id, point_cost')
+    .single();
+  if (error) throw error;
+}
+
+const errorText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
 // A decision is a *record*, not an enforcement action: nothing in the database
 // bans the account, and `notifications` carries no INSERT grant for the app, so
@@ -374,6 +467,46 @@ export function SafetyCaseOverlay() {
 export function AdminPromosOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
+  const [promos, setPromos] = useState<PlatformPromo[]>([]);
+  const [pct, setPct] = useState(15);
+  const [audience, setAudience] = useState<PromoAudience>('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setPromos(await fetchPlatformPromos());
+    } catch (e) {
+      setPromos([]);
+      setError(errorText(e, 'Could not load promotions.'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // The router unmounts the overlay when it closes, so one load on mount is the
+  // whole lifecycle; every write below re-runs it.
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const run = async (write: () => Promise<void>, fallback: string) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await write();
+      await load();
+    } catch (e) {
+      setActionError(errorText(e, fallback));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <OverlayScaffold header={<OverlayHeader title="Promotions" onBack={s.closeOverlay} />}>
       <View style={{ paddingHorizontal: 18 }}>
@@ -382,39 +515,69 @@ export function AdminPromosOverlay() {
           {[10, 15, 20, 30].map((p) => (
             <Pressable
               key={p}
-              onPress={() => { s.set('promoPct', p); s.set('promoCode', null); }}
+              onPress={() => setPct(p)}
               accessibilityRole="radio"
               accessibilityLabel={`${p} percent discount`}
-              accessibilityState={{ selected: s.promoPct === p }}
-              style={{ flex: 1, alignItems: 'center', borderRadius: 13, backgroundColor: s.promoPct === p ? c.volt : c.surface, borderColor: s.promoPct === p ? c.volt : c.line, borderWidth: 1, paddingVertical: 12 }}
+              accessibilityState={{ selected: pct === p }}
+              style={{ flex: 1, alignItems: 'center', borderRadius: 13, backgroundColor: pct === p ? c.volt : c.surface, borderColor: pct === p ? c.volt : c.line, borderWidth: 1, paddingVertical: 12 }}
             >
-              <Text style={[t.price, { color: s.promoPct === p ? c.ink : c.txt2 }]}>{p}%</Text>
+              <Text style={[t.price, { color: pct === p ? c.ink : c.txt2 }]}>{p}%</Text>
             </Pressable>
           ))}
         </Row>
         <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Audience</SectionHeading>
         <Row gap={8}>
-          {['All users', 'New users', 'Inactive 30d'].map((a) => (
+          {AUDIENCES.map(([value, label]) => (
             <Pressable
-              key={a}
-              onPress={() => { s.set('promoAud', a); s.set('promoCode', null); }}
+              key={value}
+              onPress={() => setAudience(value)}
               accessibilityRole="radio"
-              accessibilityLabel={`Audience: ${a}`}
-              accessibilityState={{ selected: s.promoAud === a }}
-              style={{ flex: 1, alignItems: 'center', borderRadius: 999, backgroundColor: s.promoAud === a ? c.volt : c.surface, borderColor: s.promoAud === a ? c.volt : c.line, borderWidth: 1, paddingVertical: 11 }}
+              accessibilityLabel={`Audience: ${label}`}
+              accessibilityState={{ selected: audience === value }}
+              style={{ flex: 1, alignItems: 'center', borderRadius: 999, backgroundColor: audience === value ? c.volt : c.surface, borderColor: audience === value ? c.volt : c.line, borderWidth: 1, paddingVertical: 11 }}
             >
-              <Text style={[t.labelSm, { color: s.promoAud === a ? c.ink : c.txt2 }]}>{a}</Text>
+              <Text style={[t.labelSm, { color: audience === value ? c.ink : c.txt2 }]}>{label}</Text>
             </Pressable>
           ))}
         </Row>
         <View style={{ marginTop: 22 }}>
-          <VoltButton label="Generate promo code" onPress={s.genPromo} />
+          <VoltButton
+            label="Generate promo code"
+            enabled={!busy && !loading && !error}
+            busy={busy}
+            busyLabel="Saving..."
+            onPress={() => run(() => createPlatformPromo(pct, audience), 'Could not create that promo code.')}
+          />
         </View>
+
         <SectionHeading style={{ marginTop: 24, marginBottom: 11 }}>Active promos</SectionHeading>
-        <View style={{ gap: 10 }}>
-          {s.promoCode && <PromoCard code={s.promoCode} sub={`${s.promoPct}% off · ${s.promoAud} · just created`} fresh />}
-          <PromoCard code="SUMMER15" sub="15% off single sessions · ends Jul 15" />
-        </View>
+        {actionError && <Text style={[t.bodySm, { color: c.danger, marginBottom: 10 }]}>{actionError}</Text>}
+        {loading && <Note>Loading promotions...</Note>}
+        {!loading && error && <ErrorNote message={error} onRetry={load} />}
+        {!loading && !error && (
+          <View style={{ gap: 10 }}>
+            {promos.length === 0 ? (
+              <Note>No active promotions.</Note>
+            ) : (
+              promos.map((promo) => (
+                <PromoCard
+                  key={promo.id}
+                  code={promo.code}
+                  sub={`${promo.pct}% off · ${AUDIENCES.find(([v]) => v === promo.audience)?.[1] ?? promo.audience}`}
+                  onRemove={() => run(() => retirePlatformPromo(promo.id), 'Could not deactivate that promo.')}
+                  removeLabel={`Deactivate promo code ${promo.code}`}
+                  disabled={busy}
+                />
+              ))
+            )}
+          </View>
+        )}
+        {/* Nothing in the app redeems platform_promos at checkout yet. Claiming
+            a live discount would be exactly the kind of lie this pass removes. */}
+        <Text style={[t.bodySm, { color: c.txt3, marginTop: 16 }]}>
+          Codes are saved to the platform promo list, but checkout does not redeem them yet — publish one only once
+          redemption is switched on.
+        </Text>
       </View>
     </OverlayScaffold>
   );
@@ -423,26 +586,94 @@ export function AdminPromosOverlay() {
 export function AdminLoyaltyOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
+  const [rewards, setRewards] = useState<LoyaltyReward[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setRewards(await fetchLoyaltyRewards());
+    } catch (e) {
+      setRewards([]);
+      setError(errorText(e, 'Could not load loyalty rewards.'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // ponytail: each tap writes and reloads — last write wins if someone hammers
+  // the stepper. A dirty-then-save button if that ever bites.
+  const bump = async (reward: LoyaltyReward, delta: number) => {
+    const next = Math.max(0, reward.pointCost + delta);
+    if (next === reward.pointCost) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await setRewardCost(reward.id, next);
+      await load();
+    } catch (e) {
+      setActionError(errorText(e, 'Could not save that point cost.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <OverlayScaffold header={<OverlayHeader title="Loyalty offers" onBack={s.closeOverlay} />}>
       <View style={{ paddingHorizontal: 18 }}>
-        <Text style={[t.body, { color: c.txt2 }]}>Users earn points per completed session and event. Set the point cost of each reward.</Text>
+        {/* Point cost is real config in loyalty_rewards. Earning and redeeming
+            are not wired, so the old "users earn points per session" claim is
+            gone rather than restated. */}
+        <Text style={[t.body, { color: c.txt2 }]}>
+          Set the point cost of each reward. The catalogue is saved, but earning and redeeming points are not live
+          yet, so nothing is charged against a balance.
+        </Text>
         <View style={{ height: 18 }} />
-        <View style={{ gap: 11 }}>
-          {loyaltyDefs.map(([key, label]) => (
-            <Card key={key} style={{ padding: 15 }}>
-              <Text style={[t.name, { color: c.txt }]}>{label}</Text>
-              <Row style={{ marginTop: 12, justifyContent: 'space-between' }}>
-                <Text style={[t.bodySm, { color: c.txt3 }]}>Point cost</Text>
-                <Row gap={10}>
-                  <Stepper icon="minus" label={`Lower the point cost of ${label}`} onPress={() => s.loyaltyAdjust(key, -100)} />
-                  <Text style={[t.price, { fontSize: 15, color: c.accent, width: 84, textAlign: 'center' }]}>{s.loyaltyPts[key]} pts</Text>
-                  <Stepper icon="plus" label={`Raise the point cost of ${label}`} onPress={() => s.loyaltyAdjust(key, 100)} />
-                </Row>
-              </Row>
-            </Card>
-          ))}
-        </View>
+
+        {actionError && <Text style={[t.bodySm, { color: c.danger, marginBottom: 10 }]}>{actionError}</Text>}
+        {loading && <Note>Loading rewards...</Note>}
+        {!loading && error && <ErrorNote message={error} onRetry={load} />}
+        {!loading && !error && (
+          <View style={{ gap: 11 }}>
+            {rewards.length === 0 ? (
+              <Note>No loyalty rewards are set up yet.</Note>
+            ) : (
+              rewards.map((reward) => (
+                <Card key={reward.id} style={{ padding: 15 }}>
+                  <Text style={[t.name, { color: c.txt }]}>{reward.label}</Text>
+                  <Row style={{ marginTop: 12, justifyContent: 'space-between' }}>
+                    <Text style={[t.bodySm, { color: c.txt3 }]}>Point cost</Text>
+                    <Row gap={10}>
+                      <Stepper
+                        icon="minus"
+                        label={`Lower the point cost of ${reward.label}`}
+                        disabled={busy}
+                        onPress={() => void bump(reward, -100)}
+                      />
+                      <Text style={[t.price, { fontSize: 15, color: c.accent, width: 84, textAlign: 'center' }]}>
+                        {reward.pointCost} pts
+                      </Text>
+                      <Stepper
+                        icon="plus"
+                        label={`Raise the point cost of ${reward.label}`}
+                        disabled={busy}
+                        onPress={() => void bump(reward, 100)}
+                      />
+                    </Row>
+                  </Row>
+                </Card>
+              ))
+            )}
+          </View>
+        )}
       </View>
     </OverlayScaffold>
   );
@@ -517,7 +748,19 @@ function Verdict({ label, caveat, fg }: { label: string; caveat: string; fg: str
   );
 }
 
-function PromoCard({ code, sub, fresh }: { code: string; sub: string; fresh?: boolean }) {
+function PromoCard({
+  code,
+  sub,
+  onRemove,
+  removeLabel,
+  disabled = false,
+}: {
+  code: string;
+  sub: string;
+  onRemove: () => void;
+  removeLabel: string;
+  disabled?: boolean;
+}) {
   const { c, t } = useTheme();
   return (
     <Card>
@@ -526,20 +769,29 @@ function PromoCard({ code, sub, fresh }: { code: string; sub: string; fresh?: bo
           <Text style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: 15, letterSpacing: 0.5, color: c.accent }}>{code}</Text>
           <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{sub}</Text>
         </View>
-        {fresh && <MicroBadge label="NEW" bg={alpha(c.volt, 0.14)} fg={c.accent} />}
+        <Pressable
+          onPress={disabled ? undefined : onRemove}
+          accessibilityRole="button"
+          accessibilityLabel={removeLabel}
+          accessibilityState={{ disabled }}
+          style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.5 : 1 }}
+        >
+          <Icon name="x" size={12} color={c.txt2} />
+        </Pressable>
       </Row>
     </Card>
   );
 }
 
-function Stepper({ icon, label, onPress }: { icon: 'minus' | 'plus'; label: string; onPress: () => void }) {
+function Stepper({ icon, label, disabled = false, onPress }: { icon: 'minus' | 'plus'; label: string; disabled?: boolean; onPress: () => void }) {
   const { c } = useTheme();
   return (
     <Pressable
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}
+      accessibilityState={{ disabled }}
+      style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.5 : 1 }}
     >
       <Icon name={icon} size={14} color={c.txt2} />
     </Pressable>
