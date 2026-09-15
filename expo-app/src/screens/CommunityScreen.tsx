@@ -1,8 +1,7 @@
 import React, { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, StripedPlaceholder } from '../components/ui';
-import { Community, CommunityRole, EventItem, EventSuggestion, isMeetup } from '../state/models';
-import * as D from '../state/sampleData';
+import { Community, CommunityRole, EventItem, EventSuggestion } from '../state/models';
 import { fetchCommunities, fetchEvents, fetchEventSuggestions } from '../lib/queries';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -49,7 +48,7 @@ function firstRelated<T>(value: T | T[] | null | undefined): T | undefined {
 
 const fromRemoteEvent = (row: RemoteEvent): EventItem => ({
   id: row.id,
-  communityId: firstRelated(row.community)?.slug ?? row.community_id ?? 'running',
+  communityId: firstRelated(row.community)?.slug ?? row.community_id ?? '',
   subId: row.subgroup_id ?? null,
   type: row.type === 'event' ? 'Event' : 'Meetup',
   title: row.title,
@@ -73,7 +72,7 @@ type RemoteSuggestion = {
 
 const fromRemoteSuggestion = (row: RemoteSuggestion): EventSuggestion => ({
   id: row.id,
-  communityId: firstRelated(row.community)?.slug ?? row.community_id ?? 'running',
+  communityId: firstRelated(row.community)?.slug ?? row.community_id ?? '',
   type: row.type === 'event' ? 'Event' : 'Meetup',
   title: row.title,
   whenLabel: row.when_label ?? 'Upcoming',
@@ -105,8 +104,6 @@ export function CommunityScreen() {
   const setRemoteCommunities = useStore((state) => state.setRemoteCommunities);
   const setRemoteEvents = useStore((state) => state.setRemoteEvents);
   const setRemoteEventSuggestions = useStore((state) => state.setRemoteEventSuggestions);
-  const adHidden = s.adsHidden['community'];
-  const ad = D.ads.community;
   const soon = s.allEvents().slice(0, 6);
   const communities = s.communities();
   const hasCrews = s.joinedCommunities.length > 0;
@@ -146,8 +143,7 @@ export function CommunityScreen() {
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flex: 1 }}>
-          <Text style={[t.bodySm, { color: c.txt3 }]}>Train with people nearby</Text>
-          <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Community</Text>
+          <Text style={[t.pageTitle, { color: c.txt }]}>Community</Text>
         </View>
         {/* Board annotation: "My Communities" icon sits beside the volt +.
             Delta section D → Community: it shows a volt dot when you have crews. */}
@@ -155,9 +151,9 @@ export function CommunityScreen() {
           onPress={() => s.set('overlay', 'myCommunities')}
           accessibilityRole="button"
           accessibilityLabel={hasCrews ? `My communities, ${s.joinedCommunities.length} joined` : 'My communities'}
-          style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
+          style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
         >
-          <Icon name="users" size={22} color={c.txt2} />
+          <Icon name="users" size={26} color={c.accent} />
           {hasCrews && (
             <View
               style={{
@@ -174,12 +170,13 @@ export function CommunityScreen() {
             />
           )}
         </Pressable>
-        <Pressable onPress={s.openStartCommunity} accessibilityRole="button" accessibilityLabel="Start a community" style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable onPress={s.openStartCommunity} accessibilityRole="button" accessibilityLabel="Start a community" style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="plus" size={24} color={c.ink} />
         </Pressable>
       </Row>
+      <Text style={[t.bodySm, { color: c.txt2, marginTop: 14 }]}>Train with crews around you</Text>
 
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Happening soon</SectionHeading>
+      <SectionHeading style={{ marginTop: 34, marginBottom: 11 }}>Happening soon</SectionHeading>
       {soon.length === 0 ? (
         <Note>{loaded.events ? 'No events scheduled yet.' : 'Loading events…'}</Note>
       ) : (
@@ -190,28 +187,9 @@ export function CommunityScreen() {
         </ScrollView>
       )}
 
-      {!adHidden && (
-        <Card style={{ marginTop: 22 }}>
-          <Row style={{ padding: 14, alignItems: 'flex-start' }} gap={12}>
-            <Avatar initials={ad.logo} size={46} radius={13} fontSize={15} bg={ad.tint} />
-            <View style={{ flex: 1 }}>
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Text style={[t.name, { color: c.txt, flex: 1 }]}>{ad.brand}</Text>
-                <MicroBadge label="AD" bg={c.surface2} fg={c.txt2} />
-                <Pressable onPress={() => s.set('adsHidden', { ...s.adsHidden, community: true })} accessibilityRole="button" accessibilityLabel="Dismiss ad" hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ marginLeft: 8 }}>
-                  <Icon name="x" size={16} color={c.txt3} />
-                </Pressable>
-              </Row>
-              <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]}>{ad.headline}</Text>
-              <Text style={[t.caption, { color: c.txt3, marginTop: 6 }]}>Why this ad? {ad.why}</Text>
-            </View>
-          </Row>
-        </Card>
-      )}
-
-      <Row style={{ marginTop: 22, marginBottom: 11, justifyContent: 'space-between' }}>
+      <Row style={{ marginTop: 34, marginBottom: 11, justifyContent: 'space-between' }}>
         <SectionHeading>Communities</SectionHeading>
-        <Pressable onPress={s.openRequest}>
+        <Pressable onPress={s.openRequest} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
           <Text style={[t.label, { color: c.accent }]}>Request a sport</Text>
         </Pressable>
       </Row>
@@ -230,21 +208,17 @@ export function CommunityScreen() {
 function EventCard({ ev, onPress }: { ev: EventItem; onPress: () => void }) {
   const { c, t } = useTheme();
   return (
-    <Pressable onPress={onPress} style={{ width: 260 }}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={ev.title} style={{ width: 216 }}>
       <Card style={{ padding: 12 }}>
-        <StripedPlaceholder caption={isMeetup(ev) ? 'meetup image' : 'event image'} height={130} />
-        <View style={{ marginTop: 12 }}>
-          <MicroBadge label={ev.type} bg={isMeetup(ev) ? alpha(c.volt, 0.12) : alpha(c.amber, 0.2)} fg={isMeetup(ev) ? c.accent : c.amberText} />
+        <View>
+          <StripedPlaceholder caption="" height={72} />
+          <View style={{ position: 'absolute', top: 10, left: 10 }}>
+            <MicroBadge label={ev.type} bg={alpha(c.volt, 0.16)} fg={c.accent} />
+          </View>
         </View>
         <Text style={[t.name, { color: c.txt, marginTop: 8 }]} numberOfLines={1}>{ev.title}</Text>
-        <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]} numberOfLines={1}>{ev.loc}</Text>
-        <Row style={{ marginTop: 10, justifyContent: 'space-between' }}>
-          <Row gap={6}>
-            <Icon name="calendar" size={14} color={c.accent} />
-            <Text style={[t.labelSm, { color: c.txt }]}>{ev.whenLabel}</Text>
-          </Row>
-          <Text style={[t.caption, { color: c.txt3 }]}>{ev.attendees} going</Text>
-        </Row>
+        <Text style={[t.labelSm, { color: c.txt2, marginTop: 4 }]} numberOfLines={1}>{ev.whenLabel}</Text>
+        <Text style={[t.caption, { color: c.txt3, marginTop: 5 }]} numberOfLines={1}>{ev.loc} · {ev.attendees} going</Text>
       </Card>
     </Pressable>
   );
@@ -256,21 +230,18 @@ function CommunityCard({ cm, joined, role, onOpen, onToggle }: { cm: Community; 
   const { c, t } = useTheme();
   return (
     <Card onPress={onOpen}>
-      <Row style={{ padding: 14, alignItems: 'flex-start' }} gap={12}>
-        <Avatar initials={cm.code} size={54} radius={14} bg={cm.tint} />
+      <Row style={{ padding: 14 }} gap={12}>
+        <Avatar initials={cm.code} size={52} radius={14} bg={cm.tint} />
         <View style={{ flex: 1 }}>
-          <Row gap={8}>
+          <Row gap={8} style={{ flexWrap: 'wrap' }}>
             <Text style={[t.name, { color: c.txt }]}>{cm.sport}</Text>
             {cm.official && <MicroBadge label="Official" bg={alpha(c.volt, 0.14)} fg={c.accent} />}
             {joined && <MicroBadge label={roleLabel[role]} bg={role === 'MEMBER' ? c.surface2 : alpha(c.amber, 0.2)} fg={role === 'MEMBER' ? c.txt2 : c.amberText} />}
           </Row>
-          <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]} numberOfLines={2}>{cm.about}</Text>
-          <Row gap={5} style={{ marginTop: 6 }}>
-            <Icon name="users" size={13} color={c.txt3} />
-            <Text style={[t.caption, { color: c.txt3 }]}>{cm.members} members</Text>
-          </Row>
+          <Text style={[t.caption, { color: c.accent, marginTop: 4 }]}>{cm.members} members</Text>
+          <Text style={[t.caption, { color: c.txt3, marginTop: 2 }]} numberOfLines={1}>{cm.about}</Text>
         </View>
-        <Pressable onPress={onToggle} style={{ borderRadius: 999, borderColor: c.line, borderWidth: 1, backgroundColor: joined ? 'transparent' : c.volt, paddingHorizontal: 16, paddingVertical: 9 }}>
+        <Pressable onPress={onToggle} accessibilityRole="button" accessibilityLabel={`${joined ? 'Leave' : 'Join'} ${cm.sport}`} style={{ minHeight: 44, justifyContent: 'center', borderRadius: 999, borderColor: c.line, borderWidth: 1, backgroundColor: joined ? 'transparent' : c.volt, paddingHorizontal: 16, paddingVertical: 9 }}>
           <Text style={[t.labelSm, { color: joined ? c.txt2 : c.ink }]}>{joined ? 'Joined' : 'Join'}</Text>
         </Pressable>
       </Row>

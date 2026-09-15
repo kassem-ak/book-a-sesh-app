@@ -10,134 +10,121 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { Field, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { BrandIcon, Field, Icon, Row } from '../components/ui';
+import { signInWithProvider } from '../lib/session';
 import { getDevicePoint } from '../lib/geo';
 import { AuthForm } from '../overlays/AuthOverlay';
 import { useStore } from '../state/store';
-import { alpha, useTheme } from '../theme';
+import { useTheme } from '../theme';
 
 // Onboarding gate from the redesign board: Get Started -> Are you? -> Where are
 // we looking? Shown until a real account signs in or guest mode is chosen.
 type Step = 'start' | 'role' | 'where';
 const STEPS: Step[] = ['start', 'role', 'where'];
 
-// Board: the second gradient blob is cyan. There is no cyan token in the theme
-// (Agent A owns the palette), so it is pinned locally to the prototype value.
-// v2 spec: default search radius is 12 km (was 25).
-const DEFAULT_RADIUS_KM = 12;
-
 export function AuthLanding() {
   const { c, t } = useTheme();
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const s = useStore();
   const [step, setStep] = useState<Step>('start');
+  const [account, setAccount] = useState(false);
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [kind, setKind] = useState<'coach' | 'trainee'>('trainee');
-  // The chosen radius has to outlive onboarding: Discover and Maps filter by it.
-  const radius = useStore((st) => st.searchRadius);
-  const setRadius = (v: number) => useStore.getState().set('searchRadius', v);
-  // `authSeek` is prototype state that the store does not carry yet, so it is
-  // read defensively and mirrored back on NEXT.
-  const [seek, setSeek] = useState<string>(() => (useStore.getState() as any).authSeek ?? '');
-  // Starts from whatever the user typed last, never from a pinned city.
-  const [loc, setLoc] = useState<string>(() => (useStore.getState() as any).authLoc ?? '');
-
-  const stepIndex = STEPS.indexOf(step);
+  const [seek, setSeek] = useState(s.authSeek);
+  const [loc, setLoc] = useState(s.authLoc);
+  const radius = s.searchRadius;
+  const setRadius = (value: number) => s.set('searchRadius', value);
 
   const finish = () => {
-    (s.set as any)('authLoc', loc.trim());
+    s.set('authLoc', loc.trim());
+    s.set('discSearch', seek.trim());
     s.set('guestMode', true);
+  };
+  const socialSignIn = async (provider: 'facebook' | 'google') => {
+    setBusy(true);
+    setError(null);
+    try { await signInWithProvider(provider); }
+    catch (error) { setError(error instanceof Error ? error.message : 'Sign-in failed. Try email instead.'); }
+    finally { setBusy(false); }
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      {/* Board annotation: "animated gradient" — behind all three steps. */}
       <AnimatedGradient />
-
       <ScrollView
-        contentContainerStyle={{
-          paddingTop: insets.top + 40,
-          paddingBottom: insets.bottom + 74,
-          paddingHorizontal: 22,
-        }}
+        contentContainerStyle={{ paddingTop: account ? insets.top + 26 : Math.max(insets.top + 50, height * 0.32), paddingBottom: insets.bottom + 74, paddingHorizontal: 26 }}
         keyboardShouldPersistTaps="handled"
       >
-        {step === 'start' && (
+        {account ? (
+          <>
+            <Pressable onPress={() => setAccount(false)} accessibilityRole="button" accessibilityLabel="Back to getting started" style={{ minHeight: 44, justifyContent: 'center', marginBottom: 18 }}>
+              <Icon name="arrow-left" size={22} color={c.txt} />
+            </Pressable>
+            <Text style={[t.pageTitle, { color: c.txt, marginBottom: 22 }]}>Account</Text>
+            <AuthForm initialEmail={email} onDone={() => setAccount(false)} />
+          </>
+        ) : step === 'start' ? (
           <>
             <Text style={[t.bodySm, { color: c.txt2 }]}>Let&apos;s</Text>
             <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Get Started</Text>
             <View style={{ height: 22 }} />
-
-            {/* spec 10.1: the "Search Coach, Mentor" field sits with the email field. */}
-            <SectionHeading style={{ marginBottom: 11 }}>Looking for</SectionHeading>
-            <Field
-              value={seek}
-              onChange={setSeek}
-              placeholder="Search Coach, Mentor"
-              icon="search"
-            />
-
-            <View style={{ height: 18 }} />
-            <NextButton
-              label="NEXT"
-              accessibilityLabel="Next, choose what you are"
-              onPress={() => {
-                (s.set as any)('authSeek', seek.trim());
-                setStep('role');
-              }}
-            />
-
-            <View style={{ height: 22 }} />
-            {/* email + password + SSO live in the shared form */}
-            <AuthForm onDone={() => setStep('role')} />
+            <Field value={email} onChange={setEmail} placeholder="Email" keyboardType="email-address" icon="at-sign" />
+            <View style={{ height: 12 }} />
+            <Field value={seek} onChange={setSeek} placeholder="Search Coach, Mentor" icon="search" />
+            <View style={{ height: 28 }} />
+            <NextButton label="NEXT" accessibilityLabel="Next, choose what you are" onPress={() => {
+              s.set('authSeek', seek.trim());
+              setStep('role');
+            }} />
+            <Row gap={44} style={{ justifyContent: 'center', marginTop: 27 }}>
+              {(['facebook', 'google'] as const).map((provider) => (
+                <Pressable key={provider} onPress={() => void socialSignIn(provider)} disabled={busy} accessibilityRole="button" accessibilityLabel={`Continue with ${provider === 'facebook' ? 'Facebook' : 'Google'}`} accessibilityState={{ disabled: busy }} style={{ width: 48, height: 48, borderRadius: 9, borderWidth: 1, borderColor: c.txt, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.5 : 1 }}>
+                  <BrandIcon name={provider} size={28} color={c.txt} />
+                </Pressable>
+              ))}
+            </Row>
+            {error && <Text style={[t.bodySm, { color: c.danger, marginTop: 16 }]}>{error}</Text>}
+            <Pressable accessibilityRole="button" onPress={() => setAccount(true)} style={{ minHeight: 44, justifyContent: 'center', marginTop: 12 }}>
+              <Text style={[t.labelSm, { color: c.txt2, textAlign: 'center' }]}>Sign in or create account</Text>
+            </Pressable>
           </>
-        )}
-
-        {step === 'role' && (
+        ) : step === 'role' ? (
           <>
             <Text style={[t.bodySm, { color: c.txt2 }]}>What</Text>
             <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Are you?</Text>
-            <Row style={{ marginTop: 46, justifyContent: 'center' }} gap={12}>
+            <Row style={{ marginTop: 62, justifyContent: 'center' }} gap={12}>
               <RolePill label="Coach/Teacher" active={kind === 'coach'} onPress={() => setKind('coach')} />
               <RolePill label="Trainee/Student" active={kind === 'trainee'} onPress={() => setKind('trainee')} />
             </Row>
-            <View style={{ height: 40 }} />
-            <VoltButton
-              label="NEXT"
-              onPress={() => {
-                // Intent only. The role is a property of the account and is
-                // resolved from the server by refreshRole(); letting this pill
-                // set it handed anyone the paid coach product for free.
-                s.set('signupIntent', kind === 'coach' ? 'coach' : 'trainee');
-                setStep('where');
-              }}
-            />
+            <View style={{ height: 54 }} />
+            <NextButton label="NEXT" accessibilityLabel="Next, choose your area" onPress={() => {
+              s.set('signupIntent', kind);
+              setStep('where');
+            }} />
           </>
-        )}
-
-        {step === 'where' && (
+        ) : (
           <>
-            <Text style={[t.bodySm, { color: c.txt2 }]}>Set your area</Text>
+            <Text style={[t.bodySm, { color: c.txt2 }]}>Hey Champ -</Text>
             <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Where are we looking?</Text>
-
             <LocationField value={loc} onChange={setLoc} />
-
             <Text style={[t.labelSm, { color: c.txt, marginTop: 22 }]}>Search Radius</Text>
             <RadiusSlider value={radius} onChange={setRadius} />
             <Row style={{ justifyContent: 'space-between', marginTop: 6 }}>
-              <Text style={[t.caption, { color: c.txt2 }]}>1Km</Text>
+              <Text style={[t.caption, { color: c.txt2 }]}>1 Km</Text>
               <Text style={[t.caption, { color: c.accent }]}>{radius} Km</Text>
               <Text style={[t.caption, { color: c.txt2 }]}>100 Km</Text>
             </Row>
-
             <View style={{ height: 36 }} />
-            <VoltButton label="NEXT" onPress={finish} />
+            <NextButton label="NEXT" accessibilityLabel="Start browsing as a guest" onPress={finish} />
+            <Text style={[t.caption, { color: c.txt3, textAlign: 'center', marginTop: 12 }]}>Browse as a guest</Text>
           </>
         )}
       </ScrollView>
-
-      {/* spec 10: progress dots at the bottom of all three steps */}
-      <ProgressDots count={STEPS.length} index={stepIndex} bottom={insets.bottom + 20} />
+      {!account && <ProgressDots count={STEPS.length} index={STEPS.indexOf(step)} bottom={insets.bottom + 20} />}
     </View>
   );
 }
@@ -176,8 +163,7 @@ function ProgressDots({ count, index, bottom }: { count: number; index: number; 
   );
 }
 
-// Secondary "NEXT" pill from the board (surface2 fill + chevron), used on step 1
-// where the volt CTA belongs to the shared auth form.
+// Centered volt NEXT button from the board.
 function NextButton({
   label,
   accessibilityLabel,
@@ -194,19 +180,21 @@ function NextButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       style={{
-        height: 52,
-        borderRadius: 999,
+        minHeight: 44,
+        width: 206,
+        alignSelf: 'center',
+        borderRadius: 11,
         borderColor: c.line,
         borderWidth: 1,
-        backgroundColor: c.surface2,
+        backgroundColor: c.volt,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 10,
       }}
     >
-      <Text numberOfLines={1} style={[t.label, { color: c.txt, flexShrink: 0, paddingRight: 2 }]}>{label}</Text>
-      <Icon name="chevron-right" size={15} color={c.txt2} />
+      <Text numberOfLines={1} style={[t.label, { color: c.ink, flexShrink: 0, paddingRight: 2 }]}>{label}</Text>
+      <View style={{ position: 'absolute', right: 10 }}><Icon name="chevron-right" size={20} color={c.ink} /></View>
     </Pressable>
   );
 }
@@ -226,7 +214,7 @@ function RolePill({ label, active, onPress }: { label: string; active: boolean; 
         backgroundColor: active ? c.volt : c.surface,
         borderColor: active ? c.volt : c.line,
         borderWidth: 1,
-        paddingHorizontal: 20,
+        paddingHorizontal: 12,
         paddingVertical: 13,
       }}
     >
@@ -313,6 +301,9 @@ function RadiusSlider({ value, onChange }: { value: number; onChange: (v: number
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
       onStartShouldSetResponder={() => true}
       onMoveShouldSetResponder={() => true}
+      onResponderGrant={(e) => {
+        if (width) onChange(Math.round(1 + Math.max(0, Math.min(1, e.nativeEvent.locationX / width)) * 99));
+      }}
       onResponderMove={(e) => {
         if (!width) return;
         const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / width));
@@ -344,18 +335,17 @@ function RadiusSlider({ value, onChange }: { value: number; onChange: (v: number
         pointerEvents="none"
         style={{
           position: 'absolute',
-          left: Math.max(0, pct * width - 17),
+          left: Math.max(0, Math.min(width - 34, pct * width - 17)),
           width: 34,
           height: 34,
-          borderRadius: 999,
-          backgroundColor: c.surface2,
-          borderColor: c.line,
-          borderWidth: 1,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Icon name="user" size={16} color={c.volt} />
+        <Svg width={34} height={34} viewBox="0 0 34 34">
+          <Circle cx="23" cy="5" r="3" fill={c.volt} />
+          <Path d="M12 11h8l-6 10 9 5-10 7M15 20l-9 9M20 11l6 9 6 1M3 13h5M6 7h6" fill="none" stroke={c.volt} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
       </View>
     </View>
   );
@@ -441,12 +431,15 @@ function AnimatedGradient() {
         <Blob color={c.cyan} opacity={0.2} id="authBlobCyan" />
       </Animated.View>
 
-      {/* scrim: linear fade down to the page background (banded, no gradient dep) */}
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-        {[0.35, 0.48, 0.6, 0.72, 0.85, 1].map((o, i) => (
-          <View key={i} style={{ flex: 1, backgroundColor: alpha(c.bg, o) }} />
-        ))}
-      </View>
+      <Svg width="100%" height="100%" style={{ position: 'absolute' }}>
+        <Defs>
+          <LinearGradient id="authScrim" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={c.bg} stopOpacity={0.35} />
+            <Stop offset="1" stopColor={c.bg} stopOpacity={1} />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#authScrim)" />
+      </Svg>
     </View>
   );
 }

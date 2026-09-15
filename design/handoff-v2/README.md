@@ -6,13 +6,24 @@ BOOK’D is a mobile app for finding sports coaches and training partners nearby
 
 | File | What it is |
 | --- | --- |
-| `BOOKD App.dc.html` | **The design source of truth.** Full interactive prototype — one file: markup on top, a `Component` logic class near the bottom holding all state, data and handlers. |
+| `BOOKD App.dc.html` | **Older interactive prototype.** Full interactive prototype — one file: markup on top, a `Component` logic class near the bottom holding all state, data and handlers. |
 | `BOOKD App (standalone).html` | Self-contained build. Open in any browser (phone or desktop) to click through the app. |
 | `assets/design-board.svg` | The client's original design board (all screens + annotations, vector). |
 | `assets/design-board-overview.png` | Readable wireframe render of that board — use it as the screen index. |
-| `assets/BOOKD-logo.svg` | Client brand artwork (multi-panel board; extract the lockup from it). |
 | `android-frame.jsx`, `support.js` | Prototype runtime only (device bezel + template engine). **Not** part of the product. |
 | `legacy/Spotter (v1 app).dc.html` | Earlier version. Contains the **Shop admin + Accounting module** screens that are not yet ported into the new app (see "Not yet in the new app"). |
+
+## Current release reference (2026-09-15)
+
+`assets/design-board.svg`, copied from the updated `D:\BOOK'D SVG.svg`, takes
+precedence wherever this older prototype differs. Release one has four tabs:
+**Discover, Maps, Community, Chat**. Courts and Shop are second release.
+Prototype names, ratings, posts, photos, and totals illustrate layouts; the app
+uses real records or explicit empty states.
+
+The former `assets/BOOKD-logo.svg` was an entire UI board mislabeled as a logo.
+It is not a source of approved icon artwork. Approved app-icon/splash artwork
+is still needed; generic Expo assets do not count as final branding.
 
 ## About the design files
 

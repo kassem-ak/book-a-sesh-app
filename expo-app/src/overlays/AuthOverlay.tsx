@@ -8,11 +8,11 @@ import { alpha, useTheme } from '../theme';
 
 // Shared email/password + SSO form. Used by the AuthLanding gate and the
 // in-app 'auth' overlay. Calls onDone() after a successful sign-in.
-export function AuthForm({ onDone }: { onDone: () => void }) {
+export function AuthForm({ onDone, initialEmail = '' }: { onDone: () => void; initialEmail?: string }) {
   const { c, t } = useTheme();
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

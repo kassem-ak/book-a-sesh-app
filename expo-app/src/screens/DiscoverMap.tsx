@@ -1,13 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, Text, View } from 'react-native';
-import Svg, { Line } from 'react-native-svg';
-import { Avatar, Card, Icon, MicroBadge, Row } from '../components/ui';
+import { AccessibilityInfo, Animated, Easing, Pressable, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Path, Pattern, Rect, Stop } from 'react-native-svg';
+import { Avatar, Row } from '../components/ui';
 import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, mapPointToPercent, MapPoint, parseGeoPoint } from '../lib/geo';
 import { Person, initials } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
-
-const MAP_H = 460;
 
 type GeoPerson = Person & {
   coordinates?: GeoPoint | null;
@@ -34,20 +32,26 @@ function personMetaLabel(p: Person, distanceLabel?: string | null) {
   return parts.filter(Boolean).join(' - ');
 }
 
-function Grid({ color }: { color: string }) {
+function Grid() {
+  const { c } = useTheme();
   return (
-    <Svg style={{ position: 'absolute', width: '100%', height: '100%' }}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Line key={`v${i}`} x1={`${i * 16.6}%`} y1="0" x2={`${i * 16.6}%`} y2="100%" stroke={color} strokeWidth={1} />
-      ))}
-      {[1, 2, 3, 4, 5, 6].map((i) => (
-        <Line key={`h${i}`} x1="0" y1={`${i * 14}%`} x2="100%" y2={`${i * 14}%`} stroke={color} strokeWidth={1} />
-      ))}
+    <Svg width="100%" height="100%" style={{ position: 'absolute' }}>
+      <Defs>
+        <LinearGradient id="map-background" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={c.isDark ? '#15171C' : '#E3E5EB'} />
+          <Stop offset="1" stopColor={c.isDark ? '#08090B' : '#C7CAD2'} />
+        </LinearGradient>
+        <Pattern id="map-grid" width={30} height={30} patternUnits="userSpaceOnUse">
+          <Path d="M 30 0 L 0 0 0 30" fill="none" stroke={c.grid} strokeWidth={1} />
+        </Pattern>
+      </Defs>
+      <Rect width="100%" height="100%" fill="url(#map-background)" />
+      <Rect width="100%" height="100%" fill="url(#map-grid)" />
     </Svg>
   );
 }
 
-export function DiscoverMap({ people }: { people: Person[] }) {
+export function DiscoverMap({ people, emptyMessage }: { people: Person[]; emptyMessage?: string }) {
   const { c, t } = useTheme();
   const s = useStore();
   const [devicePoint, setDevicePoint] = useState<GeoPoint | null | undefined>(undefined);
@@ -57,14 +61,7 @@ export function DiscoverMap({ people }: { people: Person[] }) {
       return coordinates ? { person, coordinates } : null;
     })
     .filter((entry): entry is CoordinatePerson => Boolean(entry));
-  const coordinateKey = coordinatePeople.map((entry) => `${entry.person.id}:${entry.coordinates.latitude},${entry.coordinates.longitude}`).join('|');
-
   useEffect(() => {
-    if (coordinatePeople.length === 0) {
-      setDevicePoint(null);
-      return;
-    }
-
     let active = true;
     getDevicePoint().then((point) => {
       if (active) setDevicePoint(point);
@@ -72,11 +69,14 @@ export function DiscoverMap({ people }: { people: Person[] }) {
     return () => {
       active = false;
     };
-  }, [coordinateKey, coordinatePeople.length]);
+  }, []);
 
-  const coordinatePoints = coordinatePeople.map((entry) => entry.coordinates);
-  const pins = coordinatePeople
-    .slice(0, 6)
+  const inRange = coordinatePeople.filter((entry) => {
+    const distance = distanceKmBetween(devicePoint, entry.coordinates);
+    return distance === null || distance <= s.searchRadius;
+  });
+  const coordinatePoints = inRange.map((entry) => entry.coordinates);
+  const pins = inRange
     .map((entry) => {
       const mapPoint = mapPointToPercent(entry.coordinates, coordinatePoints, devicePoint ?? null);
       if (!mapPoint) return null;
@@ -86,95 +86,74 @@ export function DiscoverMap({ people }: { people: Person[] }) {
     .filter((entry): entry is PersonPin => Boolean(entry));
   const userMapPoint = devicePoint ? mapPointToPercent(devicePoint, coordinatePoints, devicePoint) : null;
   const nearest = pins
-    .filter((entry) => entry.distanceKm !== null)
+    .filter((entry) => entry.person.boosted && entry.distanceKm !== null)
     .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0))[0];
 
   return (
-    <View>
-      <View style={{ height: MAP_H, borderRadius: 18, backgroundColor: c.mapBg, borderColor: c.line, borderWidth: 1, overflow: 'hidden' }}>
-        <Grid color={c.grid} />
-        {userMapPoint ? (
-          <View style={{ position: 'absolute', top: `${userMapPoint.top}%`, left: `${userMapPoint.left}%`, marginLeft: -17, marginTop: -17 }}>
-            <BlinkingMarker />
-          </View>
-        ) : null}
+    <View style={{ flex: 1, backgroundColor: c.mapBg }}>
+      <Grid />
+      <View style={{ position: 'absolute', top: 140, bottom: nearest ? 116 : 32, left: 30, right: 30 }}>
+        {userMapPoint && <View style={{ position: 'absolute', top: `${userMapPoint.top}%`, left: `${userMapPoint.left}%`, marginLeft: -7, marginTop: -7 }}><BlinkingMarker /></View>}
         {pins.map(({ person: p, mapPoint }) => (
-          <Pressable
-            key={p.id}
-            onPress={() => s.openPerson(p.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`${p.name} on map`}
-            style={{ position: 'absolute', top: `${mapPoint.top}%`, left: `${mapPoint.left}%`, alignItems: 'center' }}
-          >
-            <View style={{ position: 'relative' }}>
-              <View
-                style={{
-                  borderRadius: 999,
-                  borderWidth: 2,
-                  // spec: boosted = filled amber, others = volt outline
-                  borderColor: p.boosted ? c.amber : c.volt,
-                  backgroundColor: p.boosted ? c.amber : 'transparent',
-                  padding: p.boosted ? 2 : 0,
-                }}
-              >
-                <Avatar initials={initials(p.name)} size={44} radius={999} />
-              </View>
-              {p.boosted && (
-                <View style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: c.amber, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="zap" size={10} color={c.ink} />
-                </View>
-              )}
+          <Pressable key={`${p.id}:${p.isCoach}`} onPress={() => s.openPerson(p.id)} accessibilityRole="button" accessibilityLabel={`${p.name} on map`}
+            style={{ position: 'absolute', top: `${mapPoint.top}%`, left: `${mapPoint.left}%`, marginLeft: -27, marginTop: -27 }}>
+            <View style={{ width: 54, height: 54, borderRadius: 999, borderWidth: 2, borderColor: c.volt, backgroundColor: p.boosted ? c.amber : c.surface, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={[t.label, { color: p.boosted ? c.ink : c.txt }]}>{initials(p.name)}</Text>
             </View>
-            <View style={{ marginTop: 4, backgroundColor: c.surface, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
-              <Row gap={3}>
-                <Icon name="star" size={10} color={c.txt} />
-                <Text style={[t.caption, { color: c.txt }]}>{p.rating.toFixed(1)}</Text>
-              </Row>
-            </View>
+            {p.reviews > 0 && <View style={{ position: 'absolute', top: 0, left: 43, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 }}>
+              <Text style={[t.microBadge, { color: c.amberText }]}>{p.rating.toFixed(1)}</Text>
+            </View>}
           </Pressable>
         ))}
+        {pins.length === 0 && <View pointerEvents="none" style={{ flex: 1, alignItems: 'center', justifyContent: userMapPoint ? 'flex-end' : 'center', paddingHorizontal: 28, paddingBottom: 18 }}>
+          <Text accessibilityRole="text" style={[t.bodySm, { color: c.txt2, textAlign: 'center' }]}>
+            {coordinatePeople.length > 0 && inRange.length === 0 ? `No profiles within ${s.searchRadius} km.` : emptyMessage ?? 'No public map locations available yet.'}
+          </Text>
+        </View>}
       </View>
-
-      {nearest && (() => {
-        const p = nearest.person;
-        return (
-          <View style={{ marginTop: -74, marginHorizontal: 10 }}>
-            <Card onPress={() => s.openPerson(p.id)} style={{ padding: 12 }}>
-              <Row gap={12}>
-                <Avatar initials={initials(p.name)} size={48} radius={13} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[t.name, { color: c.txt }]}>{p.name}</Text>
-                  <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{personMetaLabel(p, nearest.distanceLabel)}</Text>
-                </View>
-                {p.isCoach ? (
-                  <Text style={[t.price, { color: c.accent }]}>${p.price}</Text>
-                ) : (
-                  <MicroBadge label={p.level} bg={c.surface2} fg={c.txt2} />
-                )}
-              </Row>
-            </Card>
+      {nearest && <Pressable onPress={() => s.openPerson(nearest.person.id)} accessibilityRole="button" accessibilityLabel={`Nearest boosted coach: ${nearest.person.name}`}
+        style={{ position: 'absolute', bottom: 22, left: 30, right: 22 }}>
+        <Row gap={14}>
+          <Avatar initials={initials(nearest.person.name)} size={56} radius={16} bg={alpha(c.amber, 0.18)} />
+          <View style={{ flex: 1 }}>
+            <Text style={[t.caption, { color: c.txt3, letterSpacing: 1 }]}>Nearest boosted coach</Text>
+            <Text style={[t.name, { color: c.txt, marginTop: 6 }]}>{nearest.person.name}</Text>
+            <Text style={[t.bodySm, { color: c.txt2, marginTop: 4 }]}>{personMetaLabel(nearest.person, nearest.distanceLabel)} - ${nearest.person.price}</Text>
           </View>
-        );
-      })()}
+        </Row>
+      </Pressable>}
     </View>
   );
 }
 
 export function BlinkingMarker() {
   const { c } = useTheme();
+  const [reduceMotion, setReduceMotion] = useState(true);
+  useEffect(() => {
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((value) => { if (active) setReduceMotion(value); });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => { active = false; subscription.remove(); };
+  }, []);
+  const blink = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const loop = Animated.loop(
+    if (reduceMotion) { blink.setValue(0); pulse.setValue(0); return; }
+    const blinkLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 900, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 0, duration: 800, useNativeDriver: true }),
       ])
     );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
+    const pulseLoop = Animated.loop(Animated.timing(pulse, {
+      toValue: 1, duration: 2000, easing: Easing.out(Easing.quad), useNativeDriver: true,
+    }));
+    blinkLoop.start();
+    pulseLoop.start();
+    return () => { blinkLoop.stop(); pulseLoop.stop(); };
+  }, [blink, pulse, reduceMotion]);
   return (
-    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+    <View accessible accessibilityLabel="Your current location" style={{ alignItems: 'center', justifyContent: 'center' }}>
       <Animated.View
         style={{
           position: 'absolute',
@@ -186,7 +165,7 @@ export function BlinkingMarker() {
           transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.6] }) }],
         }}
       />
-      <View style={{ width: 14, height: 14, borderRadius: 999, backgroundColor: c.volt, borderWidth: 3, borderColor: alpha(c.volt, 0.3) }} />
+      <Animated.View style={{ width: 14, height: 14, borderRadius: 999, backgroundColor: c.volt, borderWidth: 3, borderColor: alpha(c.volt, 0.3), opacity: blink.interpolate({ inputRange: [0, 1], outputRange: [1, 0.55] }), transform: [{ scale: blink.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] }) }] }} />
     </View>
   );
 }

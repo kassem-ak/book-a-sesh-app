@@ -2,9 +2,17 @@
 -- Spotter — dummy seed data (mirrors the app's in-memory sampleData)
 -- Self-linking: FKs resolve via natural keys (email / slug / name) so no
 -- hardcoded UUIDs. Idempotent where unique keys exist (on conflict do nothing).
--- Run after schema.sql:  psql "$DATABASE_URL" -f db/schema.sql -f db/seed.sql
+-- Development only, after schema.sql: set bookd.demo_seed = 'on' in the same
+-- connection before loading this file. Automatic release seeding is disabled.
 -- ============================================================================
 begin;
+
+-- Never load demo accounts/content without an explicit development opt-in.
+do $$ begin
+  if current_setting('bookd.demo_seed', true) is distinct from 'on' then
+    raise exception 'Demo seed disabled. Development only: SET bookd.demo_seed = ''on'' before loading this file.';
+  end if;
+end $$;
 
 -- ---- helper shorthands (psql \set-free: use inline subselects) ------------
 -- user id  : (select id from users where email = '<email>')

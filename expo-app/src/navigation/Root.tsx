@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ensureAppSession } from '../lib/session';
+import { fetchCoaches, fetchPartners } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
@@ -44,14 +45,35 @@ export function Root() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  const [peopleError, setPeopleError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const retryPeople = () => setLoadAttempt((attempt) => attempt + 1);
+  const admitted = Boolean(authEmail || guestMode);
+  useEffect(() => {
+    if (!admitted) return;
+    let active = true;
+    const state = useStore.getState();
+    state.set('loaded', { ...state.loaded, people: false });
+    setPeopleError(null);
+    Promise.allSettled([fetchCoaches(), fetchPartners()]).then((results) => {
+      if (!active) return;
+      const state = useStore.getState();
+      state.setRemotePeople(results.flatMap((result) => result.status === 'fulfilled' ? result.value : []));
+      if (results.some((result) => result.status === 'rejected')) {
+        setPeopleError('Some profiles could not load. Please try again.');
+      }
+    });
+    return () => { active = false; };
+  }, [admitted, loadAttempt]);
+
   // Landing gate: no real account and guest mode not chosen yet.
   if (!authEmail && !guestMode) return <AuthLanding />;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={{ flex: 1, paddingTop: insets.top }}>
-        {tab === 'discover' && <DiscoverScreen />}
-        {tab === 'maps' && <MapsScreen />}
+        {tab === 'discover' && <DiscoverScreen loadError={peopleError} onRetry={retryPeople} />}
+        {tab === 'maps' && <MapsScreen loadError={peopleError} onRetry={retryPeople} />}
         {tab === 'courts' && <CourtsScreen />}
         {tab === 'community' && <CommunityScreen />}
         {tab === 'chat' && <ChatScreen />}

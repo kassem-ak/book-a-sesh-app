@@ -1,6 +1,8 @@
 // Data-access layer for Supabase. Public reads power browsing screens; writes are gated by RLS.
 import { ensureAppSession } from './session';
 import { supabase } from './supabase';
+import { CoachPkg, Person } from '../state/models';
+import { GeoPoint, parseGeoPoint } from './geo';
 
 export type DiscoverSort = 'rating' | 'price' | 'distance';
 export type EventKind = 'Meetup' | 'Event';
@@ -34,6 +36,76 @@ export async function pingSupabase() {
   return { ok: !error, count: count ?? 0, error: error?.message };
 }
 
+type RelatedName = { name?: string | null } | { name?: string | null }[] | null;
+
+type GeoPerson = Person & {
+  coordinates?: GeoPoint | null;
+};
+
+type RemotePackage = {
+  id: string;
+  sessions?: number | null;
+  price_cents?: number | null;
+  active?: boolean | null;
+};
+
+type RemoteCoach = {
+  user_id: string;
+  headline?: string | null;
+  bio?: string | null;
+  level?: string | null;
+  price_cents?: number | null;
+  reply_time?: string | null;
+  sessions_count?: number | null;
+  rating_avg?: number | string | null;
+  reviews_count?: number | null;
+  boosted?: boolean | null;
+  user?: RelatedName;
+  sport?: RelatedName;
+  location?: unknown;
+  packages?: RemotePackage[] | null;
+};
+
+function firstRelated<T>(value: T | T[] | null | undefined): T | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value ?? undefined;
+}
+
+function toNumber(value: number | string | null | undefined) {
+  const num = typeof value === 'number' ? value : Number(value ?? 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function fromRemoteCoach(row: RemoteCoach): GeoPerson {
+  const name = firstRelated(row.user)?.name ?? 'Coach';
+  const sport = firstRelated(row.sport)?.name ?? 'Coaching';
+  const packages: CoachPkg[] = (row.packages ?? [])
+    .filter((pkg) => pkg.active !== false && (pkg.sessions ?? 0) > 0)
+    .map((pkg) => ({ id: pkg.id, sessions: pkg.sessions ?? 1, price: (pkg.price_cents ?? 0) / 100 }))
+    .filter((pkg) => pkg.id && pkg.price >= 0)
+    .sort((a, b) => a.sessions - b.sessions);
+  const headline = row.headline ?? row.level ?? 'Coach';
+  const coordinates = parseGeoPoint(row.location ?? row);
+  return {
+    id: row.user_id,
+    name,
+    sport,
+    rating: toNumber(row.rating_avg),
+    reviews: row.reviews_count ?? 0,
+    price: (row.price_cents ?? 0) / 100,
+    boosted: Boolean(row.boosted),
+    distance: Number.POSITIVE_INFINITY,
+    level: row.level ?? headline,
+    sessions: String(row.sessions_count ?? 0),
+    reply: row.reply_time ?? '',
+    bio: row.bio ?? row.headline ?? '',
+    tags: [headline, sport].filter((tag): tag is string => Boolean(tag)),
+    isCoach: true,
+    packages,
+    coordinates,
+  };
+}
+
 // --- Discover: coaches ordered by rating or price, with joined name + sport ---
 type CoachPackageRow = {
   id: string;
@@ -55,7 +127,7 @@ export async function fetchCoaches(sort: DiscoverSort = 'rating') {
   if (error) throw error;
 
   const coachIds = (data ?? []).map((row) => row.user_id).filter(Boolean);
-  if (coachIds.length === 0) return data;
+  if (coachIds.length === 0) return [];
 
   const { data: packageRows, error: packageError } = await supabase
     .from('packages')
@@ -72,7 +144,30 @@ export async function fetchCoaches(sort: DiscoverSort = 'rating') {
     packagesByCoach.set(pkg.coach_id, list);
   }
 
-  return data?.map((row) => ({ ...row, packages: packagesByCoach.get(row.user_id) ?? [] })) ?? data;
+  return (data ?? []).map((row) => fromRemoteCoach({ ...row, packages: packagesByCoach.get(row.user_id) ?? [] }));
+}
+
+// Public partner profiles share the same discovery list; no private user fields.
+export async function fetchPartners(): Promise<Person[]> {
+  const { data, error } = await supabase.from('partner_profiles')
+    .select('user_id, level, goal, bio, looking_for, user:users(name), sport:sports(name)');
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.user_id,
+    name: firstRelated(row.user)?.name ?? 'Training partner',
+    sport: firstRelated(row.sport)?.name ?? 'Training',
+    level: row.level ?? '',
+    goal: row.goal ?? undefined,
+    bio: row.bio ?? '',
+    tags: [row.looking_for, row.goal].filter((tag): tag is string => Boolean(tag)),
+    rating: 0,
+    reviews: 0,
+    boosted: false,
+    distance: Number.POSITIVE_INFINITY,
+    sessions: '0',
+    reply: '',
+    isCoach: false,
+  }));
 }
 
 // --- Shop marketplace: approved partner shops with active catalog items ---

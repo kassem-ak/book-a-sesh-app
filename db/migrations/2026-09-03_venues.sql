@@ -621,6 +621,9 @@ alter function venue_slot_is_open(uuid, timestamptz, int) set search_path = publ
 --     photo"), not URLs, and inventing image URLs would be worse than an empty
 --     tile. owner_id stays NULL until the venue accounts are created.
 -- ============================================================================
+-- Schema deployments must not recreate the prototype venue catalogue.
+do $$ begin
+if current_setting('bookd.demo_seed', true) = 'on' then
 insert into venues (
   slug, name, code, tint, city, sport, location, status,
   open_days, open_weekdays, opens_at, closes_at, equipment_cents_per_hour
@@ -660,5 +663,8 @@ select v.id, x.name, x.starts_on, x.ends_on, x.price_cents
     ('lgp', 'PADDLE JUNIOR TOURNAMENT', date '2027-08-18', date '2027-08-20', 4000)
   ) as x(slug, name, starts_on, ends_on, price_cents) on x.slug = v.slug
 on conflict (venue_id, name) do nothing;
+
+end if;
+end $$;
 
 commit;

@@ -1,153 +1,148 @@
 # BOOK'D
 
-Book coaches, courts, communities, and partner-store gear in one app.
+Find sports coaches and training partners, join communities, and message people
+nearby. BOOK'D is an Expo app for Android, iOS, and web, initially focused on
+Beirut, Lebanon.
 
-BOOK'D is a cross-platform mobile app (Android, iOS, web) for finding sports
-coaches and training partners nearby, booking sessions, joining communities and
-events, and buying from partner stores. The product is set in Beirut, Lebanon
-and uses a dark athletic visual system with a volt accent.
-
-**Status: pre-release beta.** The app runs end to end against a live Supabase
-backend, but it is not feature-complete and has not been through a public beta.
-See [Known gaps](#known-gaps) before assuming any flow is production-ready, and
-[`BETA-RELEASE.md`](BETA-RELEASE.md) for the full audit record.
+**Status: pre-release, launch work in progress (2026-09-15).** The first release
+has four tabs: **Discover, Maps, Community, Chat**. Courts and Shop are deferred
+to the second release. See [BETA-RELEASE.md](BETA-RELEASE.md) for verified work,
+remaining launch gaps, and testing status.
 
 ## Stack
 
 | Layer | What |
 |---|---|
 | App | Expo SDK 57 / React Native 0.86 / React 19, TypeScript |
-| State | Zustand (single store, `expo-app/src/state/store.ts`) |
-| Backend | Supabase — Postgres + RLS + Auth (`db/`) |
-| Web deploy | Expo web export → GitHub Pages (`.github/workflows/deploy-web.yml`) |
+| State | Zustand (`expo-app/src/state/store.ts`) |
+| Backend | Supabase: Postgres, RLS, Auth (`db/`) |
+| Web deploy | Expo web export to GitHub Pages (`.github/workflows/deploy-web.yml`) |
 | Native builds | EAS Build (`expo-app/eas.json`) |
 
 App identity: `BOOK'D`, slug `bookd`, bundle id / package `com.bookd.app`.
 
 ## Run it
 
+Use Node.js 22.13 or newer on the Node 22 line; CI uses Node 22.
+
 ```bash
 cd expo-app
-npm install
+npm ci
 cp .env.example .env     # fill in EXPO_PUBLIC_SUPABASE_URL + EXPO_PUBLIC_SUPABASE_ANON_KEY
 npm start                # Expo dev server; press a / i / w
 ```
-
-Other entry points:
 
 ```bash
 npm run web              # web dev server
 npm run android          # local native Android build + run
 npm run ios              # local native iOS build + run
-npm run build:web        # static export to expo-app/dist
 npx tsc --noEmit         # typecheck
+npm run build:web        # static export to expo-app/dist
 ```
 
-Without Supabase credentials the client still starts (`isSupabaseConfigured` is
-false) but no real data loads. Deployment options are in
-[`expo-app/DEPLOY.md`](expo-app/DEPLOY.md).
+Without Supabase credentials the client starts but cannot load real data.
+Empty lists and failed reads do not fall back to fabricated profiles or content.
+See [expo-app/DEPLOY.md](expo-app/DEPLOY.md) for deployment settings.
+
+For the standalone browser check, install Python Playwright and Chromium once:
+
+```bash
+python -m pip install playwright
+python -m playwright install chromium
+```
+
+With the web export served at the preview URL below, run from the repository
+root. Keep `/book-a-sesh-app/`, which is the configured web base path:
+
+```bash
+python expo-app/scripts/check-discovery.py http://127.0.0.1:4173/book-a-sesh-app/
+```
+
+The check mocks Supabase responses and writes no live data. An optional second
+argument selects a screenshot directory. It checks guest onboarding, four-tab
+navigation, discovery loading/retry, coach/partner profiles, empty states,
+dark/light layouts, animation/reduced motion, and the scroll-aware event action.
+It does not validate real sign-in or writes.
 
 ## Where the code lives
 
-```text
-expo-app/
-|-- App.tsx                  # root component
-|-- app.json                 # Expo config: name, ids, plugins, web baseUrl
-|-- src/
-|   |-- navigation/          # Root, TabBar, OverlayRouter, SheetRouter
-|   |-- screens/             # Discover, DiscoverMap, Maps, Community, Courts,
-|   |                        # Shop, Chat, Profile, AuthLanding
-|   |-- overlays/            # full-screen flows: booking, shop, community,
-|   |                        # admin/accounting, auth, chat conversation
-|   |-- components/          # Overlay, Sheet, ErrorBanner, ScrollAwareFab, ui
-|   |-- state/               # store.ts (Zustand), models.ts, sampleData.ts
-|   |-- lib/                 # supabase.ts, session.ts, queries.ts, bookings.ts,
-|   |                        # chat.ts, notifications.ts, moderation.ts, geo.ts
-|   |-- theme/               # colors, typography
-db/                          # schema.sql, policies.sql, hardening.sql, migrations/
-design/                      # BOOK'D design specs + handoff-v2 (current source of truth)
-.github/workflows/           # web deploy, Supabase keep-alive cron
-```
+| Path | Purpose |
+|---|---|
+| `expo-app/src/screens/` | Tabs, onboarding, profile |
+| `expo-app/src/overlays/` | Auth, booking, community, chat, coach/admin tools |
+| `expo-app/src/navigation/` | Root, tab bar, overlay and sheet routers |
+| `expo-app/src/state/` | Store, models, static taxonomy/calendar options |
+| `expo-app/src/lib/` | Supabase reads/writes, session, bookings, chat, location |
+| `expo-app/src/theme/` | Shared colors and typography |
+| `db/` | Schema, grants, RLS, migrations, release checks |
+| `design/handoff-v2/` | Design board and older interactive prototype |
 
-Navigation is a five-tab shell — **Discover, Maps, Courts, Community, Chat** —
-with a full-screen overlay host and a bottom-sheet host layered above it.
-Overlay and sheet ids are routed from the Zustand store rather than a navigation
-library. Profile is reached from the header person icon rather than a tab, and
-the Shop tab is deferred to a second release (`ShopScreen.tsx` and the shop
-overlays are still in the tree but not reachable from the tab bar).
+Profile opens from the header person icon. Store state routes overlays and
+bottom sheets. The updated `design/handoff-v2/assets/design-board.svg`, copied
+from `D:\BOOK'D SVG.svg`, takes precedence where the older prototype differs.
 
-## Database
+## This release pass
 
-Postgres schema, RLS policies, and migrations live in [`db/`](db/README.md) —
-~45 tables, money in integer cents, `uuid` PKs, PostGIS for distances. Row-level
-security is the only access control; the anon key is publishable by design.
+Onboarding and the four launch tabs now follow the updated board's structure,
+colors, and motion. Discovery reads both coach and partner profiles, shares
+loading/retry state with Maps, and preserves the selected profile type when
+one person has both roles. Unsupported locations and content show empty states.
 
-`db/hardening.sql` contains security fixes that are **written but not fully
-applied** to the live database. See `BETA-RELEASE.md` for which ones landed.
+Public profiles no longer claim verification, invent gallery images, or open
+the viewer's coach settings. Available descriptions, packages, messaging, and
+booking actions remain. Coach/admin tools are shown by the server-provided
+account role; real admin promotions and loyalty tools remain accessible.
 
-## Known gaps
+The final TypeScript check, web export, and mocked browser check passed. The
+browser run covered both themes, mobile widths, loading/retry, profile type,
+and animation without page exceptions. Real email auth and native builds remain
+unverified for this pass; see the release record for the full limits.
 
-Accurate as of this branch. None of these are blockers for internal testing;
-all of them are blockers for charging real money.
+## Database and release data
 
-- **No payment step.** "Confirm booking" records a booking; nothing is charged.
-- **Facebook / Google / Microsoft / Apple SSO is wired in the client, but none
-  of the four providers is enabled in Supabase Auth**, so the buttons report
-  "not set up yet" instead of signing anyone in. Enabling them needs an OAuth
-  client id and secret per provider, created in each provider's developer
-  console and pasted into the Supabase dashboard.
-- **Packages do not create session balances** — fixed for coach bookings
-  (`db/migrations/2026-09-03_package_redemption.sql`): a pack is charged once
-  and later sessions redeem at zero. Not re-verified on device.
-- **Accounting module is client-local.** The 3-admin approval ceremony mutates
-  Zustand only; it does not change margins that bill.
-- **Shop discounts and coupons are advertised but not applied** at checkout.
-- **Training partners are not implemented.** There is no partners table and no
-  query for one, so the Discover "Training partners" tab is empty and says so.
-- **Messaging cannot start a conversation.** The client has SELECT-only on
-  `conversations` / `conversation_participants` and there is no RPC to open a
-  thread, so the Message action on a profile is disabled. Existing threads read
-  and send correctly.
-- **Accounting is seeded with invented figures.** `revenue` is a hardcoded
-  12480 and the admin list is three invented names. Admin-only, no backend
-  tables behind it.
-- **Courts is wired to the database** and an RSVP now goes through
-  `reserve_court`, which prices it server-side and refuses double-bookings.
-  Not yet re-verified on a device.
-- **Splash and store icons need real artwork.** The splash now shows a flat
-  brand colour because the previous image was a graph-paper placeholder;
-  `assets/icon.png` still has design-template construction guides baked in and
-  must be re-exported before store submission.
-- **No automated tests.** Verification so far is `tsc --noEmit`, a successful
-  web export, and manual device click-through.
+The independent 2026-09-15 live inventories before and after the defaults check
+matched: **55 empty content tables**,
+2 app accounts, 2 notification preferences, 12 sports, and 3 platform margins.
+No rows were deleted in that verification; accounts and reference/configuration
+rows were preserved. Subsequent visits can create anonymous accounts.
 
-## Legacy: the Kotlin `app/` directory
+Automatic seeding is disabled. Demo fixtures require an explicit development
+opt-in. [db/README.md](db/README.md) documents the read-only inventory and the
+transactional check that rolls its test writes back. Anonymous bootstrap
+preserves existing names and memberships; new communities start with a blank
+description. Public reads use restricted columns and RLS; private user GPS
+coordinates must stay private.
 
-`app/` is a native Android/Kotlin Compose implementation — the original v1 of
-this product, built when it was named *Spotter*. It is **superseded** by
-`expo-app/` and is no longer developed:
+## Current gaps
 
-- Last commit touching `app/` was 2026-07-20 (`22abd14`, "Kotlin app v1.0.0
-  release prep"); `expo-app/` has been the only app under development since.
-- The Expo app began as a port of it (`74dc800`, 2026-07-09, "Add Expo (React
-  Native) port"), so the screen set and overlay structure deliberately mirror it.
-- It still carries the old branding throughout — package `com.spotter.app`,
-  `SpotterViewModel`, `rootProject.name = "Spotter"` in `settings.gradle.kts`.
-  That branding has **not** been migrated, because the directory is not shipping.
+- **SSO setup:** Apple, Facebook, Google, and Microsoft/Azure are disabled in
+  live Supabase Auth; email is enabled. Provider credentials and callback
+  configuration are still required for SSO.
+- **Public profiles and maps:** training-partner reads use `partner_profiles`,
+  but profile publication/editing is incomplete. No public coach-map location
+  model exists, so maps cannot show real nearby coach pins yet.
+- **Community media:** news and gallery show their unavailable state; there
+  is no connected publishing backend for either.
+- **Payments:** booking RPCs record server-priced bookings; no payment is
+  collected. Package redemption exists but still needs current release testing.
+- **Accounting:** invented seed figures/names are removed, but the accounting
+  screen still uses local state and is not a connected financial ledger.
+- **Deferred commerce:** Courts and Shop code remains in the tree. Coupons and
+  promotions are not redeemed at checkout; second-release flows need validation.
+- **Artwork and validation:** approved app-icon artwork is missing; current
+  assets include generic Expo artwork. Current test evidence and the next-phase
+  checklist are in [BETA-RELEASE.md](BETA-RELEASE.md#next-phase-checklist).
 
-It is kept in the tree for reference only. It is not built by CI, not deployed,
-and not part of the BOOK'D release. If you are looking for the shipping app,
-it is `expo-app/`.
+Chat can start or reuse a one-to-one thread through `start_conversation`, read
+messages, send, and mark a thread read. Current release testing is tracked in
+[BETA-RELEASE.md](BETA-RELEASE.md).
 
-The original Spotter HTML design handoff it was built from is in
-`extracted/design_handoff_spotter_app/`; the current BOOK'D design source of
-truth is `design/handoff-v2/`.
+## Legacy Android app
 
-The Gradle build is still configured at the repo root (`./gradlew assembleDebug`,
-JDK 17, AGP 8.7.3, Kotlin 2.0.21, compileSdk 36, minSdk 26). It last built
-successfully at the v1.0.0 tag; it has not been rebuilt since and is not
-verified against the current tree.
+The Kotlin `app/` directory is the original Spotter implementation, retained
+for reference. It is superseded by `expo-app/`, carries the old branding, and
+is outside the BOOK'D release and web CI.
 
 ## License
 
-See [`expo-app/LICENSE`](expo-app/LICENSE).
+See [expo-app/LICENSE](expo-app/LICENSE).

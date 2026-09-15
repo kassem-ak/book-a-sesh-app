@@ -102,7 +102,7 @@ const communityCode = (name: string) => {
 };
 
 const marginGet = (m: Margins, k: string) => m[k as MarginKey];
-const shareGet = (s: Shares, k: string) => s[k as ShareKey];
+const shareGet = (s: Shares, k: string) => s[k] ?? 0;
 
 // PostgREST rejects with a plain `{ message, details, hint, code }` object
 // rather than an Error, so `String(error)` rendered "[object Object]" in the
@@ -158,7 +158,7 @@ const eventFromRemote = (row: any, fallbackCommunity?: string): EventItem => ({
   title: row.title,
   whenLabel: row.when_label ?? 'Upcoming',
   loc: row.location ?? 'TBD',
-  attendees: row.attendees_count ?? 1,
+  attendees: row.attendees_count ?? 0,
   // Unknown stays blank: stamping the reader's own name on someone else's event
   // is how the prototype invented hosts.
   host: row.host_name ?? '',
@@ -208,6 +208,8 @@ export interface SpotterState {
 
   // --- onboarding (handoff v2) ---
   authLoc: string;
+  authSeek: string;
+  discSearch: string;
   searchRadius: number;
 
   // --- venues, courts and tournaments (server-backed) ---
@@ -285,7 +287,6 @@ export interface SpotterState {
   calProvider: CalProvider;
 
   // ads
-  adsHidden: Record<string, boolean>;
 
   // shop registration
   shopRegName: string;
@@ -508,7 +509,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   loaded: { people: false, shops: false, communities: false, events: false, suggestions: false },
 
   authSeek: '',
-  authLoc: 'Beirut, Lebanon',
+  authLoc: '',
   searchRadius: 12,
 
   venues: [],
@@ -541,11 +542,11 @@ export const useStore = create<SpotterState>((set, get) => ({
   remotePeople: [],
   remoteShops: [],
 
-  openId: 'c1',
-  shopId: 's1',
-  chatId: 'm1',
-  communityId: 'running',
-  eventId: 'ev1',
+  openId: '',
+  shopId: '',
+  chatId: '',
+  communityId: '',
+  eventId: '',
   returnTo: null,
 
   cart: {},
@@ -562,7 +563,6 @@ export const useStore = create<SpotterState>((set, get) => ({
   calSyncOn: false,
   calProvider: 'GOOGLE',
 
-  adsHidden: {},
 
   shopRegName: '',
   shopRegCat: null,
@@ -581,27 +581,13 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   joinedCommunities: [],
   joinedSubs: [],
-  goingEvents: ['ev1', 'ev3'],
+  goingEvents: [],
   customCommunities: [],
   remoteCommunities: [],
   communityRoles: {},
-  communityMemberRoles: {
-    running: { rima: 'MODERATOR', karim: 'MEMBER', jordan: 'MEMBER', mei: 'MEMBER' },
-    strength: { rima: 'MEMBER', karim: 'ADMIN', jordan: 'MEMBER', mei: 'MEMBER' },
-  },
+  communityMemberRoles: {},
   communityAboutEdits: {},
-  eventSuggestions: [
-    {
-      id: 'sg1',
-      communityId: 'running',
-      type: 'Meetup',
-      title: 'Recovery jog for new runners',
-      whenLabel: 'SAT 05 · 8:00 AM',
-      loc: 'TBD',
-      requestedBy: 'Jordan K.',
-      status: 'PENDING',
-    },
-  ],
+  eventSuggestions: [],
 
   setRemoteEventSuggestions: (suggestions) =>
     set((state) => ({ eventSuggestions: suggestions, loaded: { ...state.loaded, suggestions: true } })),
@@ -609,7 +595,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   customEvents: [],
   remoteEvents: [],
   newType: 'Meetup',
-  newSport: 'running',
+  newSport: '',
   newSub: null,
   newDay: 3,
   newTime: 1,
@@ -623,8 +609,8 @@ export const useStore = create<SpotterState>((set, get) => ({
   reqType: 'Hobby',
   reqSent: false,
 
-  acctMargins: { session: 12, shop: 8, boost: 15 },
-  acctShares: { alex: 40, rima: 30, karim: 30 },
+  acctMargins: { session: 0, shop: 0, boost: 0 },
+  acctShares: {},
   acctDraft: null,
   acctProposal: null,
   acctAppliedNote: null,
@@ -637,37 +623,25 @@ export const useStore = create<SpotterState>((set, get) => ({
   acctExpAmt: '',
   acctExpRecur: 'Monthly',
 
-  myCerts: [{ id: 'ct1', name: 'First Aid & CPR', issuer: 'Red Cross Lebanon', year: '2025', verified: true }],
+  myCerts: [],
   apptDecisions: {},
   coachRate: 0,
   schedDay: 'THU',
   addTimeIdx: 4,
-  schedule: {
-    MON: ['6:30 AM', '8:00 AM', '5:30 PM', '6:30 PM'],
-    TUE: ['6:30 AM', '8:00 AM', '5:30 PM', '6:30 PM'],
-    WED: ['6:30 AM', '5:30 PM', '6:30 PM'],
-    THU: ['6:30 AM', '8:00 AM', '5:30 PM', '6:30 PM'],
-    FRI: ['6:30 AM', '8:00 AM', '5:30 PM'],
-    SAT: ['8:00 AM', '12:00 PM'],
-    SUN: [],
-  },
-  myPackages: [
-    { id: 'pk1', sessions: 1, price: 45 },
-    { id: 'pk2', sessions: 5, price: 203 },
-    { id: 'pk3', sessions: 12, price: 421 },
-  ],
+  schedule: {},
+  myPackages: [],
   newPkgSessions: 10,
-  newPkgPrice: 380,
+  newPkgPrice: 0,
   cPromoPct: 15,
   cPromoCode: null,
 
   hobbyDecisions: {},
-  caseId: 'r1',
-  safetyCaseId: 'sf-demo1',
+  caseId: '',
+  safetyCaseId: '',
   promoPct: 15,
   promoAud: 'All users',
   promoCode: null,
-  loyaltyPts: { l1: 500, l2: 900, l3: 1500 },
+  loyaltyPts: {},
 
   set: (key, value) => set({ [key]: value } as Partial<SpotterState>),
 
@@ -714,14 +688,9 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   // Whatever the server returned, nothing else. An empty list is a real answer;
   // inventing rows here put bookable strangers in front of paying users.
-  people: (mode = get().mode) => {
-    // Training partners have no backend table and no fetch yet, so there is
-    // genuinely nothing to show. See DiscoverScreen for the honest empty state.
-    if (mode !== 'coaches') return [];
-    return get().remotePeople;
-  },
+  people: (mode = get().mode) => get().remotePeople.filter((person) => person.isCoach === (mode === 'coaches')),
   setRemotePeople: (people) => set((state) => ({ remotePeople: people, loaded: { ...state.loaded, people: true } })),
-  personById: (id) => get().remotePeople.find((person) => person.id === id),
+  personById: (id) => get().people().find((person) => person.id === id) ?? get().remotePeople.find((person) => person.id === id),
   shops: () => get().remoteShops,
   setRemoteShops: (shops) => set((state) => ({ remoteShops: shops, loaded: { ...state.loaded, shops: true } })),
   shopById: (id) => get().remoteShops.find((shop) => shop.id === id),
@@ -1136,10 +1105,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     return s.acctDraft !== null && !eq(s.acctDraft, current(s));
   },
   acctEditable: () => get().acctProposal === null,
-  sharesTotal: () => {
-    const sh = get().effective().shares;
-    return sh.alex + sh.rima + sh.karim;
-  },
+  sharesTotal: () => Object.values(get().effective().shares).reduce((sum, share) => sum + share, 0),
   sharesOk: () => Math.abs(get().sharesTotal() - 100) < 0.005,
 
   acctAdjust: (group, key, delta) => {

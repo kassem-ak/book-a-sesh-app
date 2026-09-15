@@ -1,10 +1,10 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Segmented, Toggle } from '../components/ui';
+import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Toggle } from '../components/ui';
 import { fetchMyBookings } from '../lib/bookings';
 import { signOutUser } from '../lib/session';
-import { calProviderLabel, CalProvider, initials } from '../state/models';
-import { useStore } from '../state/store';
+import { initials } from '../state/models';
+import { errorMessage, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 export function ProfileScreen() {
@@ -21,6 +21,7 @@ export function ProfileScreen() {
 
   useEffect(() => {
     let active = true;
+    setUpcomingCount(null);
     fetchMyBookings()
       .then((mine) => {
         if (active) setUpcomingCount(mine.upcoming.length);
@@ -33,13 +34,6 @@ export function ProfileScreen() {
     };
     // Signing in or out changes whose bookings these are.
   }, [s.authEmail]);
-
-  const stats: [string, string][] =
-    role === 'COACH'
-      ? [['640+', 'Sessions'], ['38', 'Clients'], ['★ 4.9', 'Rating']]
-      : role === 'ADMIN'
-      ? [['12.4k', 'Users'], ['312', 'Coaches'], ['3', 'Reports']]
-      : [['48', 'Sessions'], ['7', 'Partners'], ['12', 'Day streak']];
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 26 }}>
@@ -58,9 +52,6 @@ export function ProfileScreen() {
             style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
           >
             <Icon name="bell" size={20} color={c.txt2} />
-            {!s.notifSeen && (
-              <View style={{ position: 'absolute', top: 10, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: c.volt }} />
-            )}
           </Pressable>
           <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="user" size={20} color={c.accent} />
@@ -76,19 +67,15 @@ export function ProfileScreen() {
           <View style={{ flex: 1 }}>
             <Row gap={7}>
               <Text style={[t.overlayTitle, { color: c.txt }]}>{name ?? 'Welcome'}</Text>
-              {/* The verified tick belongs to a real account, not to guest mode. */}
-              {name ? <Icon name="check-circle" size={17} color={c.accent} /> : null}
             </Row>
-            <Text style={[t.bodySm, { color: c.txt2, marginTop: 4 }]}>
-              {role === 'COACH' ? 'Strength coach · Iron Yard Gym, Hamra' : role === 'ADMIN' ? 'System administrator' : 'Training for first marathon 🏃'}
-            </Text>
+            {s.authEmail && <Text style={[t.bodySm, { color: c.txt2, marginTop: 4 }]}>{s.authEmail}</Text>}
             <Row gap={7} style={{ marginTop: 8 }}>
               {role === 'ADMIN' ? (
                 <MicroBadge label="Admin" bg={alpha(c.danger, 0.14)} fg={c.danger} />
               ) : role === 'COACH' ? (
                 <MicroBadge label="Coach" bg={alpha(c.volt, 0.14)} fg={c.accent} />
               ) : (
-                <MicroBadge label="User" bg={alpha(c.volt, 0.12)} fg={c.accent} />
+                <MicroBadge label={s.authEmail ? "User" : "Guest"} bg={alpha(c.volt, 0.12)} fg={c.accent} />
               )}
               {/* The city badge is gone with the header city: no real source. */}
             </Row>
@@ -96,73 +83,13 @@ export function ProfileScreen() {
         </Row>
       </Card>
 
-      {/* stats */}
-      <Row style={{ marginTop: 12 }} gap={10}>
-        {stats.map(([num, label]) => (
-          <Card key={label} style={{ flex: 1, padding: 14, alignItems: 'center' }}>
-            <Text style={[t.price, { fontSize: 23, color: c.accent }]}>{num}</Text>
-            <Text style={[t.caption, { color: c.txt2, marginTop: 2 }]}>{label}</Text>
-          </Card>
-        ))}
-      </Row>
-
-      {/* goals */}
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>My goals</SectionHeading>
-      <Row gap={8}>
-        <GoalChip label="Run a marathon" highlight />
-        <GoalChip label="Build endurance" />
-        <GoalChip label="Stay consistent" />
-      </Row>
-
-      {/* qualifications (user + coach) */}
-      {role !== 'ADMIN' && (
-        <>
-          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Qualifications</SectionHeading>
-          <View style={{ gap: 10 }}>
-            {s.myCerts.map((cert) => (
-              <Card key={cert.id}>
-                <Row style={{ padding: 13 }} gap={12}>
-                  <View style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: alpha(c.volt, 0.1), alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon name="award" size={19} color={c.accent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[t.labelSm, { color: c.txt }]}>{cert.name}</Text>
-                    <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{cert.issuer} · {cert.year}</Text>
-                  </View>
-                  <MicroBadge label={cert.verified ? 'Verified' : 'Pending'} bg={cert.verified ? alpha(c.volt, 0.12) : alpha(c.amber, 0.16)} fg={cert.verified ? c.accent : c.amberText} />
-                  <Pressable
-                    onPress={() => s.removeCert(cert.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove ${cert.name}`}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    style={{ marginLeft: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <Icon name="x" size={11} color={c.txt2} />
-                  </Pressable>
-                </Row>
-              </Card>
-            ))}
-          </View>
-          <Row style={{ marginTop: 10 }} gap={10}>
-            <AddCertBtn icon="camera" label="Scan with camera" onPress={() => s.addCert('Scanned certificate')} />
-            <AddCertBtn icon="upload" label="Upload file" onPress={() => s.addCert('Uploaded certificate')} />
-          </Row>
-        </>
-      )}
-
-      {/* become a coach (user) */}
-      {role === 'USER' && (
-        <RoleCard title="Become a coach" body="List your services, get booked, and earn. Subscription unlocks scheduling, payments & a public coach profile." buttonLabel="Start coaching" onPress={() => s.set('writeError', 'Coach subscriptions are not open yet.')} />
-      )}
-
       {/* coach subscription + tools */}
       {role === 'COACH' && (
         <>
-          <RoleCard title="Coach subscription" badge="Active" body="Scheduling, payments and your public coach profile are active." buttonLabel="Manage" onPress={() => s.set('overlay', 'coachPackages')} />
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Coach tools</SectionHeading>
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
-              <ToolRow count="2" title="Appointment requests" body="Approve bookings & change requests" onPress={() => s.set('overlay', 'coachRequests')} />
+              <ToolRow title="Appointment requests" body="Approve bookings & change requests" onPress={() => s.set('overlay', 'coachRequests')} />
               <ToolRow title="My schedule" body="Edit weekly timetable" onPress={() => s.set('overlay', 'coachSchedule')} />
               <ToolRow title="Today's sessions" body="Day view - mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
               <ToolRow title="Packages, pricing & promos" body="Set prices · create discounts" onPress={() => s.set('overlay', 'coachPackages')} />
@@ -198,49 +125,10 @@ export function ProfileScreen() {
         <GroupRow
           icon="bell"
           title="Notifications"
-          body="Platform updates and daily plan briefing"
-          dot={!s.notifSeen}
+          body="Booking and community updates"
           onPress={s.openNotifs}
         />
-        <RowDivider />
-        <GroupRow
-          icon="smartphone"
-          title="Push notifications"
-          body="Session changes, messages and platform updates"
-          value={s.pushOn}
-          onToggle={(v) => s.set('pushOn', v)}
-        />
-        <RowDivider />
-        <GroupRow
-          icon="sunrise"
-          title="Daily plan briefing"
-          body="Morning summary of sessions and community events"
-          value={s.dailyPlanOn}
-          onToggle={(v) => s.set('dailyPlanOn', v)}
-        />
-        <RowDivider />
-        <GroupRow
-          icon="calendar"
-          title="Calendar sync"
-          body={`${calProviderLabel[s.calProvider]} · sessions auto pushed`}
-          value={s.calSyncOn}
-          onToggle={(v) => s.set('calSyncOn', v)}
-        />
       </Card>
-      {s.calSyncOn && (
-        <>
-          <View style={{ marginTop: 10 }}>
-            <Segmented
-              options={(['GOOGLE', 'APPLE', 'OUTLOOK'] as CalProvider[]).map((k) => ({ key: k, label: calProviderLabel[k] }))}
-              selected={s.calProvider}
-              onSelect={(k) => s.set('calProvider', k as CalProvider)}
-              fontSize={13}
-              pad={8}
-            />
-          </View>
-          <Text style={[t.caption, { color: c.txt3, marginTop: 8 }]}>Confirmed sessions and changes are pushed automatically.</Text>
-        </>
-      )}
 
       {/* ---------------------------- SETTINGS ---------------------------- */}
       <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Settings</SectionHeading>
@@ -248,7 +136,7 @@ export function ProfileScreen() {
         <GroupRow
           icon="moon"
           title="Appearance"
-          body={s.isDark ? 'Dark theme · the handoff default' : 'Light theme'}
+          body={s.isDark ? 'Dark theme' : 'Light theme'}
           value={s.isDark}
           onToggle={(v) => s.set('isDark', v)}
         />
@@ -260,15 +148,10 @@ export function ProfileScreen() {
           <Text style={[t.labelSm, { color: c.txt2, marginTop: 14, marginBottom: 8 }]}>Admin console</Text>
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
-              <ToolRow icon="credit-card" title="Accounting" body="Margins, expenses, profit shares" onPress={() => s.set('overlay', 'adminAccounting')} />
               <ToolRow icon="user-check" title="Approvals" body="Hobby requests, communities and venues" onPress={() => s.set('overlay', 'adminApprovals')} />
               <ToolRow icon="flag" title="Misconduct reports" body="Review evidence · ban or suspend" onPress={() => s.set('overlay', 'adminReports')} />
               <ToolRow icon="percent" title="Promotions & promo codes" body="Create discounts · generate codes" onPress={() => s.set('overlay', 'adminPromos')} />
               <ToolRow icon="tag" title="Loyalty offers" body="Edit rewards & point costs" onPress={() => s.set('overlay', 'adminLoyalty')} />
-              <Row gap={8} style={{ marginTop: 2 }}>
-                <MicroBadge label="Admins only" bg={alpha(c.volt, 0.12)} fg={c.accent} />
-                <Text style={[t.caption, { color: c.txt3, flex: 1 }]}>3-admin approval is enforced for fee/share changes.</Text>
-              </Row>
             </View>
           </Card>
         </>
@@ -293,7 +176,7 @@ export function ProfileScreen() {
             title="Sign out"
             body={`${s.authName ?? 'Signed in'} · ${s.authEmail}`}
             onPress={() => {
-              void signOutUser().catch(() => {});
+              void signOutUser().catch((error) => s.set('writeError', errorMessage(error)));
             }}
           />
         ) : (
@@ -306,57 +189,6 @@ export function ProfileScreen() {
         )}
       </Card>
     </ScrollView>
-  );
-}
-
-function GoalChip({ label, highlight }: { label: string; highlight?: boolean }) {
-  const { c, t } = useTheme();
-  return (
-    <View style={{ borderRadius: 999, backgroundColor: highlight ? alpha(c.volt, 0.1) : c.surface, borderColor: highlight ? alpha(c.volt, 0.25) : c.line, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 9 }}>
-      <Text style={[t.labelSm, { color: highlight ? c.accent : c.strong }]}>{label}</Text>
-    </View>
-  );
-}
-
-function AddCertBtn({ icon, label, onPress }: { icon: any; label: string; onPress: () => void }) {
-  const { c, t } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={{ flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, borderColor: c.line, borderWidth: 1.5, borderStyle: 'dashed', paddingVertical: 13 }}
-    >
-      <Icon name={icon} size={17} color={c.accent} />
-      <Text style={[t.labelSm, { color: c.strong }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function RoleCard({ title, body, badge, buttonLabel, onPress }: { title: string; body: string; badge?: string; buttonLabel: string; onPress: () => void }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ marginTop: 22, padding: 18 }} background={alpha(c.volt, 0.08)} borderColor={alpha(c.volt, 0.25)}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Text style={[t.overlayTitle, { fontSize: 16, color: c.txt }]}>{title}</Text>
-        {badge && <MicroBadge label={badge} bg={alpha(c.volt, 0.14)} fg={c.accent} />}
-      </Row>
-      <Text style={[t.bodySm, { color: c.txt2, marginTop: 7 }]}>{body}</Text>
-      <Row style={{ marginTop: 14, justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <Row style={{ alignItems: 'flex-end' }}>
-          <Text style={[t.price, { fontSize: 20, color: c.accent }]}>$19</Text>
-          <Text style={[t.bodySm, { color: c.txt3 }]}>/month</Text>
-        </Row>
-        <Pressable
-          onPress={onPress}
-          accessibilityRole="button"
-          accessibilityLabel={`${buttonLabel} — ${title}`}
-          style={{ minHeight: 44, justifyContent: 'center', borderRadius: 999, backgroundColor: c.volt, paddingHorizontal: 20, paddingVertical: 11 }}
-        >
-          <Text style={[t.labelSm, { color: c.ink }]}>{buttonLabel}</Text>
-        </Pressable>
-      </Row>
-    </Card>
   );
 }
 
