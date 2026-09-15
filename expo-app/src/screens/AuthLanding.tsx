@@ -112,6 +112,11 @@ export function AuthLanding() {
             <View style={{ height: 54 }} />
             <NextButton label="NEXT" accessibilityLabel="Next, choose your area" onPress={() => {
               s.set('signupIntent', kind);
+              // Make the answer mean something. It was recorded and then read
+              // nowhere, so this step of onboarding changed nothing at all.
+              // A coach is looking for training partners and clients; someone
+              // training is looking for coaches.
+              s.set('mode', kind === 'coach' ? 'partners' : 'coaches');
               setStep('where');
             }} />
           </>

@@ -192,6 +192,9 @@ export interface BookingPackageOption {
   price: number;
   note: string;
   packageId: string | null;
+  /** How many sessions the pack contains, so the booking screen can show how
+   *  many are left. 1 for a single session. */
+  sessions: number;
 }
 
 export const coachPackageOptions = (p: Person): BookingPackageOption[] => {
@@ -203,7 +206,10 @@ export const coachPackageOptions = (p: Person): BookingPackageOption[] => {
       price: pkg.price,
       note: pkg.sessions === 1 ? '60 min' : `${pkg.sessions} sessions`,
       packageId: pkg.id,
+      sessions: pkg.sessions,
     }));
   if (realPackages.length > 0) return realPackages;
-  return [{ name: 'Single session', price: p.price ?? 30, note: '60 min', packageId: null }];
+  // Was `p.price ?? 30`, which quoted a price the coach never set. 0 means
+  // "no price on file"; the booking screen says so rather than printing $0.
+  return [{ name: 'Single session', price: p.price ?? 0, note: '60 min', packageId: null, sessions: 1 }];
 };

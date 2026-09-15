@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Field, Row } from '../components/ui';
+import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 import { DiscoverMap } from './DiscoverMap';
 
-const AREA_FILTERS = ["GYM'S", 'BOXING', 'FOOTBALL'];
+// Was a fixed ["GYM'S", 'BOXING', 'FOOTBALL'] copied off the design board.
+// FOOTBALL is not in the sport taxonomy, so that chip could only ever return
+// "Nothing matches that search." Deriving the chips from the real taxonomy
+// means every one of them can match something.
+//
+// GYM'S stays as a curated grouping: it covers several taxonomy entries rather
+// than one, which is why it has its own pattern in the filter below.
+const AREA_FILTERS = ["GYM'S", ...D.sportNames.filter((name) => name !== 'All').map((name) => name.toUpperCase())];
 
 export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; onRetry?: () => void }) {
   const { c, t } = useTheme();

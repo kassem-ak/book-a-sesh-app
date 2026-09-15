@@ -1,4 +1,5 @@
 // Data-access layer for Supabase. Public reads power browsing screens; writes are gated by RLS.
+import { currentAppUserId } from './bookings';
 import { ensureAppSession } from './session';
 import { supabase } from './supabase';
 import { CoachPkg, Person } from '../state/models';
@@ -349,4 +350,35 @@ export async function fetchAccountRole(): Promise<AccountRole> {
   // public.users (it holds emails and is_admin), and must not get one.
   const role = await callRpc<string>('my_account_role');
   return role === 'ADMIN' || role === 'COACH' ? role : 'USER';
+}
+
+/**
+ * How many sessions of each package this client has already used.
+ *
+ * The booking screen needs it to quote honestly: `create_booking_for_coach`
+ * charges the pack price on the first booking and writes `total_cents = 0` for
+ * every later redemption, so without this the screen quotes the full pack price
+ * for a session that costs nothing.
+ *
+ * Returns an empty map rather than throwing — a quote that falls back to the
+ * list price is wrong in the safe direction, and a signed-out or offline client
+ * has no balances by definition.
+ */
+export async function fetchPackageUsage(): Promise<Record<string, number>> {
+  try {
+    await ensureAppSession();
+    const me = await currentAppUserId();
+    const { data, error } = await supabase
+      .from('client_package_balances')
+      .select('package_id, used')
+      .eq('client_id', me);
+    if (error) throw error;
+    const out: Record<string, number> = {};
+    for (const row of (data ?? []) as { package_id: string; used: number | null }[]) {
+      out[row.package_id] = row.used ?? 0;
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
