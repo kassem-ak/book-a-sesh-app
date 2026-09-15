@@ -37,7 +37,16 @@ import {
   CalProvider,
   coachPackageOptions,
 } from './models';
-import { rsvpSubject } from './courtsData';
+import {
+  MyCourtReservation,
+  Venue,
+  enterVenueEvent,
+  equipmentRateCents,
+  fetchMyCourtReservations,
+  fetchVenues,
+  reserveCourt,
+} from '../lib/courts';
+import { RsvpRef, rsvpSubject } from './courtsData';
 import * as D from './sampleData';
 
 // ---- number helpers (mirror the Kotlin/JS behavior) ----
@@ -201,17 +210,21 @@ export interface SpotterState {
   authLoc: string;
   searchRadius: number;
 
+  // --- venues, courts and tournaments (server-backed) ---
+  venues: Venue[];
+  venuesLoading: boolean;
+  venuesError: string | null;
+
   // --- court RSVP (handoff v2 section C) ---
   rsvpTarget: string | null;      // display title, for copy only
-  rsvpRef: { venueId: string; kind: 'court' | 'event'; id: string } | null;
-  rsvpPricePerHour: number;       // per-hour for courts, flat fee for events
+  rsvpRef: RsvpRef | null;
+  rsvpPriceCents: number;         // per-hour for courts, flat entry fee for tournaments
   rsvpPerHour: boolean;
-  // Confirmed court reservations. There is no court_reservations table yet, so
-  // these live in the session and are surfaced in Bookings.
-  courtReservations: {
-    id: string; title: string; venue: string; kind: string;
-    type: string; hours: number; gear: boolean; coach: boolean; total: number;
-  }[];
+  /** Chosen start, ISO. Null until the user picks one — never defaulted, because
+   *  reserve_court charges for exactly this instant. */
+  rsvpStartsAt: string | null;
+  /** The signed-in user's reservations, as stored by the server. */
+  courtReservations: MyCourtReservation[];
   rsvpType: string;
   rsvpHours: number;
   rsvpGear: boolean;
@@ -411,10 +424,12 @@ export interface SpotterState {
   closeOverlay(): void;
   openSheet(id: string): void;
   closeSheet(): void;
-  openRsvp(ref: { venueId: string; kind: 'court' | 'event'; id: string }): boolean;
+  openRsvp(ref: RsvpRef): boolean;
   refreshRole(): Promise<void>;
+  loadVenues(): Promise<void>;
+  refreshCourtReservations(): Promise<void>;
   rsvpTotal(): number;
-  confirmRsvp(): void;
+  confirmRsvp(): Promise<void>;
   openRegistration(kind: 'community' | 'venue' | 'shop'): void;
   recordRegistration(kind: string, name: string, meta: string): void;
   decideRegistration(id: string, decision: string): void;
@@ -496,10 +511,14 @@ export const useStore = create<SpotterState>((set, get) => ({
   authLoc: 'Beirut, Lebanon',
   searchRadius: 12,
 
+  venues: [],
+  venuesLoading: false,
+  venuesError: null,
   rsvpTarget: null,
   rsvpRef: null,
-  rsvpPricePerHour: 40,
+  rsvpPriceCents: 0,
   rsvpPerHour: true,
+  rsvpStartsAt: null,
   courtReservations: [],
   rsvpType: 'Single',
   rsvpHours: 1,
@@ -975,65 +994,107 @@ export const useStore = create<SpotterState>((set, get) => ({
   openSheet: (id) => set({ sheet: id }),
   closeSheet: () => set({ sheet: null }),
 
-  // Court RSVP. The per-hour price is captured when the sheet opens so the
-  // total is computed from venue data, never from a client-typed number.
-  // Opening resolves the price from venue data by id. Returns false when the
-  // target cannot be priced, so the caller refuses rather than guesses.
+  loadVenues: async () => {
+    set({ venuesLoading: true, venuesError: null });
+    try {
+      set({ venues: await fetchVenues(), venuesLoading: false });
+    } catch (error) {
+      set({ venues: [], venuesLoading: false, venuesError: errorMessage(error) });
+    }
+  },
+
+  // Reservations are read back rather than assembled locally: the server owns
+  // the totals, so its rows are the only honest source for "what I booked".
+  refreshCourtReservations: async () => {
+    try {
+      set({ courtReservations: await fetchMyCourtReservations() });
+    } catch {
+      /* browsing must not break because the reservation list failed to load */
+    }
+  },
+
+  // Opening resolves the subject from the loaded venues by id. Returns false
+  // when it cannot be resolved, so the caller refuses rather than guesses.
   openRsvp: (ref) => {
-    const subject = rsvpSubject(ref);
+    const subject = rsvpSubject(get().venues, ref);
     if (!subject) {
       set({ writeError: 'That slot is unavailable right now.' });
+      return false;
+    }
+    // A closed venue is a guaranteed 'this venue is closed' from the RPC; say so
+    // here instead of charging the user a round-trip to find out.
+    if (subject.venue.status !== 'open') {
+      set({ writeError: `${subject.venue.name} is closed right now.` });
       return false;
     }
     set({
       sheet: 'rsvp',
       rsvpRef: ref,
       rsvpTarget: subject.title,
-      rsvpPricePerHour: subject.price,
+      rsvpPriceCents: subject.priceCents,
       rsvpPerHour: subject.perHour,
+      rsvpStartsAt: null,
       rsvpType: 'Single',
       rsvpHours: 1,
       rsvpGear: false,
       rsvpCoach: false,
+      writeError: null,
     });
     return true;
   },
-  // Courts bill per hour; tournament entry is a flat per-team fee, so hours and
-  // hourly equipment hire do not apply to it.
-  // Court charge only. "Add a coach" is a routing flag, not a line item: the
-  // coach's real rate depends on which coach and package you pick on the next
-  // screen, so folding a flat $45 in here billed the coach twice.
+
+  /**
+   * DISPLAY ESTIMATE ONLY, in cents. The server is authoritative: reserve_court
+   * re-reads the court rate and the venue's gear rate and writes its own
+   * total_cents, so this number exists to show a figure before the tap and is
+   * never sent, recorded, or trusted afterwards.
+   */
   rsvpTotal: () => {
     const st = get();
-    if (!st.rsvpPerHour) return st.rsvpPricePerHour;
-    const base = st.rsvpPricePerHour * st.rsvpHours;
-    const gear = st.rsvpGear ? 6 * st.rsvpHours : 0;
-    return base + gear;
+    if (!st.rsvpPerHour) return st.rsvpPriceCents;
+    const subject = rsvpSubject(st.venues, st.rsvpRef);
+    const gearRate = subject ? (equipmentRateCents(subject.venue, subject.court) ?? 0) : 0;
+    return st.rsvpPriceCents * st.rsvpHours + (st.rsvpGear ? gearRate * st.rsvpHours : 0);
   },
-  confirmRsvp: () => {
+
+  confirmRsvp: async () => {
     const st = get();
-    const subject = rsvpSubject(st.rsvpRef);
+    const subject = rsvpSubject(st.venues, st.rsvpRef);
     if (!subject) {
       set({ sheet: null, writeError: 'That slot is unavailable right now.' });
       return;
     }
-    set({
-      courtReservations: [
-        ...st.courtReservations,
-        {
-          id: `rsvp-${st.courtReservations.length}-${Date.now()}`,
-          title: subject.title,
-          venue: subject.venue.name,
-          kind: subject.ref.kind,
-          type: st.rsvpType,
-          hours: st.rsvpPerHour ? st.rsvpHours : 1,
-          gear: st.rsvpGear,
-          coach: st.rsvpCoach,
-          total: st.rsvpTotal(),
-        },
-      ],
-      sheet: null,
-    });
+    // reserve_court requires an instant; there is no safe default for "when",
+    // so refuse rather than invent one.
+    if (subject.perHour && !st.rsvpStartsAt) {
+      set({ writeError: 'Pick a day and a start time first.' });
+      return;
+    }
+
+    set({ writeBusy: 'rsvp', writeError: null });
+    try {
+      if (subject.perHour && subject.court) {
+        await reserveCourt({
+          courtId: subject.court.id,
+          startsAt: st.rsvpStartsAt as string,
+          hours: st.rsvpHours,
+          kind: st.rsvpType as 'Single' | 'Teams' | 'Member of team',
+          equipment: st.rsvpGear,
+        });
+      } else if (subject.event) {
+        await enterVenueEvent(subject.event.id);
+      } else {
+        throw new Error('That slot is unavailable right now.');
+      }
+    } catch (error) {
+      // The sheet stays open on failure so the user can change the time or the
+      // court rather than losing what they picked.
+      set(errorState(error));
+      return;
+    }
+
+    set({ sheet: null, writeBusy: null });
+    await get().refreshCourtReservations();
     // "Add a coach" routes into the coach calendar; go through openBooking so a
     // previous confirmation screen is cleared first.
     if (st.rsvpCoach) get().openBooking();
