@@ -31,6 +31,9 @@ export function BookingOverlay() {
           <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
             {selectedPkg.name} with {p.name.split(' ')[0]} · {D.bookingMonthName} {s.bookDay} · {D.slotDefs[s.bookSlot]}
           </Text>
+          <Text style={[t.bodySm, { color: c.txt3, marginTop: 8, textAlign: 'center' }]}>
+            ${selectedPkg.price} is payable to {p.name.split(' ')[0]} directly at your session.
+          </Text>
           {s.calSyncOn && (
             <>
               <Row gap={8} style={{ marginTop: 16 }}>
@@ -56,11 +59,14 @@ export function BookingOverlay() {
       header={<OverlayHeader title="Book a session" onBack={s.backToPerson} subtitle={p.name} />}
       bottomBar={
         <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
-          <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+          <Row style={{ justifyContent: 'space-between', marginBottom: 2 }}>
             <Text style={[t.body, { color: c.txt2 }]}>Total</Text>
             <Text style={[t.price, { color: c.accent }]}>${selectedPkg.price}</Text>
           </Row>
-          <VoltButton label="Confirm and pay" onPress={s.confirmBooking} busy={s.writeBusy === 'booking'} busyLabel="Booking..." />
+          <Text style={[t.caption, { color: c.txt3, marginBottom: 12 }]}>
+            Payable to the coach at your session — BOOK'D does not take payment.
+          </Text>
+          <VoltButton label="Confirm booking" onPress={s.confirmBooking} busy={s.writeBusy === 'booking'} busyLabel="Booking..." />
         </View>
       }
     >
