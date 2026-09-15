@@ -203,6 +203,37 @@ begin
   v_pass := v_pass + 1;
   v_log := v_log || E'\n  PASS 9  start_conversation creates one thread and reuses it';
 
+  -- ======================= 10. blocking ===================================
+  -- Both stores require a working block for an app with user-generated
+  -- content, and it has to hold on the server, not just in the client.
+  perform block_user(v_other);
+  if not is_blocked_with(v_other) then
+    raise exception 'FAIL 10a: block_user did not register';
+  end if;
+
+  begin
+    insert into messages (conversation_id, sender_id, body)
+    values (v_conv, v_user, 'should not arrive');
+    raise exception 'FAIL 10b: a blocked conversation still accepted a message';
+  exception when others then
+    get stacked diagnostics v_err = message_text;
+    if v_err like 'FAIL %' then raise; end if;
+  end;
+
+  begin
+    perform start_conversation(v_other);
+    raise exception 'FAIL 10c: start_conversation opened a thread across a block';
+  exception when others then
+    get stacked diagnostics v_err = message_text;
+    if v_err like 'FAIL %' then raise; end if;
+  end;
+
+  perform unblock_user(v_other);
+  insert into messages (conversation_id, sender_id, body) values (v_conv, v_user, 'ok');
+  v_pass := v_pass + 1;
+  v_log := v_log || E'
+  PASS 10 block stops messages both ways, unblock restores them';
+
   ------------------------------------------------- catalogue checks (caller)
   reset role;
 

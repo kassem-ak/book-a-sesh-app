@@ -46,6 +46,7 @@ import {
   fetchVenues,
   reserveCourt,
 } from '../lib/courts';
+import { blockUser, fetchBlockedUsers, unblockUser } from '../lib/moderation';
 import { RsvpRef, rsvpSubject } from './courtsData';
 import * as D from './sampleData';
 
@@ -442,6 +443,11 @@ export interface SpotterState {
   closeSheet(): void;
   openRsvp(ref: RsvpRef): boolean;
   refreshRole(): Promise<void>;
+  /** Members this account has blocked. The server enforces the block; this
+   *  copy is only what stops the lists from showing them. */
+  blockedIds: string[];
+  refreshBlocked(): Promise<void>;
+  toggleBlock(userId: string): Promise<void>;
   loadVenues(): Promise<void>;
   refreshCourtReservations(): Promise<void>;
   rsvpTotal(): number;
@@ -511,6 +517,7 @@ const chgLines = (from: MarginsShares, to: MarginsShares): string[] => {
 export const useStore = create<SpotterState>((set, get) => ({
   tab: 'discover',
   role: 'USER',
+  blockedIds: [],
   signupIntent: null,
   isDark: true,
   overlay: null,
@@ -704,7 +711,13 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   // Whatever the server returned, nothing else. An empty list is a real answer;
   // inventing rows here put bookable strangers in front of paying users.
-  people: (mode = get().mode) => get().remotePeople.filter((person) => person.isCoach === (mode === 'coaches')),
+  // Blocked members drop out of discovery. `personById` deliberately still
+  // resolves them from remotePeople, so their profile stays reachable and the
+  // block can be lifted.
+  people: (mode = get().mode) =>
+    get().remotePeople.filter(
+      (person) => person.isCoach === (mode === 'coaches') && !get().blockedIds.includes(person.id),
+    ),
   setRemotePeople: (people) => set((state) => ({ remotePeople: people, loaded: { ...state.loaded, people: true } })),
   personById: (id) => get().people().find((person) => person.id === id) ?? get().remotePeople.find((person) => person.id === id),
   shops: () => get().remoteShops,
@@ -943,6 +956,25 @@ export const useStore = create<SpotterState>((set, get) => ({
       set({ role: await fetchAccountRole() });
     } catch {
       /* offline or unauthenticated - keep whatever we already had */
+    }
+  },
+  refreshBlocked: async () => {
+    try {
+      set({ blockedIds: (await fetchBlockedUsers()).map((row) => row.id) });
+    } catch {
+      /* offline or unauthenticated - keep whatever we already had */
+    }
+  },
+  toggleBlock: async (userId) => {
+    const blocked = get().blockedIds.includes(userId);
+    set({ writeBusy: 'block', writeError: null });
+    try {
+      if (blocked) await unblockUser(userId);
+      else await blockUser(userId);
+      await get().refreshBlocked();
+      set({ writeBusy: null });
+    } catch (error) {
+      set(errorState(error));
     }
   },
   openBooking: () => set({ overlay: 'booking', booked: false, bookPkg: 0, writeError: null }),

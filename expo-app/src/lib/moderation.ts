@@ -266,3 +266,44 @@ export async function decideSafetyFlag(flagId: string, verdict: FlagVerdict): Pr
   const row = data as unknown as FlagRow;
   return toFlag(row, await resolveSubjectNames([row]));
 }
+
+// ---------------------------------------------------------------------------
+// Blocking another member.
+//
+// Distinct from everything above: that is the admin queue, this is what an
+// ordinary user can do about another user without waiting for an admin. Both
+// stores require it for an app carrying user-generated content, and reporting
+// does not satisfy the requirement on its own.
+//
+// The server enforces it. `block_user` refuses self-blocks and deleted
+// accounts, a trigger on `messages` refuses the send in either direction, and
+// `start_conversation` refuses to open a thread. Hiding blocked people in the
+// client is a courtesy on top of that, never the mechanism.
+//
+// A block is invisible to the person blocked: `my_blocked_users` only ever
+// returns the caller's own rows.
+// ---------------------------------------------------------------------------
+
+export async function blockUser(userId: string): Promise<void> {
+  await ensureAppSession();
+  const { error } = await supabase.rpc('block_user', { p_user: userId });
+  if (error) throw error;
+}
+
+export async function unblockUser(userId: string): Promise<void> {
+  await ensureAppSession();
+  const { error } = await supabase.rpc('unblock_user', { p_user: userId });
+  if (error) throw error;
+}
+
+export type BlockedUser = { id: string; name: string };
+
+export async function fetchBlockedUsers(): Promise<BlockedUser[]> {
+  await ensureAppSession();
+  const { data, error } = await supabase.rpc('my_blocked_users');
+  if (error) throw error;
+  return ((data ?? []) as { user_id: string; name: string | null }[]).map((row) => ({
+    id: row.user_id,
+    name: row.name ?? 'Member',
+  }));
+}
