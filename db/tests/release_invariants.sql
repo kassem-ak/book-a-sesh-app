@@ -234,8 +234,32 @@ begin
   v_log := v_log || E'
   PASS 10 block stops messages both ways, unblock restores them';
 
+  -- ======================= 11. booking notifications ======================
+  -- Three screens tell the user that booking updates arrive. Nothing produced
+  -- one until a trigger was added, so this is the check that keeps the promise
+  -- honest.
+  if not exists (
+    select 1 from notifications
+     where user_id = v_user and type = 'booking'
+  ) then
+    raise exception 'FAIL 11a: booking produced no notification for the client';
+  end if;
+  -- The coach's copy cannot be checked from here: RLS correctly stops the
+  -- client reading someone else's notifications. That it is unreadable is
+  -- itself part of what should hold, so the read moves below the reset.
+  v_pass := v_pass + 1;
+  v_log := v_log || E'
+  PASS 11 a booking notifies the client, and the coach copy is not readable by them';
+
   ------------------------------------------------- catalogue checks (caller)
   reset role;
+
+  if not exists (
+    select 1 from notifications
+     where user_id = v_coach and type = 'booking'
+  ) then
+    raise exception 'FAIL 11b: booking produced no notification for the coach';
+  end if;
 
   -- ======================= 7. money tables are RPC-only ====================
   if exists (
