@@ -17,6 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { Root } from './src/navigation/Root';
 import { useStore } from './src/state/store';
 import { dark, light } from './src/theme/colors';
@@ -53,7 +54,11 @@ export default function App() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {ready ? <Root /> : <View style={{ flex: 1, backgroundColor: bg }} />}
+      {/* A render throw used to unmount the whole tree to a blank screen with
+          no way back. ErrorBanner only covers store writes, not rendering. */}
+      <ErrorBoundary isDark={isDark}>
+        {ready ? <Root /> : <View style={{ flex: 1, backgroundColor: bg }} />}
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
