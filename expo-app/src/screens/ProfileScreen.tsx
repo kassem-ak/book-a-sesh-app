@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Toggle } from '../components/ui';
 import { fetchMyBookings } from '../lib/bookings';
-import { signOutUser } from '../lib/session';
+import { deleteAccount, signOutUser } from '../lib/session';
 import { initials } from '../state/models';
 import { errorMessage, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -18,6 +18,8 @@ export function ProfileScreen() {
   // `null` means "not loaded / could not load" and renders no badge at all —
   // the same contract as joinedCount. A count is never invented.
   const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
+  // Deleting an account is irreversible, so it takes a second tap.
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -171,14 +173,32 @@ export function ProfileScreen() {
           </>
         )}
         {s.authEmail ? (
-          <GroupRow
-            icon="log-out"
-            title="Sign out"
-            body={`${s.authName ?? 'Signed in'} · ${s.authEmail}`}
-            onPress={() => {
-              void signOutUser().catch((error) => s.set('writeError', errorMessage(error)));
-            }}
-          />
+          <>
+            <GroupRow
+              icon="log-out"
+              title="Sign out"
+              body={`${s.authName ?? 'Signed in'} · ${s.authEmail}`}
+              onPress={() => {
+                void signOutUser().catch((error) => s.set('writeError', errorMessage(error)));
+              }}
+            />
+            {/* Required in-app by both stores wherever accounts can be created.
+                Two taps: deletion cannot be undone. */}
+            <GroupRow
+              icon="trash-2"
+              title={confirmDelete ? 'Tap again to delete permanently' : 'Delete account'}
+              body={
+                confirmDelete
+                  ? 'Your profile and personal data are removed and you cannot sign in again.'
+                  : 'Permanently removes your profile and personal data'
+              }
+              onPress={() => {
+                if (!confirmDelete) { setConfirmDelete(true); return; }
+                setConfirmDelete(false);
+                void deleteAccount().catch((error) => s.set('writeError', errorMessage(error)));
+              }}
+            />
+          </>
         ) : (
           <GroupRow
             icon="log-in"

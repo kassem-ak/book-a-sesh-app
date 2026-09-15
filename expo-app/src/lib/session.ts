@@ -146,3 +146,30 @@ export async function signInWithProvider(provider: SsoProvider) {
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
   if (exchangeError) throw exchangeError;
 }
+
+/**
+ * Delete the signed-in account.
+ *
+ * Both stores require this in-app wherever an app allows account creation, so
+ * it is a release gate, not a nicety. The work happens in the `delete-account`
+ * Edge Function because removing the auth user needs the service role, which
+ * must never reach the client.
+ *
+ * It anonymises rather than hard-deletes: public.users is the parent of
+ * thirteen NO ACTION foreign keys, and a coach's booking history is their
+ * record as much as the client's. Identity is stripped, personal rows and
+ * stored OAuth tokens are removed, and the credentials are destroyed.
+ */
+export async function deleteAccount(): Promise<void> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) throw new Error('Sign in first.');
+
+  const { data, error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
+  if (error) throw error;
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error(String((data as { error: unknown }).error));
+  }
+  // The credentials are gone; drop the local session so the app returns to the
+  // landing gate instead of holding a token that no longer resolves.
+  await supabase.auth.signOut();
+}
