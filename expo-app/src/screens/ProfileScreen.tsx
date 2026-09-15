@@ -154,6 +154,7 @@ export function ProfileScreen() {
               <ToolRow icon="flag" title="Misconduct reports" body="Review evidence · ban or suspend" onPress={() => s.set('overlay', 'adminReports')} />
               <ToolRow icon="percent" title="Promotions & promo codes" body="Create discounts · generate codes" onPress={() => s.set('overlay', 'adminPromos')} />
               <ToolRow icon="tag" title="Loyalty offers" body="Edit rewards & point costs" onPress={() => s.set('overlay', 'adminLoyalty')} />
+              <ToolRow icon="bar-chart-2" title="Accounting" body="Margins, expenses and history" onPress={() => s.set('overlay', 'adminAccounting')} />
             </View>
           </Card>
         </>
