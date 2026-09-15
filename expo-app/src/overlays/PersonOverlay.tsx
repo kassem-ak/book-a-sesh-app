@@ -1,27 +1,41 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Stars, StripedPlaceholder, VoltButton } from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
+import { startConversation } from '../lib/chat';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 export function PersonOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
+  const [messaging, setMessaging] = useState(false);
   const p = s.personById(s.openId);
   if (!p) return <MissingSubject title="Profile" message="This profile is no longer available." onBack={s.closeOverlay} />;
+
+  // start_conversation reuses an existing thread, so tapping twice is safe.
+  const message = async () => {
+    setMessaging(true);
+    try {
+      s.openChat(await startConversation(p.id));
+    } catch (error) {
+      s.set('writeError', error instanceof Error ? error.message : 'Could not open that conversation.');
+    } finally {
+      setMessaging(false);
+    }
+  };
   const packageOptions = coachPackageOptions(p);
   return (
     <OverlayScaffold
       header={<OverlayHeader title={p.isCoach ? 'Coach' : 'Training partner'} onBack={s.closeOverlay} trailing={
         <Pressable
-          onPress={() => s.set('writeError', 'Messaging is not open yet - a conversation cannot be started from here.')}
+          onPress={messaging ? undefined : message}
           accessibilityRole="button"
           accessibilityLabel="Message this person"
-          accessibilityState={{ disabled: true }}
+          accessibilityState={{ busy: messaging }}
         >
-          <Icon name="message-square" size={22} color={c.txt3} />
+          <Icon name="message-square" size={22} color={c.txt2} />
         </Pressable>
       } />}
       bottomBar={
@@ -31,8 +45,9 @@ export function PersonOverlay() {
           ) : (
             <VoltButton
               label="Message to train together"
-              enabled={false}
-              onPress={() => s.set('writeError', 'Messaging is not open yet - a conversation cannot be started from here.')}
+              busy={messaging}
+              busyLabel="Opening..."
+              onPress={message}
             />
           )}
         </View>

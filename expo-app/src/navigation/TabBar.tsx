@@ -6,13 +6,14 @@ import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
-// Board nav: Discover · Maps · Courts · Community · Chat.
-// Maps is promoted from a Discover subview to its own tab, Courts is new,
-// Shop drops out (SECOND RELEASE) and Profile moves to the header person icon.
+// First release ships Discover · Maps · Community · Chat.
+// Courts and Shop are both SECOND RELEASE: the Courts screens, data layer and
+// reserve_court money path are built and live, just not reachable from the nav
+// yet, so re-adding the entry below is all it takes to ship them.
+// Profile lives on the header person icon rather than the tab bar.
 const TABS: { key: string; label: string; icon: IconName }[] = [
   { key: 'discover', label: 'Discover', icon: 'search' },
   { key: 'maps', label: 'Maps', icon: 'map' },
-  { key: 'courts', label: 'Courts', icon: 'grid' },
   { key: 'community', label: 'Community', icon: 'share-2' },
   { key: 'chat', label: 'Chat', icon: 'message-square' },
 ];
