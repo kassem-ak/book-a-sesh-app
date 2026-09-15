@@ -102,11 +102,13 @@ all of them are blockers for charging real money.
 - **Accounting module is client-local.** The 3-admin approval ceremony mutates
   Zustand only; it does not change margins that bill.
 - **Shop discounts and coupons are advertised but not applied** at checkout.
-- **Some surfaces still read local sample data** rather than Supabase; those
-  fallbacks are being removed incrementally. The Courts tab still renders the
-  hardcoded `expo-app/src/state/courtsData.ts` even though the venue, court and
-  reservation tables now exist and are seeded — wiring the screen to them is
-  the next step.
+- **Some surfaces still read local sample data** rather than Supabase, and the
+  store falls back to invented coaches, partners, shops, communities and events
+  whenever a fetch returns empty — so a network blip can put a bookable person
+  who does not exist in front of a user. Being removed.
+- **Courts is wired to the database** and an RSVP now goes through
+  `reserve_court`, which prices it server-side and refuses double-bookings.
+  Not yet re-verified on a device.
 - **Splash and store icons need real artwork.** The splash now shows a flat
   brand colour because the previous image was a graph-paper placeholder;
   `assets/icon.png` still has design-template construction guides baked in and
