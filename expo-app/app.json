@@ -23,7 +23,7 @@
     "android": {
       "package": "com.bookd.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0D0E11",
+        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
