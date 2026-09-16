@@ -22,19 +22,31 @@ export function ChatScreen() {
     let live = true;
     setError(null);
     (async () => {
-      try {
-        const [rows, notifs] = await Promise.all([fetchConversations(), fetchNotifications(20)]);
-        if (!live) return;
+      // Settled, not all: these are independent. Promise.all threw away a
+      // perfectly good conversation list whenever the session-reminder read
+      // failed, and the whole screen said it could not load conversations.
+      const [chatResult, notifResult] = await Promise.allSettled([
+        fetchConversations(),
+        fetchNotifications(20),
+      ]);
+      if (!live) return;
+
+      if (chatResult.status === 'fulfilled') {
         // A blocked member's thread stays on the server -- the block is
         // enforced there, on the send -- but it should not sit in the list.
         const blocked = useStore.getState().blockedIds;
-        setChats(rows.filter((row) => !row.counterpartId || !blocked.includes(row.counterpartId)));
-        setReminder(notifs.find((n) => n.type === 'booking') ?? null);
-      } catch (e) {
-        if (!live) return;
+        setChats(chatResult.value.filter((row) => !row.counterpartId || !blocked.includes(row.counterpartId)));
+      } else {
+        const e = chatResult.reason;
         setChats([]);
         setError(e instanceof Error ? e.message : 'Could not load your conversations.');
       }
+
+      // A missing reminder is not worth an error state; the card has its own
+      // empty copy and the conversations above are the point of this screen.
+      setReminder(notifResult.status === 'fulfilled'
+        ? notifResult.value.find((n) => n.type === 'booking') ?? null
+        : null);
     })();
     return () => {
       live = false;
