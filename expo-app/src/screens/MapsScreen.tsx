@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { Field, Row } from '../components/ui';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Field } from '../components/ui';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -35,7 +35,7 @@ export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; 
       <DiscoverMap people={people} emptyMessage={emptyMessage} />
       <View style={{ position: 'absolute', top: 24, left: 18, right: 18 }}>
         <Field value={query} onChange={setQuery} placeholder="Search this area" icon="search" />
-        <Row style={{ marginTop: 6, paddingHorizontal: 8 }} gap={5}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 5, paddingHorizontal: 8, alignItems: 'center' }}>
           {AREA_FILTERS.map((label) => (
             <Pressable key={label} onPress={() => setFilter(filter === label ? null : label)} accessibilityRole="button" accessibilityLabel={`Filter by ${label === "GYM'S" ? 'gyms' : label.toLowerCase()}`} accessibilityState={{ selected: filter === label }} style={{ minHeight: 36, justifyContent: 'center' }}>
               <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: alpha(c.volt, 0.24), backgroundColor: filter === label ? c.volt : alpha(c.volt, 0.1) }}>
@@ -43,7 +43,7 @@ export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; 
               </View>
             </Pressable>
           ))}
-        </Row>
+        </ScrollView>
         {loadError && onRetry && <Pressable onPress={onRetry} accessibilityRole="button" style={{ alignSelf: 'flex-start', padding: 12 }}>
           <Text style={[t.labelSm, { color: c.accent }]}>Try again</Text>
         </Pressable>}
