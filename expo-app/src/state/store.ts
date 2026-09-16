@@ -403,6 +403,7 @@ export interface SpotterState {
   checkoutCart(): Promise<void>;
   communities(): Community[];
   setRemoteCommunities(communities: Community[]): void;
+  setRemoteCommunityMemberships(memberships: { communityId: string; role: string }[]): void;
   setRemoteEvents(events: EventItem[]): void;
   communityById(id: string): Community | undefined;
   communityAbout(id: string): string;
@@ -766,6 +767,10 @@ export const useStore = create<SpotterState>((set, get) => ({
   communities: () => [...get().customCommunities, ...get().remoteCommunities],
   setRemoteCommunities: (communities) =>
     set((state) => ({ remoteCommunities: communities, loaded: { ...state.loaded, communities: true } })),
+  setRemoteCommunityMemberships: (memberships) => set({
+    joinedCommunities: memberships.map((row) => row.communityId),
+    communityRoles: Object.fromEntries(memberships.map((row) => [row.communityId, roleFromDb(row.role)])),
+  }),
   setRemoteEvents: (events) => set((state) => ({ remoteEvents: events, loaded: { ...state.loaded, events: true } })),
   communityById: (id) =>
     get().customCommunities.find((cm) => cm.id === id) ?? get().remoteCommunities.find((cm) => cm.id === id),

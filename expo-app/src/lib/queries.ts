@@ -197,6 +197,8 @@ export async function fetchEvents() {
   const { data, error } = await supabase
     .from('events')
     .select('id, community_id, subgroup_id, type, title, starts_at, when_label, location, attendees_count, community:communities(slug), host:users!events_host_id_fkey(name)')
+    // Label-only events have no timestamp and must remain discoverable.
+    .or(`starts_at.gte.${new Date().toISOString()},starts_at.is.null`)
     .order('starts_at', { ascending: true, nullsFirst: false });
   if (error) throw error;
   return data;
@@ -210,6 +212,21 @@ export async function fetchEventSuggestions() {
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
+}
+
+// Fetch memberships together; a signed-out browse must not create a session.
+export async function fetchMyCommunityMemberships(): Promise<{ community_id: string; role: string }[]> {
+  const { data: session, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!session.session) return [];
+  // Memberships reference public.users.id, which can differ from the auth id.
+  const me = await currentAppUserId();
+  const { data, error } = await supabase
+    .from('community_members')
+    .select('community_id, role')
+    .eq('user_id', me);
+  if (error) throw error;
+  return data ?? [];
 }
 
 // --- My role in a community (drives manage vs suggest UI) ---

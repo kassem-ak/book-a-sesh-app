@@ -44,8 +44,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
           Something broke
         </Text>
         <Text style={{ color: c.txt2, fontSize: 15, lineHeight: 21, marginBottom: 18 }}>
-          This screen hit an error and stopped. Nothing you did caused it, and no
-          data was lost.
+          Sorry, this screen hit an error. Please try again. Any unsaved changes
+          may need to be entered again.
         </Text>
 
         <ScrollView style={{ maxHeight: 160, marginBottom: 20 }}>

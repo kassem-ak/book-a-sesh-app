@@ -154,7 +154,13 @@ export function ProfileScreen() {
               <ToolRow icon="flag" title="Misconduct reports" body="Review evidence · ban or suspend" onPress={() => s.set('overlay', 'adminReports')} />
               <ToolRow icon="percent" title="Promotions & promo codes" body="Create discounts · generate codes" onPress={() => s.set('overlay', 'adminPromos')} />
               <ToolRow icon="tag" title="Loyalty offers" body="Edit rewards & point costs" onPress={() => s.set('overlay', 'adminLoyalty')} />
-              <ToolRow icon="bar-chart-2" title="Accounting" body="Margins, expenses and history" onPress={() => s.set('overlay', 'adminAccounting')} />
+              {/* No Accounting row on purpose. The console exists but is a
+                  simulation: "Propose changes" can never enable because the
+                  profit-share rows it validates are always empty, and saved
+                  expenses live only in memory, so they vanish on restart while
+                  the UI promises they recur. Reaching a tool that quietly
+                  discards an admin's work is worse than not offering it.
+                  Restore this row once accounting writes to the server. */}
             </View>
           </Card>
         </>
