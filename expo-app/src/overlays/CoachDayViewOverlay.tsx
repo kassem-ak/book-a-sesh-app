@@ -1,7 +1,8 @@
-import React, { ReactNode, useCallback, useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { analyticsErrorCode, track } from '../lib/analytics';
+import { Modal, Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, MicroBadge, Row, SectionHeading } from '../components/ui';
+import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading } from '../components/ui';
 import { BookingStatus, bookingStatusLabel, currentAppUserId, formatCents } from '../lib/bookings';
 import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
@@ -28,8 +29,8 @@ function firstRelated<T>(value: T | T[] | null | undefined): T | undefined {
 
 // Local midnight to local midnight: the coach's day is the one on their clock,
 // not UTC's.
-function todayBounds() {
-  const start = new Date();
+function dayBounds(date: Date) {
+  const start = new Date(date);
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
@@ -46,9 +47,9 @@ function timeLabel(session: DaySession) {
   return `${hour12}:${String(at.getMinutes()).padStart(2, '0')} ${period}`;
 }
 
-async function fetchToday(): Promise<DaySession[]> {
+async function fetchDay(date: Date): Promise<DaySession[]> {
   const coachId = await currentAppUserId();
-  const { start, end } = todayBounds();
+  const { start, end } = dayBounds(date);
   const { data, error } = await supabase
     .from('bookings')
     // users exposes only the non-sensitive columns; asking for more is refused.
@@ -94,50 +95,94 @@ const canComplete = (session: DaySession) =>
 export function CoachDayViewOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [sessions, setSessions] = useState<DaySession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmSession, setConfirmSession] = useState<DaySession | null>(null);
+  const loadId = useRef(0);
+
+  const isToday = selectedDate.toDateString() === new Date().toDateString();
+  const weekStart = new Date(selectedDate);
+  weekStart.setDate(weekStart.getDate() - (weekStart.getDay() + 6) % 7);
+  const weekDays = Array.from({ length: 7 }, (_, i) =>
+    new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i));
+  const changeWeek = (offset: number) => setSelectedDate((date) =>
+    new Date(date.getFullYear(), date.getMonth(), date.getDate() + offset * 7));
 
   const load = useCallback(async () => {
+    const requestId = ++loadId.current;
     setLoading(true);
     setError(null);
+    setActionError(null);
     try {
-      setSessions(await fetchToday());
+      const rows = await fetchDay(selectedDate);
+      if (requestId === loadId.current) setSessions(rows);
     } catch (e) {
+      if (requestId !== loadId.current) return;
       setSessions([]);
-      setError(e instanceof Error ? e.message : 'Could not load today’s sessions.');
+      setError(e instanceof Error ? e.message : 'Could not load sessions for this day.');
     } finally {
-      setLoading(false);
+      if (requestId === loadId.current) setLoading(false);
     }
-  }, []);
+  }, [selectedDate]);
 
-  // The router unmounts the overlay when it closes, so one load on mount is the
-  // whole lifecycle; the write below re-runs it.
+  // A slower response for the previous day must not replace the selected day.
   useEffect(() => {
     void load();
+    return () => { loadId.current += 1; };
   }, [load]);
 
   const complete = async (session: DaySession) => {
+    if (busyId) return;
     setBusyId(session.id);
     setActionError(null);
     try {
       await markCompleted(session.id);
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(e instanceof Error ? e.message : 'Could not close out that session.');
     } finally {
       setBusyId(null);
+      setConfirmSession(null);
     }
   };
 
   return (
     <OverlayScaffold header={<OverlayHeader title="My day" onBack={s.closeOverlay} />}>
       <View style={{ paddingHorizontal: 18 }}>
-        <SectionHeading style={{ marginBottom: 11 }}>Today</SectionHeading>
+        <Row style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+          <SectionHeading style={{ flex: 1 }}>{isToday ? 'Today' : selectedDate.toDateString()}</SectionHeading>
+          <Pressable onPress={() => changeWeek(-1)} accessibilityRole="button" accessibilityLabel="Previous week" style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="chevron-left" size={20} color={c.txt2} />
+          </Pressable>
+          <Pressable onPress={() => changeWeek(1)} accessibilityRole="button" accessibilityLabel="Next week" style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="chevron-right" size={20} color={c.txt2} />
+          </Pressable>
+        </Row>
+        <Row gap={4} style={{ marginBottom: 16 }}>
+          {weekDays.map((date) => {
+            const selected = date.toDateString() === selectedDate.toDateString();
+            return (
+              <Pressable
+                key={date.toDateString()}
+                onPress={() => setSelectedDate(date)}
+                accessibilityRole="button"
+                accessibilityLabel={`Show sessions for ${date.toDateString()}`}
+                accessibilityState={{ selected }}
+                style={{ flex: 1, minHeight: 56, borderRadius: 12, backgroundColor: selected ? c.volt : c.surface, alignItems: 'center', justifyContent: 'center', gap: 4 }}
+              >
+                <Text style={[t.caption, { color: selected ? c.ink : c.txt2 }]}>{date.toDateString().slice(0, 3)}</Text>
+                <Text style={[t.labelSm, { color: selected ? c.ink : c.txt }]}>{date.getDate()}</Text>
+              </Pressable>
+            );
+          })}
+        </Row>
 
-        {loading && <Note>Loading today’s sessions…</Note>}
+        {loading && <Note>Loading sessions…</Note>}
         {!loading && error && <ErrorNote message={error} onRetry={load} />}
 
         {!loading && !error && (
@@ -145,7 +190,7 @@ export function CoachDayViewOverlay() {
             {actionError && <Text style={[t.bodySm, { color: c.danger, marginBottom: 10 }]}>{actionError}</Text>}
             <View style={{ gap: 10 }}>
               {sessions.length === 0 ? (
-                <Note>Nothing booked with you today.</Note>
+                <Note>{isToday ? 'Nothing booked with you today.' : 'Nothing booked with you on this day.'}</Note>
               ) : (
                 sessions.map((session) => {
                   const tint = statusTint(session.status, c);
@@ -163,7 +208,7 @@ export function CoachDayViewOverlay() {
                       </Row>
                       {canComplete(session) && (
                         <Pressable
-                          onPress={() => complete(session)}
+                          onPress={() => setConfirmSession(session)}
                           disabled={busyId === session.id}
                           accessibilityRole="button"
                           accessibilityLabel={`Mark the session with ${session.clientName} as completed`}
@@ -190,6 +235,38 @@ export function CoachDayViewOverlay() {
           </>
         )}
       </View>
+      <Modal transparent visible={confirmSession !== null} animationType="fade" onRequestClose={() => { if (!busyId) setConfirmSession(null); }}>
+        <View accessibilityViewIsModal style={{ flex: 1, backgroundColor: c.scrim, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          {confirmSession && (
+            <Card style={{ width: '100%', maxWidth: 360, padding: 22 }}>
+              <Text accessibilityRole="header" style={[t.overlayTitle, { color: c.accent, marginBottom: 10 }]}>Hey Champ!</Text>
+              <Text style={[t.bodyLg, { color: c.txt }]}>Did you finish your {timeLabel(confirmSession)} session?</Text>
+              <Row gap={12} style={{ marginTop: 22 }}>
+                <Pressable
+                  onPress={() => complete(confirmSession)}
+                  disabled={busyId !== null}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Yes, mark the ${timeLabel(confirmSession)} session with ${confirmSession.clientName} as completed`}
+                  accessibilityState={{ disabled: busyId !== null, busy: busyId !== null }}
+                  style={{ flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center', opacity: busyId ? 0.6 : 1 }}
+                >
+                  <Text style={[t.label, { color: c.ink }]}>{busyId ? 'Saving…' : 'YES'}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setConfirmSession(null)}
+                  disabled={busyId !== null}
+                  accessibilityRole="button"
+                  accessibilityLabel="No, keep this session unchanged"
+                  accessibilityState={{ disabled: busyId !== null }}
+                  style={{ flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center', opacity: busyId ? 0.6 : 1 }}
+                >
+                  <Text style={[t.label, { color: c.txt2 }]}>NO</Text>
+                </Pressable>
+              </Row>
+            </Card>
+          )}
+        </View>
+      </Modal>
     </OverlayScaffold>
   );
 }
@@ -218,7 +295,7 @@ function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void 
     <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
       <Text style={[t.bodySm, { color: c.danger }]}>{message}</Text>
       <Row style={{ marginTop: 12 }}>
-        <Pressable onPress={onRetry} accessibilityRole="button" accessibilityLabel="Try loading today’s sessions again">
+        <Pressable onPress={onRetry} accessibilityRole="button" accessibilityLabel="Try loading sessions for this day again">
           <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>Try again</Text>
         </Pressable>
       </Row>

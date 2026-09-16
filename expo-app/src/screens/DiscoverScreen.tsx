@@ -12,6 +12,7 @@ import {
   Stars,
 } from '../components/ui';
 import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, parseGeoPoint } from '../lib/geo';
+import { track } from '../lib/analytics';
 import { Person, firstName, initials } from '../state/models';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
@@ -56,7 +57,10 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
   const setStoreValue = useStore((state) => state.set);
   const [devicePoint, setDevicePoint] = useState<GeoPoint | null | undefined>(undefined);
   const query = s.discSearch;
-  const setQuery = (value: string) => s.set('discSearch', value);
+  const setQuery = (value: string) => {
+    s.set('discSearch', value);
+    track('discover_searched', { has_input: value.trim().length > 0 });
+  };
   const q = query.trim().toLowerCase();
 
   const base = s.people(isCoaches ? 'coaches' : 'partners').filter((p) => matchesSport(p, s.sport) && (!q || `${p.name} ${p.sport} ${p.tags.join(' ')}`.toLowerCase().includes(q)));
@@ -150,7 +154,10 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
         </Pressable>
         <View style={{ width: 150 }}>
           <Segmented options={[{ key: 'coaches', label: 'coaches' }, { key: 'partners', label: 'Partners' }]}
-            selected={s.mode} onSelect={(key) => s.set('mode', key)} fontSize={13} pad={9} />
+            selected={s.mode} onSelect={(key) => {
+              if (key !== s.mode) track('discover_filter_changed', { filter: 'mode', mode: key });
+              s.set('mode', key);
+            }} fontSize={13} pad={9} />
         </View>
       </Row>
 
@@ -163,7 +170,10 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
         <Card style={{ marginTop: 8, padding: 6 }}>
           {D.sportNames.map((sport) => (
             <Pressable key={sport} accessibilityRole="button" accessibilityState={{ selected: s.sport === sport }}
-              onPress={() => { s.set('sport', sport); s.set('sportMenu', false); }}
+              onPress={() => {
+                if (sport !== s.sport) track('discover_filter_changed', { filter: 'sport', selected_index: D.sportNames.indexOf(sport) });
+                s.set('sport', sport); s.set('sportMenu', false);
+              }}
               style={{ paddingVertical: 11, paddingHorizontal: 10, borderRadius: 10, backgroundColor: s.sport === sport ? alpha(c.volt, 0.1) : 'transparent' }}>
               <Text style={[t.label, { color: s.sport === sport ? c.accent : c.txt }]}>{sport === 'All' ? 'All sports and hobbies' : sport}</Text>
             </Pressable>
@@ -188,7 +198,10 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
         <SectionHeading>All {isCoaches ? 'coaches' : 'partners'}</SectionHeading>
         {entries.length > 1 && <Row gap={4}>
           {sortOptions.map(({ key, label }) => (
-            <Pressable key={key} onPress={() => setStoreValue('sortBy', key)} accessibilityRole="button" accessibilityLabel={`Sort by ${label.toLowerCase()}`} accessibilityState={{ selected: s.sortBy === key }} hitSlop={8}>
+            <Pressable key={key} onPress={() => {
+              if (key !== s.sortBy) track('discover_sort_changed', { sort: key });
+              setStoreValue('sortBy', key);
+            }} accessibilityRole="button" accessibilityLabel={`Sort by ${label.toLowerCase()}`} accessibilityState={{ selected: s.sortBy === key }} hitSlop={8}>
               <Text style={[t.labelSm, { color: s.sortBy === key ? c.accent : c.txt3, paddingHorizontal: 6, paddingVertical: 5 }]}>{label}</Text>
             </Pressable>
           ))}

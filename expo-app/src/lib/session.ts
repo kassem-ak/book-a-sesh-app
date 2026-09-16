@@ -1,7 +1,8 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
-import { supabase, isSupabaseConfigured, supabaseUrl } from './supabase';
+import { identify, track } from './analytics';
+import { supabase, assertSupabaseConfigured, supabaseUrl } from './supabase';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -10,8 +11,20 @@ let pendingSession: Promise<string> | null = null;
 // Ensures a Supabase session before a write. The legacy-named bootstrap RPC
 // links an anonymous session to its own Guest row without demo memberships.
 // Real email users get their public.users row from handle_new_user at signup.
+// A session whose account no longer exists. PostgREST reports the failed
+// foreign key as 23503; the auth layer reports the missing subject separately.
+function isStaleSessionError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: string; message?: string };
+  if (e.code === '23503') return true;
+  const message = (e.message ?? '').toLowerCase();
+  return message.includes('users_auth_id_fkey')
+    || message.includes('user from sub claim')
+    || message.includes('user not found');
+}
+
 export async function ensureAppSession() {
-  if (!isSupabaseConfigured) throw new Error('Supabase is not configured');
+  assertSupabaseConfigured();
   if (pendingSession) return pendingSession;
 
   pendingSession = (async () => {
@@ -32,8 +45,23 @@ export async function ensureAppSession() {
 
     if (user?.is_anonymous) {
       const { data, error } = await supabase.rpc('bootstrap_demo_session');
-      if (error) throw error;
-      return data as string;
+      if (!error) return data as string;
+
+      // The stored token can outlive its account: the user deleted it from
+      // another device, or an admin removed it. auth.uid() then points at a row
+      // that is gone and the bootstrap fails its foreign key (23503) forever,
+      // leaving the app wedged on a session it can never complete.
+      // Verified against the live project by deleting a guest out from under a
+      // live session: every reload 409'd until the token was replaced.
+      // One clean retry with a fresh identity, not a loop.
+      if (!isStaleSessionError(error)) throw error;
+
+      await supabase.auth.signOut();
+      const retry = await supabase.auth.signInAnonymously({ options: { data: { name: 'Guest' } } });
+      if (retry.error) throw retry.error;
+      const second = await supabase.rpc('bootstrap_demo_session');
+      if (second.error) throw second.error;
+      return second.data as string;
     }
     return user?.id ?? '';
   })();
@@ -50,6 +78,7 @@ export async function ensureAppSession() {
 export async function signInEmail(email: string, password: string) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
+  track('email_sign_in');
 }
 
 // Returns true when the project requires email confirmation (no session yet).
@@ -64,6 +93,7 @@ export async function signUpEmail(name: string, email: string, password: string)
     options: { data: { name } },
   });
   if (error) throw error;
+  track('email_sign_up', { confirmation_required: !data.session });
   return !data.session;
 }
 
@@ -113,11 +143,16 @@ async function assertProviderEnabled(provider: SsoProvider) {
   } catch {
     return; // offline or blocked — let the normal flow surface it
   }
-  if (disabled) throw new ProviderDisabledError(provider);
+  if (disabled) {
+    track('sso_unavailable', { provider });
+    throw new ProviderDisabledError(provider);
+  }
   providerChecked.add(provider);
 }
 
 export async function signInWithProvider(provider: SsoProvider) {
+  track('sso_attempted', { provider });
+  assertSupabaseConfigured();
   await assertProviderEnabled(provider);
   // Drop any anonymous guest session so the SSO account is a clean identity.
   const { data: existing } = await supabase.auth.getSession();
@@ -169,6 +204,8 @@ export async function deleteAccount(): Promise<void> {
   if (data && typeof data === 'object' && 'error' in data) {
     throw new Error(String((data as { error: unknown }).error));
   }
+  identify(null);
+  track('account_deleted');
   // The credentials are gone; drop the local session so the app returns to the
   // landing gate instead of holding a token that no longer resolves.
   await supabase.auth.signOut();

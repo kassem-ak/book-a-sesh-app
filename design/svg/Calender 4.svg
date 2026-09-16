@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 472.81 1213.97">
+  <defs>
+    <style>
+      .cls-1, .cls-2 {
+        fill: #0d0e11;
+      }
+
+      .cls-3 {
+        letter-spacing: -.1em;
+      }
+
+      .cls-4 {
+        letter-spacing: -.01em;
+      }
+
+      .cls-5 {
+        letter-spacing: -.01em;
+      }
+
+      .cls-6 {
+        stroke-width: 2.2px;
+      }
+
+      .cls-6, .cls-7, .cls-8, .cls-9, .cls-10 {
+        stroke-linecap: round;
+      }
+
+      .cls-6, .cls-7, .cls-8, .cls-10 {
+        stroke: #f2f3f5;
+      }
+
+      .cls-6, .cls-8, .cls-9 {
+        stroke-linejoin: round;
+      }
+
+      .cls-6, .cls-8, .cls-9, .cls-11, .cls-12, .cls-13, .cls-14, .cls-10 {
+        fill: none;
+      }
+
+      .cls-7, .cls-15, .cls-16, .cls-17, .cls-18, .cls-19 {
+        fill: #f2f3f5;
+      }
+
+      .cls-7, .cls-8, .cls-10 {
+        stroke-width: 1.8px;
+      }
+
+      .cls-20, .cls-15, .cls-21, .cls-16, .cls-2, .cls-17, .cls-22, .cls-18, .cls-19 {
+        isolation: isolate;
+      }
+
+      .cls-20, .cls-21 {
+        fill: #9ba1ac;
+        font-family: HankenGrotesk-Regular, 'Hanken Grotesk';
+        font-variation-settings: 'wght' 400;
+      }
+
+      .cls-20, .cls-18 {
+        font-size: 13px;
+      }
+
+      .cls-23 {
+        letter-spacing: -.02em;
+      }
+
+      .cls-15, .cls-16, .cls-2, .cls-17, .cls-18, .cls-19 {
+        font-weight: 700;
+      }
+
+      .cls-15, .cls-2 {
+        font-size: 16px;
+      }
+
+      .cls-15, .cls-2, .cls-17, .cls-18, .cls-19 {
+        font-family: ArchivoRoman-Bold, Archivo;
+        font-variation-settings: 'wght' 700, 'wdth' 100;
+      }
+
+      .cls-24 {
+        letter-spacing: 0em;
+      }
+
+      .cls-9 {
+        stroke: #0d0e11;
+        stroke-width: 6px;
+      }
+
+      .cls-25 {
+        letter-spacing: 0em;
+      }
+
+      .cls-26, .cls-14 {
+        opacity: .12;
+      }
+
+      .cls-26, .cls-27 {
+        fill: #c6f24e;
+      }
+
+      .cls-28 {
+        letter-spacing: 0em;
+      }
+
+      .cls-29 {
+        letter-spacing: -.01em;
+      }
+
+      .cls-30 {
+        letter-spacing: -.01em;
+      }
+
+      .cls-31 {
+        letter-spacing: -.02em;
+      }
+
+      .cls-12 {
+        opacity: .24;
+        stroke: #c6f24e;
+      }
+
+      .cls-13 {
+        opacity: .07;
+      }
+
+      .cls-13, .cls-14 {
+        stroke: #fff;
+      }
+
+      .cls-21 {
+        font-size: 14px;
+      }
+
+      .cls-16 {
+        font-family: ArchivoRoman-ExtraBold, Archivo;
+        font-size: 40.57px;
+        font-variation-settings: 'wght' 800, 'wdth' 100;
+      }
+
+      .cls-17 {
+        font-size: 26px;
+      }
+
+      .cls-32 {
+        fill: #16181d;
+      }
+
+      .cls-22 {
+        fill: #3a3f47;
+        opacity: .65;
+      }
+
+      .cls-33 {
+        letter-spacing: -.03em;
+      }
+
+      .cls-34 {
+        letter-spacing: 0em;
+      }
+
+      .cls-35 {
+        letter-spacing: -.08em;
+      }
+
+      .cls-19 {
+        font-size: 19px;
+      }
+
+      .cls-36 {
+        fill: #2e4949;
+      }
+
+      .cls-37 {
+        letter-spacing: -.01em;
+      }
+
+      .cls-38 {
+        letter-spacing: -.02em;
+      }
+
+      .cls-39 {
+        letter-spacing: -.03em;
+      }
+
+      .cls-40 {
+        letter-spacing: 0em;
+      }
+
+      .cls-41 {
+        fill: url(#linear-gradient);
+      }
+
+      .cls-42 {
+        letter-spacing: -.03em;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="2494.88" y1="1462.35" x2="2494.88" y2="1461.35" gradientTransform="translate(-972779.2817 1234471.1506) scale(390 -844)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#15171c"/>
+      <stop offset="1" stop-color="#08090b"/>
+    </linearGradient>
+  </defs>
+  <g id="Layer_3" data-name="Layer 3">
+    <rect class="cls-36" x="0" width="474.51" height="1211.49"/>
+  </g>
+  <g id="Layer_1" data-name="Layer 1">
+    <text class="cls-16" transform="translate(149.18 67.64) scale(.86 1)"><tspan x="0" y="0">Calende</tspan><tspan class="cls-38" x="168.6" y="0">r</tspan></text>
+    <rect class="cls-1" x="28.51" y="247.68" width="390" height="844" rx="28" ry="28"/>
+    <rect class="cls-41" x="28.51" y="247.68" width="390" height="844"/>
+    <text class="cls-18" transform="translate(52.51 272.68)"><tspan x="0" y="0">9:30</tspan></text>
+    <circle class="cls-22" cx="223.51" cy="265.68" r="9"/>
+    <path class="cls-8" d="M346.51,270.68c5-5,13-5,18,0"/>
+    <path class="cls-8" d="M350.51,274.68c3-3,7-3,10,0"/>
+    <rect class="cls-10" x="373.51" y="262.68" width="19" height="12" rx="3" ry="3"/>
+    <rect class="cls-7" x="393.51" y="266.68" width="3" height="4" rx="1" ry="1"/>
+    <rect class="cls-32" x="46.51" y="299.68" width="40" height="40" rx="12" ry="12"/>
+    <rect class="cls-13" x="46.51" y="299.68" width="40" height="40" rx="12" ry="12"/>
+    <path class="cls-6" d="M71.51,311.68l-8,8,8,8"/>
+    <text class="cls-19" transform="translate(100.51 325.68)"><tspan x="0" y="0">Booking confirmed</tspan></text>
+    <circle class="cls-27" cx="223.51" cy="495.68" r="54"/>
+    <path class="cls-9" d="M199.51,495.68l17,17,34-38"/>
+    <text class="cls-17" transform="translate(122.63 583.68)"><tspan class="cls-3" x="0" y="0">Y</tspan><tspan x="15.52" y="0">ou a</tspan><tspan class="cls-24" x="67.26" y="0">r</tspan><tspan x="76.88" y="0">e boo</tspan><tspan class="cls-39" x="144.84" y="0">k</tspan><tspan x="158.78" y="0">ed!</tspan></text>
+    <text class="cls-21" transform="translate(138.43 619.68)"><tspan x="0" y="0">Ma</tspan><tspan class="cls-42" x="19.31" y="0">r</tspan><tspan x="24.61" y="0">cus app</tspan><tspan class="cls-42" x="73.74" y="0">r</tspan><tspan class="cls-29" x="79.04" y="0">ov</tspan><tspan x="94.02" y="0">ed Thu</tspan><tspan class="cls-5" x="136.97" y="0">r</tspan><tspan x="142.46" y="0">sd</tspan><tspan class="cls-30" x="157.26" y="0">a</tspan><tspan x="164.64" y="0">y</tspan></text>
+    <text class="cls-21" transform="translate(140.9 641.68)"><tspan x="0" y="0">6:30 PM at I</tspan><tspan class="cls-33" x="73.15" y="0">r</tspan><tspan x="78.45" y="0">on </tspan><tspan class="cls-35" x="97.83" y="0">Y</tspan><tspan x="105.12" y="0">a</tspan><tspan class="cls-33" x="112.68" y="0">r</tspan><tspan class="cls-25" x="117.99" y="0">d </tspan><tspan class="cls-4" x="129.85" y="0">G</tspan><tspan x="139.9" y="0">ym.</tspan></text>
+    <rect class="cls-26" x="70.51" y="687.68" width="306" height="92" rx="18" ry="18"/>
+    <rect class="cls-12" x="70.51" y="687.68" width="306" height="92" rx="18" ry="18"/>
+    <text class="cls-15" transform="translate(122.62 721.68)"><tspan x="0" y="0">Added to Google Calenda</tspan><tspan class="cls-23" x="193.84" y="0">r</tspan></text>
+    <text class="cls-20" transform="translate(141.26 747.68)"><tspan x="0" y="0">Chan</tspan><tspan class="cls-40" x="30.39" y="0">g</tspan><tspan class="cls-34" x="36.96" y="0">es </tspan><tspan class="cls-28" x="53.47" y="0">s</tspan><tspan class="cls-34" x="59.47" y="0">ync au</tspan><tspan class="cls-37" x="97.6" y="0">t</tspan><tspan x="101.97" y="0">omatically.</tspan></text>
+    <rect class="cls-27" x="82.51" y="859.68" width="282" height="52" rx="15" ry="15"/>
+    <text class="cls-2" transform="translate(158.32 892.68)"><tspan x="0" y="0">View in bookings</tspan></text>
+    <rect class="cls-11" x="28.51" y="247.68" width="390" height="844" rx="28" ry="28"/>
+    <rect class="cls-14" x="29.01" y="248.18" width="389" height="843" rx="28" ry="28"/>
+    <text class="cls-19" transform="translate(84.66 202.83)"><tspan x="0" y="0">Calende</tspan><tspan class="cls-31" x="75.2" y="0">r</tspan><tspan x="82.04" y="0" xml:space="preserve"> - Booking confirmed</tspan></text>
+  </g>
+</svg>

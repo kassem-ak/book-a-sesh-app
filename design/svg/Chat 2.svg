@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 448.87 1070.66">
+  <defs>
+    <style>
+      .cls-1 {
+        letter-spacing: -.03em;
+      }
+
+      .cls-2, .cls-3, .cls-4 {
+        fill: #0d0e11;
+      }
+
+      .cls-2, .cls-5 {
+        font-family: HankenGrotesk-Regular, 'Hanken Grotesk';
+        font-variation-settings: 'wght' 400;
+      }
+
+      .cls-2, .cls-5, .cls-6, .cls-7, .cls-8, .cls-4, .cls-9 {
+        isolation: isolate;
+      }
+
+      .cls-2, .cls-8, .cls-4 {
+        font-size: 13px;
+      }
+
+      .cls-10 {
+        letter-spacing: -.01em;
+      }
+
+      .cls-11 {
+        stroke-width: 2.2px;
+      }
+
+      .cls-11, .cls-12, .cls-13, .cls-14 {
+        stroke: #f2f3f5;
+      }
+
+      .cls-11, .cls-12, .cls-13, .cls-14, .cls-15 {
+        stroke-linecap: round;
+      }
+
+      .cls-11, .cls-13, .cls-16, .cls-17, .cls-18, .cls-14, .cls-15 {
+        fill: none;
+      }
+
+      .cls-11, .cls-13, .cls-15 {
+        stroke-linejoin: round;
+      }
+
+      .cls-5 {
+        fill: #6b7280;
+        font-size: 14px;
+      }
+
+      .cls-12, .cls-13, .cls-14 {
+        stroke-width: 1.8px;
+      }
+
+      .cls-12, .cls-6, .cls-8, .cls-9 {
+        fill: #f2f3f5;
+      }
+
+      .cls-19 {
+        letter-spacing: 0em;
+      }
+
+      .cls-20 {
+        letter-spacing: 0em;
+      }
+
+      .cls-6 {
+        font-family: ArchivoRoman-ExtraBold, Archivo;
+        font-size: 31px;
+        font-variation-settings: 'wght' 800, 'wdth' 100;
+      }
+
+      .cls-6, .cls-8, .cls-4, .cls-9 {
+        font-weight: 700;
+      }
+
+      .cls-17 {
+        opacity: .07;
+      }
+
+      .cls-17, .cls-18 {
+        stroke: #fff;
+      }
+
+      .cls-18 {
+        opacity: .12;
+      }
+
+      .cls-21 {
+        letter-spacing: -.11em;
+      }
+
+      .cls-22 {
+        fill: #16181d;
+      }
+
+      .cls-23 {
+        letter-spacing: 0em;
+      }
+
+      .cls-24 {
+        fill: #c6f24e;
+      }
+
+      .cls-25 {
+        letter-spacing: 0em;
+      }
+
+      .cls-7 {
+        fill: #3a3f47;
+        opacity: .65;
+      }
+
+      .cls-8, .cls-4, .cls-9 {
+        font-family: ArchivoRoman-Bold, Archivo;
+        font-variation-settings: 'wght' 700, 'wdth' 100;
+      }
+
+      .cls-26 {
+        letter-spacing: -.03em;
+      }
+
+      .cls-27 {
+        letter-spacing: -.03em;
+      }
+
+      .cls-28 {
+        letter-spacing: 0em;
+      }
+
+      .cls-29 {
+        letter-spacing: -.03em;
+      }
+
+      .cls-9 {
+        font-size: 19px;
+      }
+
+      .cls-30 {
+        letter-spacing: 0em;
+      }
+
+      .cls-31 {
+        fill: #2e4949;
+      }
+
+      .cls-32 {
+        letter-spacing: 0em;
+      }
+
+      .cls-33 {
+        letter-spacing: -.01em;
+      }
+
+      .cls-34 {
+        letter-spacing: -.03em;
+      }
+
+      .cls-35 {
+        letter-spacing: -.08em;
+      }
+
+      .cls-36 {
+        fill: url(#linear-gradient);
+      }
+
+      .cls-37 {
+        letter-spacing: -.02em;
+      }
+
+      .cls-38 {
+        letter-spacing: -.03em;
+      }
+
+      .cls-15 {
+        stroke: #0d0e11;
+        stroke-width: 2.4px;
+      }
+
+      .cls-39 {
+        letter-spacing: -.01em;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="31.77" y1="2657.52" x2="31.77" y2="2656.52" gradientTransform="translate(-12173.5359 2243022.8241) scale(390 -844)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#15171c"/>
+      <stop offset="1" stop-color="#08090b"/>
+    </linearGradient>
+  </defs>
+  <g id="Layer_3" data-name="Layer 3">
+    <rect class="cls-31" x=".06" width="449.01" height="1071.05"/>
+    <text class="cls-6" transform="translate(131.2 49.37)"><tspan x="0" y="0">Chat</tspan></text>
+  </g>
+  <g id="Layer_1" data-name="Layer 1">
+    <rect class="cls-3" x="22.74" y="71.75" width="390" height="844" rx="28" ry="28"/>
+    <path class="cls-36" d="M52.92,71.75h330.86c15.99,0,28.96,12.98,28.96,28.96v785.66c0,16.21-13.16,29.38-29.38,29.38H52.42c-16.38,0-29.68-13.3-29.68-29.68V101.93c0-16.66,13.52-30.18,30.18-30.18Z"/>
+    <text class="cls-8" transform="translate(46.74 96.75)"><tspan x="0" y="0">9:30</tspan></text>
+    <circle class="cls-7" cx="217.74" cy="89.75" r="9"/>
+    <path class="cls-13" d="M340.74,94.75c5-5,13-5,18,0"/>
+    <path class="cls-13" d="M344.74,98.75c3-3,7-3,10,0"/>
+    <rect class="cls-14" x="367.74" y="86.75" width="19" height="12" rx="3" ry="3"/>
+    <rect class="cls-12" x="387.74" y="90.75" width="3" height="4" rx="1" ry="1"/>
+    <rect class="cls-22" x="40.74" y="123.75" width="40" height="40" rx="12" ry="12"/>
+    <rect class="cls-17" x="40.74" y="123.75" width="40" height="40" rx="12" ry="12"/>
+    <path class="cls-11" d="M65.74,135.75l-8,8,8,8"/>
+    <text class="cls-9" transform="translate(94.74 149.75)"><tspan x="0" y="0">Ma</tspan><tspan class="cls-32" x="27.59" y="0">r</tspan><tspan class="cls-25" x="34.62" y="0">cus </tspan><tspan class="cls-33" x="71.21" y="0">R</tspan><tspan x="84.85" y="0">eyes</tspan></text>
+    <rect class="cls-22" x="40.74" y="217.75" width="276" height="54" rx="18" ry="18"/>
+    <rect class="cls-17" x="40.74" y="217.75" width="276" height="54" rx="18" ry="18"/>
+    <text class="cls-8" transform="translate(56.74 241.75)"><tspan x="0" y="0">Hey! </tspan><tspan class="cls-10" x="30.97" y="0">R</tspan><tspan class="cls-30" x="40.3" y="0">eady </tspan><tspan class="cls-23" x="72.99" y="0">f</tspan><tspan x="77.15" y="0">o</tspan><tspan class="cls-37" x="85.12" y="0">r</tspan><tspan x="89.8" y="0" xml:space="preserve"> the st</tspan><tspan class="cls-20" x="126.44" y="0">r</tspan><tspan x="131.25" y="0">ength bloc</tspan><tspan class="cls-27" x="196.17" y="0">k</tspan></text>
+    <text class="cls-8" transform="translate(56.74 259.75)"><tspan x="0" y="0">this week?</tspan></text>
+    <rect class="cls-24" x="112.74" y="289.75" width="232" height="54" rx="18" ry="18"/>
+    <text class="cls-4" transform="translate(128.74 313.75)"><tspan x="0" y="0">Born </tspan><tspan class="cls-20" x="32.67" y="0">r</tspan><tspan x="37.48" y="0">ead</tspan><tspan class="cls-21" x="60.51" y="0">y</tspan><tspan x="66.18" y="0">. Same 6:30 slot wor</tspan><tspan class="cls-29" x="189.89" y="0">k</tspan><tspan x="196.91" y="0">s?</tspan></text>
+    <rect class="cls-22" x="40.74" y="361.75" width="276" height="54" rx="18" ry="18"/>
+    <rect class="cls-17" x="40.74" y="361.75" width="276" height="54" rx="18" ry="18"/>
+    <text class="cls-8" transform="translate(56.74 385.75)"><tspan x="0" y="0">Loc</tspan><tspan class="cls-1" x="23.1" y="0">k</tspan><tspan x="30.07" y="0">ed in. Heavy squats first, the</tspan></text>
+    <text class="cls-8" transform="translate(56.74 403.75)"><tspan x="0" y="0">n accessories.</tspan></text>
+    <rect class="cls-24" x="160.74" y="447.75" width="232" height="54" rx="18" ry="18"/>
+    <text class="cls-2" transform="translate(176.74 471.75)"><tspan class="cls-29" x="0" y="0">P</tspan><tspan class="cls-28" x="6.81" y="0">er</tspan><tspan class="cls-34" x="19.12" y="0">f</tspan><tspan x="23.09" y="0">ect. See </tspan><tspan class="cls-39" x="72.59" y="0">y</tspan><tspan x="79.18" y="0">ou at I</tspan><tspan class="cls-27" x="115.27" y="0">r</tspan><tspan x="120.2" y="0">on </tspan><tspan class="cls-35" x="138.19" y="0">Y</tspan><tspan x="144.96" y="0">a</tspan><tspan class="cls-38" x="151.98" y="0">r</tspan><tspan x="156.91" y="0">d.</tspan></text>
+    <rect class="cls-22" x="40.74" y="519.75" width="276" height="54" rx="18" ry="18"/>
+    <rect class="cls-17" x="40.74" y="519.75" width="276" height="54" rx="18" ry="18"/>
+    <text class="cls-8" transform="translate(56.74 543.75)"><tspan x="0" y="0">Bring you</tspan><tspan class="cls-37" x="58.95" y="0">r</tspan><tspan x="63.63" y="0" xml:space="preserve"> A-game.</tspan></text>
+    <rect class="cls-22" x="40.74" y="827.75" width="354" height="52" rx="16" ry="16"/>
+    <rect class="cls-17" x="40.74" y="827.75" width="354" height="52" rx="16" ry="16"/>
+    <text class="cls-5" transform="translate(56.74 860.75)"><tspan x="0" y="0">Messa</tspan><tspan class="cls-19" x="40.03" y="0">g</tspan><tspan x="47.1" y="0">e Ma</tspan><tspan class="cls-26" x="77.6" y="0">r</tspan><tspan x="82.91" y="0">cus</tspan></text>
+    <circle class="cls-24" cx="366.74" cy="853.75" r="18"/>
+    <path class="cls-15" d="M359.74,853.75h13M366.74,846.75v14"/>
+    <rect class="cls-16" x="22.74" y="71.75" width="390" height="844" rx="28" ry="28"/>
+    <rect class="cls-18" x="23.24" y="72.25" width="389" height="843" rx="28" ry="28"/>
+  </g>
+</svg>

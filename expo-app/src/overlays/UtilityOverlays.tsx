@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, Row, VoltButton } from '../components/ui';
 import {
@@ -136,7 +137,9 @@ export function ConversationOverlay() {
         setMessages(rows);
         // Opening the thread is what clears the badge; failing to record that
         // must not blank the thread the user came here to read.
-        markConversationRead(conversationId).catch(() => undefined);
+        markConversationRead(conversationId).catch((error) => {
+          track('write_failed', { error_code: analyticsErrorCode(error) });
+        });
       } catch (e) {
         if (!alive) return;
         setMessages([]);
@@ -169,9 +172,11 @@ export function ConversationOverlay() {
     setSending(true);
     try {
       const saved = await sendMessage(conversationId, body);
+      track('message_sent');
       setDraft('');
       setMessages((prev) => [...(prev ?? []), saved]);
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       s.set('writeError', message(e, 'Message could not be sent.'));
     } finally {
       setSending(false);
@@ -301,6 +306,7 @@ export function NotificationsOverlay() {
     try {
       await markNotificationRead(n.id);
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       s.set('writeError', message(e, 'Could not mark that notification read.'));
     }
   }
@@ -310,6 +316,7 @@ export function NotificationsOverlay() {
     try {
       await markAllNotificationsRead();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       s.set('writeError', message(e, 'Could not mark notifications read.'));
       setReloads((n) => n + 1);
     }
@@ -348,7 +355,7 @@ export function NotificationsOverlay() {
             onRetry={() => { setItems(null); setReloads((n) => n + 1); }}
           />
         ) : items.length === 0 ? (
-          <EmptyCard icon="bell" title="You’re all caught up" detail="Booking updates and community news land here." />
+          <EmptyCard icon="bell" title="You’re all caught up" detail="Booking updates land here." />
         ) : (
           items.map((n) => <NotifCard key={n.id} notification={n} onPress={() => openOne(n)} />)
         )}
@@ -433,8 +440,10 @@ export function ReportOverlay() {
     try {
       if (!subject) return;
       await submitReport(subject.id, reason, summary);
+      track('reported');
       setFiled(true);
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       s.set('writeError', message(e, 'Report could not be filed.'));
     } finally {
       setBusy(false);

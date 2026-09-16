@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import {
   approveSuggestion as approveSuggestionRemote,
   fetchAccountRole,
@@ -141,10 +142,10 @@ export const errorMessage = (error: unknown): string => {
   return 'Something went wrong. Please try again.';
 };
 
-const errorState = (error: unknown) => ({
-  writeBusy: null,
-  writeError: errorMessage(error),
-});
+const errorState = (error: unknown) => {
+  track('write_failed', { error_code: analyticsErrorCode(error) });
+  return { writeBusy: null, writeError: errorMessage(error) };
+};
 
 const roleFromDb = (role: string | null | undefined): CommunityRole =>
   role === 'owner' || role === 'admin' ? 'ADMIN' : role === 'moderator' ? 'MODERATOR' : 'MEMBER';
@@ -403,6 +404,7 @@ export interface SpotterState {
   checkoutCart(): Promise<void>;
   communities(): Community[];
   setRemoteCommunities(communities: Community[]): void;
+  setRemoteCommunityMemberships(memberships: { communityId: string; role: string }[]): void;
   setRemoteEvents(events: EventItem[]): void;
   communityById(id: string): Community | undefined;
   communityAbout(id: string): string;
@@ -674,6 +676,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     set({ writeBusy: `community:${id}`, writeError: null });
     try {
       const role = joined ? await leaveCommunityRemote(id) : await joinCommunityRemote(id);
+      track(joined ? 'community_left' : 'community_joined');
       set((state) => {
         const communityRoles = { ...state.communityRoles };
         if (joined) delete communityRoles[id];
@@ -766,6 +769,10 @@ export const useStore = create<SpotterState>((set, get) => ({
   communities: () => [...get().customCommunities, ...get().remoteCommunities],
   setRemoteCommunities: (communities) =>
     set((state) => ({ remoteCommunities: communities, loaded: { ...state.loaded, communities: true } })),
+  setRemoteCommunityMemberships: (memberships) => set({
+    joinedCommunities: memberships.map((row) => row.communityId),
+    communityRoles: Object.fromEntries(memberships.map((row) => [row.communityId, roleFromDb(row.role)])),
+  }),
   setRemoteEvents: (events) => set((state) => ({ remoteEvents: events, loaded: { ...state.loaded, events: true } })),
   communityById: (id) =>
     get().customCommunities.find((cm) => cm.id === id) ?? get().remoteCommunities.find((cm) => cm.id === id),
@@ -854,6 +861,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     set({ writeBusy: 'event-create', writeError: null });
     try {
       const row = await createEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), s.newLoc.trim());
+      track('event_created', { kind: s.newType });
       const ev = eventFromRemote(row, s.newSport);
       set({ customEvents: [ev, ...s.customEvents], goingEvents: [...s.goingEvents, ev.id], evtCreated: true, overlay: 'community', writeBusy: null });
     } catch (error) {
@@ -866,6 +874,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     set({ writeBusy: 'event-suggestion', writeError: null });
     try {
       const row = await suggestEventRemote(s.newSport, s.newType as EventKind, s.newTitle.trim(), eventWhenLabel(s.newDay, s.newTime), s.newLoc.trim());
+      track('event_suggested', { kind: s.newType });
       const suggestion = suggestionFromRemote(row, s.newSport);
       set({
         eventSuggestions: [suggestion, ...s.eventSuggestions.filter((item) => item.id !== suggestion.id && item.id !== 'sg1')],
@@ -883,6 +892,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     set({ writeBusy: `suggestion:${id}`, writeError: null });
     try {
       const eventId = await approveSuggestionRemote(id);
+      track('event_created', { kind: suggestion.type });
       const ev: EventItem = {
         id: eventId,
         communityId: suggestion.communityId,
@@ -911,6 +921,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     set({ writeBusy: 'community-create', writeError: null });
     try {
       const row = await createCommunityRemote(name);
+      track('community_created');
       const community = communityFromRemote(row);
       set({
         customCommunities: [community, ...s.customCommunities],
@@ -931,6 +942,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     set({ writeBusy: 'sport-request', writeError: null });
     try {
       await submitSportRequestRemote(s.reqName.trim(), s.reqType);
+      track('sport_requested', { kind: s.reqType });
       set({ reqSent: true, writeBusy: null });
     } catch (error) {
       set(errorState(error));
@@ -948,7 +960,11 @@ export const useStore = create<SpotterState>((set, get) => ({
   cartCount: () => Object.keys(get().cart).length,
   cartTotal: () => Object.values(get().cart).reduce((a, b) => a + b, 0),
 
-  openPerson: (id) => set({ openId: id, overlay: 'person', bookPkg: 0 }),
+  openPerson: (id) => {
+    set({ openId: id, overlay: 'person', bookPkg: 0 });
+    const person = get().personById(id);
+    if (person) track('profile_opened', { role: person.isCoach ? 'coach' : 'partner' });
+  },
   // Role follows the account, so it is read from the server rather than
   // chosen in the UI. Failures leave the current value alone.
   refreshRole: async () => {
@@ -971,18 +987,23 @@ export const useStore = create<SpotterState>((set, get) => ({
     try {
       if (blocked) await unblockUser(userId);
       else await blockUser(userId);
+      track(blocked ? 'unblocked' : 'blocked');
       await get().refreshBlocked();
       set({ writeBusy: null });
     } catch (error) {
       set(errorState(error));
     }
   },
-  openBooking: () => set({ overlay: 'booking', booked: false, bookPkg: 0, writeError: null }),
+  openBooking: () => {
+    set({ overlay: 'booking', booked: false, bookPkg: 0, writeError: null });
+    if (get().personById(get().openId)) track('booking_opened');
+  },
   backToPerson: () => set({ overlay: 'person', booked: false }),
   confirmBooking: async () => {
     const s = get();
     const person = s.personById(s.openId);
     if (!person) {
+      track('booking_failed', { error_code: 'COACH_UNAVAILABLE' });
       set({ writeError: 'That coach is no longer available.' });
       return;
     }
@@ -995,16 +1016,21 @@ export const useStore = create<SpotterState>((set, get) => ({
         scheduledFor(s.bookDay, slot),
         `${pkg.name} - ${D.bookingMonthName} ${s.bookDay} - ${slot}`,
         pkg.packageId,
+        slot,
       );
       set({ booked: true, writeBusy: null });
     } catch (error) {
+      track('booking_failed', { error_code: analyticsErrorCode(error) });
       set(errorState(error));
     }
   },
   goToBookings: () => set({ overlay: 'bookings', booked: false }),
   openBookings: () => set({ overlay: 'bookings' }),
   openShop: (id) => set({ shopId: id, overlay: 'shop', shopOrderDone: false, writeError: null }),
-  openChat: (id) => set({ chatId: id, overlay: 'conversation' }),
+  openChat: (id) => {
+    set({ chatId: id, overlay: 'conversation' });
+    track('conversation_opened');
+  },
   openCommunity: (id) => set({ communityId: id, sportMenu: false, overlay: 'community' }),
   openEvent: (id, from) => set({ eventId: id, returnTo: from, overlay: 'event' }),
   openNotifs: () => set({ overlay: 'notifications', notifSeen: true }),

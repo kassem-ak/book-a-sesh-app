@@ -1,4 +1,5 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, VoltButton } from '../components/ui';
@@ -127,8 +128,7 @@ async function fetchClientPacks(): Promise<ClientPack[]> {
 /**
  * You may review only someone you actually trained, so the candidate list is
  * the distinct clients of this coach's completed bookings — not an arbitrary
- * user picker. Existing stars are read back so the UI shows what is really
- * published rather than a local tally.
+ * user picker. Existing stars are read back so the UI shows the saved rating.
  */
 async function fetchTrainees(): Promise<Trainee[]> {
   const coachId = await currentAppUserId();
@@ -159,9 +159,8 @@ async function fetchTrainees(): Promise<Trainee[]> {
 }
 
 /**
- * `reviews` is unique on (subject_id, author_id) and policy `reviews_read` is
- * `using (true)`, so this genuinely upserts one public review — which is why
- * the copy is allowed to say it shows on their profile.
+ * `reviews` is unique on (subject_id, author_id), so this replaces the coach's
+ * previous rating. Public read access does not mean partner profiles show it.
  */
 async function rateTrainee(traineeId: string, stars: number): Promise<number> {
   const coachId = await currentAppUserId();
@@ -350,6 +349,7 @@ export function CoachRequestsOverlay() {
       await decideApptRequest(id, status);
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, 'Could not save that decision.'));
     } finally {
       setBusyId(null);
@@ -363,6 +363,7 @@ export function CoachRequestsOverlay() {
       const saved = await rateTrainee(trainee.id, stars);
       setTrainees((list) => list.map((x) => (x.id === trainee.id ? { ...x, stars: saved } : x)));
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, 'Could not save that rating.'));
     } finally {
       setBusyId(null);
@@ -448,8 +449,8 @@ export function CoachRequestsOverlay() {
             {/* A decision is a record on the request row. Nothing reschedules
                 or cancels the client's booking as a side effect, so say so. */}
             <Text style={[t.bodySm, { color: c.txt3, marginTop: 12 }]}>
-              Approving or declining records your answer on the request. It does not move or cancel the client's
-              booking — do that from the session itself.
+              Approving or declining only records your answer on the request. It does not change the client's
+              booking. This screen cannot reschedule or cancel sessions.
             </Text>
 
             <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Client packages</SectionHeading>
@@ -474,7 +475,7 @@ export function CoachRequestsOverlay() {
                         <Text style={[t.name, { color: c.txt }]}>{trainee.name}</Text>
                         <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>
                           {trainee.stars
-                            ? `You rated ${trainee.stars}/5 — shown on their public profile`
+                            ? `You rated ${trainee.stars}/5`
                             : 'Not rated yet'}
                         </Text>
                       </View>
@@ -498,8 +499,7 @@ export function CoachRequestsOverlay() {
               )}
             </View>
             <Text style={[t.bodySm, { color: c.txt3, marginTop: 14 }]}>
-              You can rate only trainees you have completed a session with. A rating is public and replaces your
-              previous one.
+              You can rate only trainees you have completed a session with. A new rating replaces your previous one.
             </Text>
           </>
         )}
@@ -618,6 +618,7 @@ export function CoachScheduleOverlay() {
       await write();
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, fallback));
     } finally {
       setBusy(false);
@@ -812,8 +813,8 @@ export function CoachPackagesOverlay() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [newSessions, setNewSessions] = useState(10);
-  const [newPriceCents, setNewPriceCents] = useState(38000);
+  const [newSessions, setNewSessions] = useState<number | null>(null);
+  const [newPriceCents, setNewPriceCents] = useState<number | null>(null);
   const [promoPct, setPromoPct] = useState(15);
 
   const load = useCallback(async () => {
@@ -843,6 +844,7 @@ export function CoachPackagesOverlay() {
       await write();
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, fallback));
     } finally {
       setBusy(false);
@@ -880,7 +882,7 @@ export function CoachPackagesOverlay() {
                           {p.sessions === 1 ? 'Single session' : `${p.sessions}-session pack`}
                         </Text>
                         <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
-                          {formatCents(Math.round(p.priceCents / p.sessions))} per session · 60 min each
+                          {formatCents(Math.round(p.priceCents / p.sessions))} per session
                         </Text>
                       </View>
                       <Pressable
@@ -936,35 +938,45 @@ export function CoachPackagesOverlay() {
               }}
             >
               <Text style={[t.labelSm, { color: c.txt2 }]}>
-                New package — {newSessions === 1 ? 'Single session' : `${newSessions}-session pack`}
+                New package{newSessions === null ? '' : ` — ${newSessions === 1 ? 'Single session' : `${newSessions}-session pack`}`}
               </Text>
               <Row style={{ marginTop: 12 }} gap={10}>
                 <PkgStepper
-                  value={`${newSessions}`}
+                  value={newSessions === null ? '—' : `${newSessions}`}
                   unit="sessions"
                   name="the new package"
                   disabled={busy}
-                  onMinus={() => setNewSessions((n) => Math.max(1, n - 1))}
-                  onPlus={() => setNewSessions((n) => n + 1)}
+                  onMinus={() => setNewSessions((n) => Math.max(1, (n ?? 0) - 1))}
+                  onPlus={() => setNewSessions((n) => (n ?? 0) + 1)}
                 />
                 <PkgStepper
-                  value={formatCents(newPriceCents)}
+                  value={newPriceCents === null ? '—' : formatCents(newPriceCents)}
                   unit="total price"
                   name="the price of the new package"
                   accent
                   disabled={busy}
-                  onMinus={() => setNewPriceCents((v) => Math.max(500, v - 500))}
-                  onPlus={() => setNewPriceCents((v) => v + 500)}
+                  onMinus={() => setNewPriceCents((v) => Math.max(500, (v ?? 0) - 500))}
+                  onPlus={() => setNewPriceCents((v) => (v ?? 0) + 500)}
                 />
               </Row>
               <View style={{ marginTop: 12 }}>
                 <VoltButton
                   label="Add package"
                   height={44}
-                  enabled={!busy}
+                  enabled={!busy && newSessions !== null && newPriceCents !== null}
                   busy={busy}
                   busyLabel="Saving…"
-                  onPress={() => run(() => createPackage(newSessions, newPriceCents), 'Could not add that package.')}
+                  onPress={() => {
+                    if (newSessions === null || newPriceCents === null) {
+                      setActionError('Choose the session count and total price before adding a package.');
+                      return;
+                    }
+                    void run(async () => {
+                      await createPackage(newSessions, newPriceCents);
+                      setNewSessions(null);
+                      setNewPriceCents(null);
+                    }, 'Could not add that package.');
+                  }}
                 />
               </View>
             </View>
@@ -972,14 +984,18 @@ export function CoachPackagesOverlay() {
               Packages are live on your public profile — clients book from exactly this list.
             </Text>
 
-            <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Create a promo</SectionHeading>
+            <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Record a promo code</SectionHeading>
+            {/* Promo codes persist, but no booking flow redeems them. */}
+            <Text style={[t.bodySm, { color: c.txt3, marginBottom: 11 }]}>
+              Codes are recorded in your promo list. They are not yet redeemable in the app and do not change booking prices.
+            </Text>
             <Row gap={8}>
               {[10, 15, 20, 25].map((p) => (
                 <Pressable
                   key={p}
                   onPress={() => setPromoPct(p)}
                   accessibilityRole="radio"
-                  accessibilityLabel={`${p} percent off`}
+                  accessibilityLabel={`Record ${p} percent`}
                   accessibilityState={{ selected: promoPct === p }}
                   style={{
                     flex: 1,
@@ -1009,16 +1025,16 @@ export function CoachPackagesOverlay() {
               />
             </View>
 
-            <SectionHeading style={{ marginTop: 24, marginBottom: 11 }}>Your active promos</SectionHeading>
+            <SectionHeading style={{ marginTop: 24, marginBottom: 11 }}>Your recorded promo codes</SectionHeading>
             <View style={{ gap: 10 }}>
               {promos.length === 0 ? (
-                <Note>No active promos.</Note>
+                <Note>No promo codes to show.</Note>
               ) : (
                 promos.map((promo) => (
                   <PromoCard
                     key={promo.id}
                     code={promo.code}
-                    sub={`${promo.pct}% off your sessions`}
+                    sub={`${promo.pct}% recorded · not redeemable in the app`}
                     onRemove={() => run(() => retireCoachPromo(promo.id), 'Could not remove that promo.')}
                     removeLabel={`Deactivate promo code ${promo.code}`}
                     disabled={busy}
@@ -1026,12 +1042,6 @@ export function CoachPackagesOverlay() {
                 ))
               )}
             </View>
-            {/* Nothing in the app redeems coach_promos at checkout yet. Saying
-                the code "works" would be the exact lie this pass removes. */}
-            <Text style={[t.bodySm, { color: c.txt3, marginTop: 16 }]}>
-              Promo codes are saved to your profile, but checkout does not redeem them yet — share one only once
-              BOOK'D turns redemption on. Platform-wide promotions are managed by BOOK'D admins.
-            </Text>
           </>
         )}
       </View>

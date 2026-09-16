@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, StripedPlaceholder } from '../components/ui';
 import { Community, CommunityRole, EventItem, EventSuggestion } from '../state/models';
-import { fetchCommunities, fetchEvents, fetchEventSuggestions } from '../lib/queries';
+import { fetchCommunities, fetchEvents, fetchEventSuggestions, fetchMyCommunityMemberships } from '../lib/queries';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -102,6 +102,7 @@ export function CommunityScreen() {
   const { c, t } = useTheme();
   const s = useStore();
   const setRemoteCommunities = useStore((state) => state.setRemoteCommunities);
+  const setRemoteCommunityMemberships = useStore((state) => state.setRemoteCommunityMemberships);
   const setRemoteEvents = useStore((state) => state.setRemoteEvents);
   const setRemoteEventSuggestions = useStore((state) => state.setRemoteEventSuggestions);
   const soon = s.allEvents().slice(0, 6);
@@ -114,8 +115,22 @@ export function CommunityScreen() {
   useEffect(() => {
     let active = true;
     fetchCommunities()
-      .then((rows) => {
-        if (active) setRemoteCommunities(Array.isArray(rows) ? rows.map((row) => fromRemoteCommunity(row as RemoteCommunity)) : []);
+      .then(async (rows) => {
+        if (!active) return;
+        const communities = (rows ?? []) as RemoteCommunity[];
+        setRemoteCommunities(communities.map(fromRemoteCommunity));
+        try {
+          const memberships = await fetchMyCommunityMemberships();
+          if (!active) return;
+          // Store keys match fromRemoteCommunity, not the membership's UUID.
+          const communityIds = new Map(communities.map((row) => [row.id, row.slug ?? row.id]));
+          setRemoteCommunityMemberships(memberships.flatMap((row) => {
+            const communityId = communityIds.get(row.community_id);
+            return communityId === undefined ? [] : [{ communityId, role: row.role }];
+          }));
+        } catch {
+          /* A failed refresh must not erase memberships already in the store. */
+        }
       })
       .catch(() => {
         if (active) setRemoteCommunities([]);
@@ -137,7 +152,7 @@ export function CommunityScreen() {
     return () => {
       active = false;
     };
-  }, [setRemoteCommunities, setRemoteEvents, setRemoteEventSuggestions]);
+  }, [s.authEmail, setRemoteCommunities, setRemoteCommunityMemberships, setRemoteEvents, setRemoteEventSuggestions]);
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>
@@ -182,7 +197,7 @@ export function CommunityScreen() {
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 8 }}>
           {soon.map((ev) => (
-            <EventCard key={ev.id} ev={ev} onPress={() => s.openEvent(ev.id, 'community')} />
+            <EventCard key={ev.id} ev={ev} onPress={() => s.openEvent(ev.id, null)} />
           ))}
         </ScrollView>
       )}

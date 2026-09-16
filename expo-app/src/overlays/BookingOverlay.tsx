@@ -3,7 +3,8 @@ import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import { coachPackageOptions } from '../state/models';
-import { fetchPackageUsage } from '../lib/queries';
+import { fetchPackageUsage, PackageUsage } from '../lib/queries';
+import { track } from '../lib/analytics';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -14,34 +15,57 @@ export function BookingOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const p = s.personById(s.openId);
+
+  // EVERY hook runs before the missing-coach return below. Root replaces the
+  // people list on refresh, so `p` can go from defined to undefined while this
+  // overlay is open; returning early above the hooks changed the hook count
+  // between renders and React threw "Rendered fewer hooks than expected",
+  // dropping the whole app to the error screen.
+  //
+  // The first booking records the pack price; later redemptions record zero.
+  // Usage establishes pack coverage, not whether the coach has been paid.
+  const [usage, setUsage] = React.useState<PackageUsage | null>(null);
+  const [usageLoading, setUsageLoading] = React.useState(true);
+  const [bookingQuote, setBookingQuote] = React.useState<{ redeeming: boolean; dueNow: number } | null>(null);
+  const personId = p?.id;
+  React.useEffect(() => {
+    if (!personId) return;
+    let live = true;
+    setUsage(null);
+    setUsageLoading(true);
+    fetchPackageUsage().then((rows) => {
+      if (live) {
+        setUsage(rows);
+        setUsageLoading(false);
+      }
+    });
+    return () => { live = false; };
+  }, [personId]);
+
   if (!p) return <MissingSubject title="Book a session" message="This coach is no longer available." onBack={s.backToPerson} />;
-  // Per-coach availability has no backend yet, so no day is marked full. It used
-  // to come from a hard-coded table of invented busy dates per sample coach.
+
+  // No day is greyed out here: the coach's saved schedule is enforced by the
+  // server at confirm time, not mirrored into this calendar. A client can still
+  // tap a day the coach does not work and is refused on confirm. Showing it
+  // up front needs the schedule fetched per coach -- worth doing, not done.
   const full: number[] = [];
   const pkgs = coachPackageOptions(p);
   const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
 
-  // What the server will actually charge. `create_booking_for_coach` bills a
-  // pack once, on purchase, and writes 0 for every later redemption -- so
-  // quoting the list price on session 2 of a 5-pack tells the user to hand over
-  // $203 that nobody is owed.
-  const [usage, setUsage] = React.useState<Record<string, number>>({});
-  React.useEffect(() => {
-    let live = true;
-    fetchPackageUsage().then((rows) => { if (live) setUsage(rows); });
-    return () => { live = false; };
-  }, [p.id]);
-
-  const used = selectedPkg?.packageId ? usage[selectedPkg.packageId] ?? 0 : 0;
-  const remaining = selectedPkg ? selectedPkg.sessions - used : 0;
-  const redeeming = used > 0 && remaining > 0;
-  const exhausted = used > 0 && remaining <= 0;
+  const usageKnown = !selectedPkg?.packageId || usage !== null;
+  const balance = selectedPkg?.packageId ? usage?.[selectedPkg.packageId] : undefined;
+  const total = balance?.total ?? selectedPkg?.sessions ?? 0;
+  const remaining = total - (balance?.used ?? 0);
+  const redeeming = Boolean(balance) && remaining > 0;
+  const exhausted = Boolean(balance) && remaining <= 0;
   const dueNow = redeeming ? 0 : selectedPkg?.price ?? 0;
-  const priceLabel = redeeming
-    ? 'Included'
-    : dueNow > 0
-      ? `$${dueNow}`
-      : 'To agree';
+  const priceLabel = !usageKnown
+    ? usageLoading ? 'Loading…' : 'Unavailable'
+    : redeeming
+      ? 'Included'
+      : dueNow > 0
+        ? `$${dueNow}`
+        : 'To agree';
 
   if (s.booked) {
     return (
@@ -54,13 +78,15 @@ export function BookingOverlay() {
           <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
             {selectedPkg.name} with {p.name.split(' ')[0]} · {D.bookingMonthName} {s.bookDay} · {D.slotDefs[s.bookSlot]}
           </Text>
-          <Text style={[t.bodySm, { color: c.txt3, marginTop: 8, textAlign: 'center' }]}>
-            {redeeming
-              ? `Already covered by your pack — nothing to pay ${p.name.split(' ')[0]} for this one.`
-              : dueNow > 0
-                ? `$${dueNow} is payable to ${p.name.split(' ')[0]} directly at your session.`
-                : `Agree the price with ${p.name.split(' ')[0]} directly — BOOK'D does not take payment.`}
-          </Text>
+          {bookingQuote && (
+            <Text style={[t.bodySm, { color: c.txt3, marginTop: 8, textAlign: 'center' }]}>
+              {bookingQuote.redeeming
+                ? 'Covered by your pack — nothing extra to pay for this booking.'
+                : bookingQuote.dueNow > 0
+                  ? `$${bookingQuote.dueNow} is payable to ${p.name.split(' ')[0]} directly at your session.`
+                  : `Agree the price with ${p.name.split(' ')[0]} directly — BOOK'D does not take payment.`}
+            </Text>
+          )}
           <View style={{ height: 24 }} />
           <View style={{ width: '100%' }}>
             <VoltButton label="View in bookings" onPress={s.goToBookings} />
@@ -80,18 +106,34 @@ export function BookingOverlay() {
             <Text style={[t.price, { color: c.accent }]}>{priceLabel}</Text>
           </Row>
           <Text style={[t.caption, { color: c.txt3, marginBottom: 12 }]}>
-            {exhausted
-              ? 'Every session in this pack has been used. Pick another option.'
-              : redeeming
-                ? `Already paid for — ${remaining} of ${selectedPkg.sessions} sessions left in this pack.`
-                : dueNow > 0
-                  ? "Payable to the coach at your session — BOOK'D does not take payment."
-                  : "This coach has not set a price. Agree it with them directly — BOOK'D does not take payment."}
+            {!usageKnown
+              ? usageLoading ? 'Checking your pack balance…' : 'Could not check your pack balance. You can still book.'
+              : exhausted
+                ? 'Every session in this pack has been used. Pick another option.'
+                : redeeming
+                  ? `Covered by your pack — nothing extra to pay for this booking. ${remaining} of ${total} sessions left in this pack.`
+                  : dueNow > 0
+                    ? "Payable to the coach at your session — BOOK'D does not take payment."
+                    : "This coach has not set a price. Agree it with them directly — BOOK'D does not take payment."}
           </Text>
           <VoltButton
             label={exhausted ? 'Pack already used' : 'Confirm booking'}
             enabled={!exhausted}
-            onPress={s.confirmBooking}
+            onPress={() => {
+              // A late balance read may include this booking's redemption.
+              // Only the quote known before submission can describe it.
+              const quote = usageKnown ? { redeeming, dueNow } : null;
+              setBookingQuote(quote);
+              void s.confirmBooking().then(() => {
+                if (!useStore.getState().booked) return;
+                // The amount the screen actually quoted. When the balance was
+                // still unknown the event carries no amount at all -- a wrong
+                // number in the funnel is worse than a missing one.
+                track('booking_confirmed', quote
+                  ? { booking_type: quote.redeeming ? 'redemption' : 'purchase', amount_cents: quote.dueNow * 100 }
+                  : {});
+              });
+            }}
             busy={s.writeBusy === 'booking'}
             busyLabel="Booking..."
           />
@@ -148,7 +190,10 @@ export function BookingOverlay() {
           {pkgs.map((pk, i) => {
             const sel = s.bookPkg === i;
             return (
-              <Pressable key={pk.name} onPress={() => s.set('bookPkg', i)}>
+              <Pressable key={pk.name} onPress={() => {
+                s.set('bookPkg', i);
+                track('package_selected', { package_index: i, sessions: pk.sessions });
+              }}>
                 <Card background={sel ? alpha(c.volt, 0.1) : c.surface} borderColor={sel ? c.volt : c.line} style={{ padding: 14 }}>
                   <Row style={{ justifyContent: 'space-between' }}>
                     <View>

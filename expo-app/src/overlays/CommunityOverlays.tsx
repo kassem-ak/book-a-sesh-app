@@ -133,9 +133,9 @@ export function CreateEventOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Create event" onBack={() => s.set('overlay', 'community')} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Blocked - flagged to admins' : canCreate ? 'Create event' : 'Add a title and a place'} enabled={canCreate} onPress={s.submitEvent} /></View>}
+      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Edit blocked content to continue' : canCreate ? 'Create event' : 'Add a title and a place'} enabled={canCreate} onPress={s.submitEvent} /></View>}
     >
-      <EventForm blocked={blocked} blockedCopy="Contains blocked content - this will be flagged." />
+      <EventForm blocked={blocked} blockedCopy="Contains blocked content. Edit it to continue; nothing has been sent for review." />
     </OverlayScaffold>
   );
 }
@@ -155,9 +155,9 @@ export function EventSuggestionOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Suggest event" onBack={() => s.set('overlay', 'community')} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Blocked - flagged to admins' : canSend ? 'Send suggestion' : 'Add a title and a place'} enabled={canSend} onPress={s.submitEventSuggestion} /></View>}
+      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Edit blocked content to continue' : canSend ? 'Send suggestion' : 'Add a title and a place'} enabled={canSend} onPress={s.submitEventSuggestion} /></View>}
     >
-      <EventForm blocked={blocked} blockedCopy="Contains blocked content - this will be sent for review." />
+      <EventForm blocked={blocked} blockedCopy="Contains blocked content. Edit it to continue; nothing has been sent for review." />
     </OverlayScaffold>
   );
 }
@@ -177,12 +177,12 @@ export function CommunityEditOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Edit details" onBack={() => s.set('overlay', 'community')} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Blocked - flagged to admins' : canSave ? 'Save details' : 'Add details first'} enabled={canSave} onPress={s.saveCommunityContent} /></View>}
+      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Edit blocked content to continue' : canSave ? 'Save details' : 'Add details first'} enabled={canSave} onPress={s.saveCommunityContent} /></View>}
     >
       <View style={{ paddingHorizontal: 18 }}>
         <SectionHeading style={{ marginBottom: 11 }}>About</SectionHeading>
         <Field value={s.editCommunityAbout} onChange={(v) => s.set('editCommunityAbout', v)} placeholder="What members should know..." />
-        {blocked && <Text style={[t.caption, { color: c.danger, marginTop: 8 }]}>Contains blocked content - this will be flagged.</Text>}
+        {blocked && <Text style={[t.caption, { color: c.danger, marginTop: 8 }]}>Contains blocked content. Edit it to continue; nothing has been sent for review.</Text>}
       </View>
     </OverlayScaffold>
   );
@@ -196,21 +196,24 @@ export function StartCommunityOverlay() {
   if (s.commCreated) {
     return (
       <OverlayScaffold header={<OverlayHeader title="Start community" onBack={() => s.set('overlay', 'community')} />}>
-        <SuccessBody title="Community created" body="You are the admin. Add moderators, edit details, and host the first event." />
+        <SuccessBody title="Community created" body="You are the admin. Edit details and host the first event." />
       </OverlayScaffold>
     );
   }
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Start community" onBack={s.closeOverlay} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Blocked - flagged to admins' : canCreate ? 'Create community' : 'Name it first'} enabled={canCreate} onPress={s.submitCommunity} /></View>}
+      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Edit blocked content to continue' : canCreate ? 'Create community' : 'Name it first'} enabled={canCreate} onPress={s.submitCommunity} /></View>}
     >
       <View style={{ paddingHorizontal: 18 }}>
         <SectionHeading style={{ marginBottom: 11 }}>Community name</SectionHeading>
         <Field value={s.commName} onChange={(v) => s.set('commName', v)} placeholder="Downtown Padel Crew..." />
-        <Pressable onPress={() => s.openRegistration('community')} style={{ marginTop: 16 }}>
-          <Text style={[t.label, { color: c.accent }]}>Registering an official entity? Use the full form</Text>
-        </Pressable>
+        {/* The official-entity form is deliberately not offered. Creating a
+            community above is real -- it writes to the server -- but that form
+            only appends to the in-memory store, so the application is lost on
+            restart and no admin ever receives it. Better to offer one door that
+            works than two where the second quietly discards the application.
+            Restore this link once official requests have a table and a queue. */}
       </View>
     </OverlayScaffold>
   );
@@ -224,7 +227,7 @@ export function RequestOverlay() {
   if (s.reqSent) {
     return (
       <OverlayScaffold header={<OverlayHeader title="Request a sport" onBack={s.closeOverlay} />}>
-        <SuccessBody title="Request sent" body="Admins will review your request and add it to the app if approved." />
+        <SuccessBody title="Request sent" body="Your request is in the admin review queue." />
       </OverlayScaffold>
     );
   }

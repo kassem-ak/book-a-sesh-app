@@ -1,6 +1,6 @@
 # BOOK'D — Privacy Policy
 
-**Last updated: 15 September 2026**
+**Last updated: 16 September 2026**
 
 > **Before you publish this.** Everything below describes what the app and the
 > database actually do today — it was written from the live schema, not from a
@@ -38,6 +38,41 @@ BOOK'D is operated by **[LEGAL ENTITY NAME, REGISTERED ADDRESS]** ("we", "us").
 | Approximate location (city-level / ~100m) | To sort coaches, partners and venues by distance | Yes. The app asks first, and works without it — you can type your area instead. We request *approximate* location only; we do not ask for precise GPS. |
 | Booking records — who, when, the amount and our commission | To show you your bookings and to account for platform commission | No, if you make a booking |
 
+### Local app activity and diagnostics
+
+Starting at each launch, BOOK'D records a limited activity log in device memory:
+app launch, onboarding steps and role choices, sign-in actions/provider,
+search use (only whether input exists), filter/sort and package selections,
+profile/conversation/booking opens, successful community/event/chat/safety and
+account actions, and sanitized error codes or standard error types. It never includes contact
+details, names, message/chat content, event titles, community names, bios,
+search words, precise coordinates, or raw error messages/stacks in that log.
+
+Each record has a sequence number, time, app version when available, and a new
+anonymous random session ID generated at launch. That ID is not a device ID
+and is not saved between launches. Before account identification the records
+are anonymous; after identification, new records can also contain your
+internal account ID (`public.users.id`, never your email). Those records are
+**pseudonymous and account-linked**, not fully anonymous. Signing out clears
+the account ID for subsequent records; earlier records are not relabeled.
+
+**Today, no monitoring provider is connected.** No analytics or crash SDK is
+installed, and none of this activity log leaves your device. Collection starts
+automatically and has no in-app toggle today. Only the newest 300 pending
+records are kept in memory; older records are dropped. The log is not written
+to disk and disappears when the app process ends (or the web app reloads).
+This does not change the service data sent to Supabase to operate the app.
+
+**Before connecting a monitoring provider**, we must update this policy and
+the store privacy/data-safety disclosures and tell you in the app which
+provider receives which activity, diagnostic and account-ID fields, why,
+whether they are linked to you, where and how long they are retained, and how
+to exercise access/deletion and any applicable consent or opt-out choices.
+Any required consent must precede connection: connecting a provider can send
+the already buffered records as well as future records. At that point the
+claim that analytics stays on your device will no longer apply. A failed
+provider is paused; collection remains bounded while it is unavailable.
+
 ### We do **not** collect
 
 - Payment card details. **BOOK'D does not process payments.** You pay your coach
@@ -45,8 +80,9 @@ BOOK'D is operated by **[LEGAL ENTITY NAME, REGISTERED ADDRESS]** ("we", "us").
   us, because there is nowhere in the app to enter one.
 - Photos, camera, contacts, calendar, microphone or health data. The app does
   not request these permissions.
-- Advertising identifiers. There are no ad networks, no analytics SDKs and no
-  third-party trackers in the app.
+- Advertising identifiers. There are currently no ad networks, analytics SDKs
+  or connected third-party trackers. The local activity log above is separate
+  from advertising or cross-app tracking.
 
 ---
 

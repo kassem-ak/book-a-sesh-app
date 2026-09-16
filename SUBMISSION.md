@@ -57,6 +57,52 @@ Shipping the other three without it is an automatic rejection.
 > I did not create any of these, and did not handle any client secret. Paste
 > them straight into the Supabase dashboard — they should not enter this repo.
 
+### Current state, measured
+
+| Provider | Status | Probe |
+|---|---|---|
+| Google | **Enabled** | `302` to `accounts.google.com`, correct client ID and callback |
+| Facebook | Not configured | `400` |
+| Microsoft (azure) | Not configured | `400` |
+| Apple | Not configured | `400` |
+
+Google was set up on 17 September 2026 in Google Cloud project `bookd-508822`:
+consent screen (External, app name BOOK'D), and a Web application OAuth client
+named "BOOK'D Supabase Web" carrying the callback URI above. The client ID and
+secret went straight from Google into the Supabase dashboard and are not in this
+repo.
+
+**Google is still in TESTING mode.** Only accounts listed under
+*Google Auth Platform → Audience → Test users* can sign in. Add any account you
+want to test with. Publishing to production needs the privacy policy URL from
+§3, and Google may require verification depending on scopes (currently just
+`email profile`, which is the light path).
+
+Still to do for Google: an **Android** OAuth client for `com.bookd.app`, for the
+native sign-in flow.
+
+The three unconfigured providers answer:
+
+```
+GET /auth/v1/authorize?provider=<facebook|azure|apple>
+400 {"error_code":"validation_failed","msg":"Unsupported provider: provider is not enabled"}
+```
+
+The app handles that correctly rather than opening a dead tab — each button
+reports "<Provider> sign-in is not set up yet. Use your email and password for
+now." So the client is finished; enabling is purely the dashboard step above.
+
+To confirm a provider went live, re-run the probe and look for a `302` instead
+of the `400`:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" "https://qievymkkprhbvxrsdukb.supabase.co/auth/v1/authorize?provider=facebook&redirect_to=bookd://"
+```
+
+Repeat with `provider=google`, `provider=azure` (Microsoft) and
+`provider=apple`. A `302` means that provider is enabled and the redirect URI
+was accepted; a `400` means it is still not configured.
+
 After enabling each one, the in-app probe stops reporting it as unavailable;
 that is the fastest way to confirm it took.
 
@@ -96,7 +142,8 @@ in-app deletion under Profile, so that page can simply document the in-app path.
 
 ## 4. Data safety / privacy nutrition answers
 
-Derived from the live schema, so these answers are defensible.
+Derived from the service schema and the current client, with no analytics
+provider connected. Recheck these answers for the submitted build.
 
 | Question | Answer |
 |---|---|
@@ -106,12 +153,38 @@ Derived from the live schema, so these answers are defensible.
 | Photos / camera / contacts / calendar / microphone / health | None requested |
 | Location precision | **Approximate only.** The code requests `Accuracy.Balanced`, and `ACCESS_FINE_LOCATION` is explicitly blocked in `app.json` |
 | Advertising ID / tracking | None. No ad networks, no analytics SDK, no crash SDK |
+| Analytics / App activity | Activity is recorded locally from launch, but **not collected off-device today**. No provider is connected. **Change this answer when an analytics sink is connected**, including app interactions and applicable booking/purchase activity |
+| Crash logs / diagnostics | Sanitized error codes/types only in the local memory buffer today; no remote crash reporting. Reassess diagnostics disclosures when a sink is connected |
+| Analytics identifiers / linkage | Fresh anonymous launch UUID; identified records also carry `public.users.id` and are therefore pseudonymous/account-linked. Neither identifier is transmitted by analytics today |
 | Data shared with third parties | None for advertising. Processors only: Supabase (hosting/auth), and your chosen sign-in provider |
 | Data encrypted in transit | Yes |
 | Can users request deletion? | Yes — in-app, under Profile |
 | User-generated content | Yes: profiles, chat, community events |
 | Content moderation | Report **and** block, both reachable from a member's profile; blocking is enforced server-side |
 | Age rating inputs | Answer *yes* to user interaction and user-generated content. Set a 13+ minimum to match `PRIVACY.md` §6 |
+
+The local activity buffer holds the newest 300 pending records, discards the
+oldest on overflow, and is lost at process exit/reload. Records include event,
+sequence, ISO time, launch UUID, app version when available, and the resolved
+internal account ID when identified. Allowed properties describe fixed steps,
+roles/providers, filter/sort/package choices, booleans, counts, booking type
+and cents, and sanitized error codes/types. Names/contact details, chat content,
+event/community titles, bios, free-text searches, coordinates and raw error
+messages/stacks are excluded in code. Local collection is automatic; there is
+no user toggle today. Service requests to Supabase remain separate.
+
+The future integration point is `setSink({ send(batch) { ... } })` in
+`expo-app/src/lib/analytics.ts`; this build never calls it with a provider.
+Attaching sends buffered events and then new events, so obtain any required
+consent **before** attachment. Before shipping that integration, update
+`PRIVACY.md`, notify users of the provider, purpose, exact fields, account
+linkage, retention/location and access/deletion/consent or opt-out choices,
+and revise both stores' **Analytics / App activity**, diagnostics, identifiers,
+linkage and processor/sharing answers. Analytics does not automatically mean
+advertising tracking; reassess that answer against the provider's actual use.
+A sink failure pauses delivery until explicitly reattached, with no automatic
+retry loop; `setSink(null)` stops future delivery but cannot recall an
+in-flight send. A single in-flight batch is also capped at 300 records.
 
 You will also need a **support URL or contact email** in both listings. There is
 no support route in the app today; the simplest fix is to use the same address
@@ -131,9 +204,10 @@ as the privacy policy contact.
 - **Courts and Shop code still ships in the binary** even though both are
   deferred. They are unreachable from the four tabs; confirm that holds before
   submitting, because a reachable half-finished screen is a common rejection.
-- **No crash reporting.** `ErrorBoundary` catches render crashes and shows a
-  recovery screen, but only logs to the console. You will be blind to crashes
-  in the field.
+- **No remote crash reporting.** `ErrorBoundary` catches render crashes and
+  shows a recovery screen. It records a sanitized error type in the local
+  analytics buffer and logs diagnostics to the console; nothing is delivered
+  to a monitoring site until a sink is connected and disclosures are updated.
 
 ---
 

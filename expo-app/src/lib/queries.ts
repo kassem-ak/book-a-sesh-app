@@ -197,6 +197,8 @@ export async function fetchEvents() {
   const { data, error } = await supabase
     .from('events')
     .select('id, community_id, subgroup_id, type, title, starts_at, when_label, location, attendees_count, community:communities(slug), host:users!events_host_id_fkey(name)')
+    // Label-only events have no timestamp and must remain discoverable.
+    .or(`starts_at.gte.${new Date().toISOString()},starts_at.is.null`)
     .order('starts_at', { ascending: true, nullsFirst: false });
   if (error) throw error;
   return data;
@@ -210,6 +212,21 @@ export async function fetchEventSuggestions() {
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
+}
+
+// Fetch memberships together; a signed-out browse must not create a session.
+export async function fetchMyCommunityMemberships(): Promise<{ community_id: string; role: string }[]> {
+  const { data: session, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!session.session) return [];
+  // Memberships reference public.users.id, which can differ from the auth id.
+  const me = await currentAppUserId();
+  const { data, error } = await supabase
+    .from('community_members')
+    .select('community_id, role')
+    .eq('user_id', me);
+  if (error) throw error;
+  return data ?? [];
 }
 
 // --- My role in a community (drives manage vs suggest UI) ---
@@ -281,6 +298,34 @@ export async function submitSportRequest(name: string, kind: string) {
   return callRpc<string>('submit_sport_request', { p_name: name, p_kind: kind });
 }
 
+export type SportRequest = {
+  id: string;
+  name: string;
+  kind: 'sport' | 'hobby';
+  votes: number | null;
+};
+
+export async function fetchPendingSportRequests(): Promise<SportRequest[]> {
+  await ensureAppSession();
+  const { data, error } = await supabase
+    .from('sport_requests')
+    .select('id, name, kind, votes')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as SportRequest[];
+}
+
+export async function decideSportRequest(id: string, status: 'approved' | 'rejected') {
+  const rows = await callRpc<{ id: string; status: string }[]>('decide_sport_request', {
+    p_id: id,
+    p_status: status,
+  });
+  if (!rows?.length) {
+    throw new Error('This request was already decided by someone else. Refresh requests to see the latest queue.');
+  }
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // `create_booking_for_coach` expects a users.id uuid. Coaches loaded from the
@@ -297,6 +342,11 @@ export async function createBooking(
   scheduledFor: string,
   slotLabel: string,
   packageId?: string | null,
+  // The picked slot on its own. `slotLabel` is display text the client
+  // assembles ("5-session pack - July 12 - 8:00 AM"); the server checks this
+  // against coach_availability, and matching a correctness rule against a
+  // display string would stop enforcing the day that format changed.
+  slot?: string | null,
 ) {
   const coachId = await resolveCoachId(coach);
   return callRpc<string>('create_booking_for_coach', {
@@ -304,6 +354,7 @@ export async function createBooking(
     p_scheduled_for: scheduledFor,
     p_slot_label: slotLabel,
     p_package_id: packageId ?? null,
+    p_slot: slot ?? null,
   });
 }
 
@@ -352,33 +403,25 @@ export async function fetchAccountRole(): Promise<AccountRole> {
   return role === 'ADMIN' || role === 'COACH' ? role : 'USER';
 }
 
-/**
- * How many sessions of each package this client has already used.
- *
- * The booking screen needs it to quote honestly: `create_booking_for_coach`
- * charges the pack price on the first booking and writes `total_cents = 0` for
- * every later redemption, so without this the screen quotes the full pack price
- * for a session that costs nothing.
- *
- * Returns an empty map rather than throwing — a quote that falls back to the
- * list price is wrong in the safe direction, and a signed-out or offline client
- * has no balances by definition.
- */
-export async function fetchPackageUsage(): Promise<Record<string, number>> {
+export type PackageUsage = Record<string, { used: number; total: number }>;
+
+// Purchased totals survive listing edits. Null means unknown, while an empty
+// map means the read succeeded and this client has no purchased balances.
+export async function fetchPackageUsage(): Promise<PackageUsage | null> {
   try {
     await ensureAppSession();
     const me = await currentAppUserId();
     const { data, error } = await supabase
       .from('client_package_balances')
-      .select('package_id, used')
+      .select('package_id, used, total')
       .eq('client_id', me);
     if (error) throw error;
-    const out: Record<string, number> = {};
-    for (const row of (data ?? []) as { package_id: string; used: number | null }[]) {
-      out[row.package_id] = row.used ?? 0;
+    const out: PackageUsage = {};
+    for (const row of (data ?? []) as { package_id: string | null; used: number; total: number }[]) {
+      if (row.package_id) out[row.package_id] = { used: row.used, total: row.total };
     }
     return out;
   } catch {
-    return {};
+    return null;
   }
 }

@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Toggle } from '../components/ui';
 import { fetchMyBookings } from '../lib/bookings';
 import { deleteAccount, signOutUser } from '../lib/session';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { initials } from '../state/models';
 import { errorMessage, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -20,6 +21,9 @@ export function ProfileScreen() {
   const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
   // Deleting an account is irreversible, so it takes a second tap.
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Deletion is irreversible and is not atomic on the server, so a second run
+  // must not start while the first is still in flight.
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -91,10 +95,10 @@ export function ProfileScreen() {
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Coach tools</SectionHeading>
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
-              <ToolRow title="Appointment requests" body="Approve bookings & change requests" onPress={() => s.set('overlay', 'coachRequests')} />
+              <ToolRow title="Appointment requests" body="Review requests · record decisions" onPress={() => s.set('overlay', 'coachRequests')} />
               <ToolRow title="My schedule" body="Edit weekly timetable" onPress={() => s.set('overlay', 'coachSchedule')} />
               <ToolRow title="Today's sessions" body="Day view - mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
-              <ToolRow title="Packages, pricing & promos" body="Set prices · create discounts" onPress={() => s.set('overlay', 'coachPackages')} />
+              <ToolRow title="Packages, pricing & promos" body="Set prices · record codes, not yet redeemable" onPress={() => s.set('overlay', 'coachPackages')} />
             </View>
           </Card>
         </>
@@ -108,8 +112,8 @@ export function ProfileScreen() {
           title="My bookings"
           body={
             upcomingCount === null
-              ? 'Sessions, packages and past ratings'
-              : `${upcomingCount} upcoming ${upcomingCount === 1 ? 'session' : 'sessions'} · packages and past ratings`
+              ? 'Sessions and packages'
+              : `${upcomingCount} upcoming ${upcomingCount === 1 ? 'session' : 'sessions'} · packages`
           }
           badge={upcomingCount ? String(upcomingCount) : undefined}
           onPress={s.openBookings}
@@ -127,7 +131,7 @@ export function ProfileScreen() {
         <GroupRow
           icon="bell"
           title="Notifications"
-          body="Booking and community updates"
+          body="Booking updates"
           onPress={s.openNotifs}
         />
       </Card>
@@ -151,10 +155,16 @@ export function ProfileScreen() {
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
               <ToolRow icon="user-check" title="Approvals" body="Hobby requests, communities and venues" onPress={() => s.set('overlay', 'adminApprovals')} />
-              <ToolRow icon="flag" title="Misconduct reports" body="Review evidence · ban or suspend" onPress={() => s.set('overlay', 'adminReports')} />
-              <ToolRow icon="percent" title="Promotions & promo codes" body="Create discounts · generate codes" onPress={() => s.set('overlay', 'adminPromos')} />
+              <ToolRow icon="flag" title="Misconduct reports" body="Review evidence · record decisions only" onPress={() => s.set('overlay', 'adminReports')} />
+              <ToolRow icon="percent" title="Promotions & promo codes" body="Record codes · not yet redeemable in the app" onPress={() => s.set('overlay', 'adminPromos')} />
               <ToolRow icon="tag" title="Loyalty offers" body="Edit rewards & point costs" onPress={() => s.set('overlay', 'adminLoyalty')} />
-              <ToolRow icon="bar-chart-2" title="Accounting" body="Margins, expenses and history" onPress={() => s.set('overlay', 'adminAccounting')} />
+              {/* No Accounting row on purpose. The console exists but is a
+                  simulation: "Propose changes" can never enable because the
+                  profit-share rows it validates are always empty, and saved
+                  expenses live only in memory, so they vanish on restart while
+                  the UI promises they recur. Reaching a tool that quietly
+                  discards an admin's work is worse than not offering it.
+                  Restore this row once accounting writes to the server. */}
             </View>
           </Card>
         </>
@@ -180,7 +190,10 @@ export function ProfileScreen() {
               title="Sign out"
               body={`${s.authName ?? 'Signed in'} · ${s.authEmail}`}
               onPress={() => {
-                void signOutUser().catch((error) => s.set('writeError', errorMessage(error)));
+                void signOutUser().catch((error) => {
+                  track('write_failed', { error_code: analyticsErrorCode(error) });
+                  s.set('writeError', errorMessage(error));
+                });
               }}
             />
             {/* Required in-app by both stores wherever accounts can be created.
@@ -195,8 +208,13 @@ export function ProfileScreen() {
               }
               onPress={() => {
                 if (!confirmDelete) { setConfirmDelete(true); return; }
+                if (deleting) return;
+                setDeleting(true);
                 setConfirmDelete(false);
-                void deleteAccount().catch((error) => s.set('writeError', errorMessage(error)));
+                void deleteAccount().finally(() => setDeleting(false)).catch((error) => {
+                  track('write_failed', { error_code: analyticsErrorCode(error) });
+                  s.set('writeError', errorMessage(error));
+                });
               }}
             />
           </>

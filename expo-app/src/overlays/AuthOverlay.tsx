@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { BrandIcon, BrandName, Field, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import { signInEmail, signInWithProvider, signUpEmail, SSO_LABELS, SsoProvider } from '../lib/session';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -38,6 +39,7 @@ export function AuthForm({ onDone, initialEmail = '' }: { onDone: () => void; in
         else onDone();
       }
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setError(e instanceof Error ? e.message : 'Something went wrong');
     } finally {
       setBusy(false);

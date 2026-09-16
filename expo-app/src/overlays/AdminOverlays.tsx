@@ -1,4 +1,5 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, MicroBadge, Row, SectionHeading, VoltButton } from '../components/ui';
@@ -128,7 +129,7 @@ const RECORDED_CAVEAT = 'Saved to the case record. It does not change the accoun
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function AdminReportsOverlay() {
-  const { c } = useTheme();
+  const { c, t } = useTheme();
   const s = useStore();
   const [flags, setFlags] = useState<SafetyFlag[]>([]);
   const [reports, setReports] = useState<ModerationReport[]>([]);
@@ -158,6 +159,9 @@ export function AdminReportsOverlay() {
   return (
     <OverlayScaffold header={<OverlayHeader title="Misconduct reports" onBack={s.closeOverlay} />}>
       <View style={{ paddingHorizontal: 18 }}>
+        <Text style={[t.bodySm, { color: c.txt3, marginBottom: 11 }]}>
+          Decisions are recorded for review only. No bans or suspensions are applied, and no one is notified.
+        </Text>
         {loading && <Note>Loading the moderation queue…</Note>}
         {!loading && error && <ErrorNote message={error} onRetry={load} />}
 
@@ -295,6 +299,7 @@ export function AdminCaseOverlay() {
     try {
       setReport(await decideReport(caseId, decision));
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setError(e instanceof Error ? e.message : 'The decision was not saved.');
     } finally {
       setBusy(false);
@@ -394,6 +399,7 @@ export function SafetyCaseOverlay() {
     try {
       setFlag(await decideSafetyFlag(flagId, verdict));
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setError(e instanceof Error ? e.message : 'The decision was not saved.');
     } finally {
       setBusy(false);
@@ -501,6 +507,7 @@ export function AdminPromosOverlay() {
       await write();
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, fallback));
     } finally {
       setBusy(false);
@@ -510,14 +517,18 @@ export function AdminPromosOverlay() {
   return (
     <OverlayScaffold header={<OverlayHeader title="Promotions" onBack={s.closeOverlay} />}>
       <View style={{ paddingHorizontal: 18 }}>
-        <SectionHeading style={{ marginBottom: 11 }}>Discount</SectionHeading>
+        {/* Promo codes persist, but no booking flow redeems them. */}
+        <Text style={[t.bodySm, { color: c.txt3, marginBottom: 11 }]}>
+          Codes are recorded in the platform promo list. They are not yet redeemable in the app and do not change booking prices.
+        </Text>
+        <SectionHeading style={{ marginBottom: 11 }}>Recorded percentage</SectionHeading>
         <Row gap={8}>
           {[10, 15, 20, 30].map((p) => (
             <Pressable
               key={p}
               onPress={() => setPct(p)}
               accessibilityRole="radio"
-              accessibilityLabel={`${p} percent discount`}
+              accessibilityLabel={`Record ${p} percent`}
               accessibilityState={{ selected: pct === p }}
               style={{ flex: 1, alignItems: 'center', borderRadius: 13, backgroundColor: pct === p ? c.volt : c.surface, borderColor: pct === p ? c.volt : c.line, borderWidth: 1, paddingVertical: 12 }}
             >
@@ -550,20 +561,20 @@ export function AdminPromosOverlay() {
           />
         </View>
 
-        <SectionHeading style={{ marginTop: 24, marginBottom: 11 }}>Active promos</SectionHeading>
+        <SectionHeading style={{ marginTop: 24, marginBottom: 11 }}>Recorded promo codes</SectionHeading>
         {actionError && <Text style={[t.bodySm, { color: c.danger, marginBottom: 10 }]}>{actionError}</Text>}
         {loading && <Note>Loading promotions...</Note>}
         {!loading && error && <ErrorNote message={error} onRetry={load} />}
         {!loading && !error && (
           <View style={{ gap: 10 }}>
             {promos.length === 0 ? (
-              <Note>No active promotions.</Note>
+              <Note>No promo codes to show.</Note>
             ) : (
               promos.map((promo) => (
                 <PromoCard
                   key={promo.id}
                   code={promo.code}
-                  sub={`${promo.pct}% off · ${AUDIENCES.find(([v]) => v === promo.audience)?.[1] ?? promo.audience}`}
+                  sub={`${promo.pct}% recorded · ${AUDIENCES.find(([v]) => v === promo.audience)?.[1] ?? promo.audience} · not redeemable in the app`}
                   onRemove={() => run(() => retirePlatformPromo(promo.id), 'Could not deactivate that promo.')}
                   removeLabel={`Deactivate promo code ${promo.code}`}
                   disabled={busy}
@@ -572,12 +583,6 @@ export function AdminPromosOverlay() {
             )}
           </View>
         )}
-        {/* Nothing in the app redeems platform_promos at checkout yet. Claiming
-            a live discount would be exactly the kind of lie this pass removes. */}
-        <Text style={[t.bodySm, { color: c.txt3, marginTop: 16 }]}>
-          Codes are saved to the platform promo list, but checkout does not redeem them yet — publish one only once
-          redemption is switched on.
-        </Text>
       </View>
     </OverlayScaffold>
   );
@@ -620,6 +625,7 @@ export function AdminLoyaltyOverlay() {
       await setRewardCost(reward.id, next);
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, 'Could not save that point cost.'));
     } finally {
       setBusy(false);

@@ -33,7 +33,7 @@ declare
   v_user uuid; v_other uuid; v_coach uuid;
   v_venue uuid; v_court uuid; v_pkg uuid; v_conv uuid;
   v_auth uuid := gen_random_uuid();
-  v_total int; v_commission int; v_used int;
+  v_total int; v_commission int; v_used int; v_cap int;
   v_slot timestamptz;
   v_role text;
   v_err  text;
@@ -72,7 +72,11 @@ begin
   insert into courts (venue_id, name, price_cents_per_hour, active)
   values (v_venue, 'ZZ COURT', 3000, true) returning id into v_court;
 
-  v_slot := date_trunc('hour', now()) + interval '2 days' + interval '10 hours';
+  -- Pin to 10:00 UTC on a future day. Deriving this from the current hour made
+  -- the suite fragile: run late enough in the day and the later offsets pushed
+  -- a reservation past midnight, failing the venue's opening-hours check for
+  -- reasons that had nothing to do with what was being tested.
+  v_slot := date_trunc('day', now()) + interval '2 days' + interval '10 hours';
 
   --------------------------------------------------- act as the real client
   set local role authenticated;
@@ -250,6 +254,56 @@ begin
   v_pass := v_pass + 1;
   v_log := v_log || E'
   PASS 11 a booking notifies the client, and the coach copy is not readable by them';
+
+  -- ======================= 12. entitlement is what was bought =============
+  -- A coach editing their listing must not move what an existing buyer already
+  -- paid for. Redemption used to rewrite the balance from the package's current
+  -- session count, so lowering a pack silently confiscated paid sessions.
+  -- v_pkg was bought at 5 sessions and has 2 used by group 1.
+  set local role service_role;
+  update packages set sessions = 2 where id = v_pkg;
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_auth::text, 'role', 'authenticated')::text, true);
+
+  perform create_booking_for_coach(v_coach, v_slot + interval '9 days', 'ZZ S3', v_pkg);
+  select used, total into v_used, v_cap from client_package_balances
+   where client_id = v_user and package_id = v_pkg;
+  if v_cap is distinct from 5 then
+    raise exception 'FAIL 12a: entitlement followed the listing -- total is %, bought 5', v_cap;
+  end if;
+  select total_cents into v_total from bookings
+   where client_id = v_user and slot_label = 'ZZ S3';
+  if v_total is distinct from 0 then
+    raise exception 'FAIL 12b: a redemption past the edited listing size charged %', v_total;
+  end if;
+  v_pass := v_pass + 1;
+  v_log := v_log || E'
+  PASS 12 entitlement stays at what was purchased when the listing changes';
+
+  -- ======================= 13. the coach's schedule is enforced ===========
+  -- "My schedule" tells a coach it controls which slots clients can book. It
+  -- wrote real rows that the booking RPC never read, so a client could book a
+  -- declared day off. The slot is passed explicitly rather than parsed out of
+  -- slot_label, which is display text.
+  set local role service_role;
+  insert into coach_availability (coach_id, weekday, slot)
+  values (v_coach, extract(isodow from v_slot + interval '10 days')::int - 1, '6:30 PM');
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_auth::text, 'role', 'authenticated')::text, true);
+
+  begin
+    perform create_booking_for_coach(v_coach, v_slot + interval '10 days', 'ZZ S4', null, '8:00 AM');
+    raise exception 'FAIL 13a: booked a slot the coach never offered';
+  exception when others then
+    get stacked diagnostics v_err = message_text;
+    if v_err like 'FAIL %' then raise; end if;
+  end;
+  perform create_booking_for_coach(v_coach, v_slot + interval '10 days', 'ZZ S5', null, '6:30 PM');
+  v_pass := v_pass + 1;
+  v_log := v_log || E'
+  PASS 13 coach schedule enforced: unoffered slot refused, offered slot books';
 
   ------------------------------------------------- catalogue checks (caller)
   reset role;
