@@ -15,8 +15,10 @@ export function BookingOverlay() {
   const s = useStore();
   const p = s.personById(s.openId);
   if (!p) return <MissingSubject title="Book a session" message="This coach is no longer available." onBack={s.backToPerson} />;
-  // Per-coach availability has no backend yet, so no day is marked full. It used
-  // to come from a hard-coded table of invented busy dates per sample coach.
+  // No day is greyed out here: the coach's saved schedule is enforced by the
+  // server at confirm time, not mirrored into this calendar. A client can still
+  // tap a day the coach does not work and is refused on confirm. Showing it
+  // up front needs the schedule fetched per coach -- worth doing, not done.
   const full: number[] = [];
   const pkgs = coachPackageOptions(p);
   const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];

@@ -346,6 +346,11 @@ export async function createBooking(
   scheduledFor: string,
   slotLabel: string,
   packageId?: string | null,
+  // The picked slot on its own. `slotLabel` is display text the client
+  // assembles ("5-session pack - July 12 - 8:00 AM"); the server checks this
+  // against coach_availability, and matching a correctness rule against a
+  // display string would stop enforcing the day that format changed.
+  slot?: string | null,
 ) {
   const coachId = await resolveCoachId(coach);
   return callRpc<string>('create_booking_for_coach', {
@@ -353,6 +358,7 @@ export async function createBooking(
     p_scheduled_for: scheduledFor,
     p_slot_label: slotLabel,
     p_package_id: packageId ?? null,
+    p_slot: slot ?? null,
   });
 }
 

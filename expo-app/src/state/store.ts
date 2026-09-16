@@ -1000,6 +1000,7 @@ export const useStore = create<SpotterState>((set, get) => ({
         scheduledFor(s.bookDay, slot),
         `${pkg.name} - ${D.bookingMonthName} ${s.bookDay} - ${slot}`,
         pkg.packageId,
+        slot,
       );
       set({ booked: true, writeBusy: null });
     } catch (error) {

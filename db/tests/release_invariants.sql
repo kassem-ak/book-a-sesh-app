@@ -281,6 +281,30 @@ begin
   v_log := v_log || E'
   PASS 12 entitlement stays at what was purchased when the listing changes';
 
+  -- ======================= 13. the coach's schedule is enforced ===========
+  -- "My schedule" tells a coach it controls which slots clients can book. It
+  -- wrote real rows that the booking RPC never read, so a client could book a
+  -- declared day off. The slot is passed explicitly rather than parsed out of
+  -- slot_label, which is display text.
+  set local role service_role;
+  insert into coach_availability (coach_id, weekday, slot)
+  values (v_coach, extract(isodow from v_slot + interval '10 days')::int - 1, '6:30 PM');
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_auth::text, 'role', 'authenticated')::text, true);
+
+  begin
+    perform create_booking_for_coach(v_coach, v_slot + interval '10 days', 'ZZ S4', null, '8:00 AM');
+    raise exception 'FAIL 13a: booked a slot the coach never offered';
+  exception when others then
+    get stacked diagnostics v_err = message_text;
+    if v_err like 'FAIL %' then raise; end if;
+  end;
+  perform create_booking_for_coach(v_coach, v_slot + interval '10 days', 'ZZ S5', null, '6:30 PM');
+  v_pass := v_pass + 1;
+  v_log := v_log || E'
+  PASS 13 coach schedule enforced: unoffered slot refused, offered slot books';
+
   ------------------------------------------------- catalogue checks (caller)
   reset role;
 
