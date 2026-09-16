@@ -59,11 +59,32 @@ Shipping the other three without it is an automatic rejection.
 
 ### Current state, measured
 
-Every provider was probed against the live project. All four answer
-identically today:
+| Provider | Status | Probe |
+|---|---|---|
+| Google | **Enabled** | `302` to `accounts.google.com`, correct client ID and callback |
+| Facebook | Not configured | `400` |
+| Microsoft (azure) | Not configured | `400` |
+| Apple | Not configured | `400` |
+
+Google was set up on 17 September 2026 in Google Cloud project `bookd-508822`:
+consent screen (External, app name BOOK'D), and a Web application OAuth client
+named "BOOK'D Supabase Web" carrying the callback URI above. The client ID and
+secret went straight from Google into the Supabase dashboard and are not in this
+repo.
+
+**Google is still in TESTING mode.** Only accounts listed under
+*Google Auth Platform → Audience → Test users* can sign in. Add any account you
+want to test with. Publishing to production needs the privacy policy URL from
+§3, and Google may require verification depending on scopes (currently just
+`email profile`, which is the light path).
+
+Still to do for Google: an **Android** OAuth client for `com.bookd.app`, for the
+native sign-in flow.
+
+The three unconfigured providers answer:
 
 ```
-GET /auth/v1/authorize?provider=<google|facebook|azure|apple>
+GET /auth/v1/authorize?provider=<facebook|azure|apple>
 400 {"error_code":"validation_failed","msg":"Unsupported provider: provider is not enabled"}
 ```
 
