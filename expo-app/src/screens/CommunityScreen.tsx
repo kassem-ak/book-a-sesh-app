@@ -197,7 +197,7 @@ export function CommunityScreen() {
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 8 }}>
           {soon.map((ev) => (
-            <EventCard key={ev.id} ev={ev} onPress={() => s.openEvent(ev.id, 'community')} />
+            <EventCard key={ev.id} ev={ev} onPress={() => s.openEvent(ev.id, null)} />
           ))}
         </ScrollView>
       )}

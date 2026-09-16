@@ -131,7 +131,11 @@ export function BlinkingMarker() {
   const [reduceMotion, setReduceMotion] = useState(true);
   useEffect(() => {
     let active = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((value) => { if (active) setReduceMotion(value); });
+    // A rejection here is not worth surfacing, but it must not become an
+    // unhandled rejection either; the listener below still corrects the value.
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((value) => { if (active) setReduceMotion(value); })
+      .catch(() => {});
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
     return () => { active = false; subscription.remove(); };
   }, []);

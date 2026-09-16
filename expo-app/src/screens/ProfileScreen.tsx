@@ -21,6 +21,9 @@ export function ProfileScreen() {
   const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
   // Deleting an account is irreversible, so it takes a second tap.
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Deletion is irreversible and is not atomic on the server, so a second run
+  // must not start while the first is still in flight.
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -205,8 +208,10 @@ export function ProfileScreen() {
               }
               onPress={() => {
                 if (!confirmDelete) { setConfirmDelete(true); return; }
+                if (deleting) return;
+                setDeleting(true);
                 setConfirmDelete(false);
-                void deleteAccount().catch((error) => {
+                void deleteAccount().finally(() => setDeleting(false)).catch((error) => {
                   track('write_failed', { error_code: analyticsErrorCode(error) });
                   s.set('writeError', errorMessage(error));
                 });

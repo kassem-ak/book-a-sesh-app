@@ -15,21 +15,21 @@ export function BookingOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const p = s.personById(s.openId);
-  if (!p) return <MissingSubject title="Book a session" message="This coach is no longer available." onBack={s.backToPerson} />;
-  // No day is greyed out here: the coach's saved schedule is enforced by the
-  // server at confirm time, not mirrored into this calendar. A client can still
-  // tap a day the coach does not work and is refused on confirm. Showing it
-  // up front needs the schedule fetched per coach -- worth doing, not done.
-  const full: number[] = [];
-  const pkgs = coachPackageOptions(p);
-  const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
 
+  // EVERY hook runs before the missing-coach return below. Root replaces the
+  // people list on refresh, so `p` can go from defined to undefined while this
+  // overlay is open; returning early above the hooks changed the hook count
+  // between renders and React threw "Rendered fewer hooks than expected",
+  // dropping the whole app to the error screen.
+  //
   // The first booking records the pack price; later redemptions record zero.
   // Usage establishes pack coverage, not whether the coach has been paid.
   const [usage, setUsage] = React.useState<PackageUsage | null>(null);
   const [usageLoading, setUsageLoading] = React.useState(true);
   const [bookingQuote, setBookingQuote] = React.useState<{ redeeming: boolean; dueNow: number } | null>(null);
+  const personId = p?.id;
   React.useEffect(() => {
+    if (!personId) return;
     let live = true;
     setUsage(null);
     setUsageLoading(true);
@@ -40,7 +40,17 @@ export function BookingOverlay() {
       }
     });
     return () => { live = false; };
-  }, [p.id]);
+  }, [personId]);
+
+  if (!p) return <MissingSubject title="Book a session" message="This coach is no longer available." onBack={s.backToPerson} />;
+
+  // No day is greyed out here: the coach's saved schedule is enforced by the
+  // server at confirm time, not mirrored into this calendar. A client can still
+  // tap a day the coach does not work and is refused on confirm. Showing it
+  // up front needs the schedule fetched per coach -- worth doing, not done.
+  const full: number[] = [];
+  const pkgs = coachPackageOptions(p);
+  const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
 
   const usageKnown = !selectedPkg?.packageId || usage !== null;
   const balance = selectedPkg?.packageId ? usage?.[selectedPkg.packageId] : undefined;
