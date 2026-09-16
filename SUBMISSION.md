@@ -57,6 +57,32 @@ Shipping the other three without it is an automatic rejection.
 > I did not create any of these, and did not handle any client secret. Paste
 > them straight into the Supabase dashboard — they should not enter this repo.
 
+### Current state, measured
+
+Every provider was probed against the live project. All four answer
+identically today:
+
+```
+GET /auth/v1/authorize?provider=<google|facebook|azure|apple>
+400 {"error_code":"validation_failed","msg":"Unsupported provider: provider is not enabled"}
+```
+
+The app handles that correctly rather than opening a dead tab — each button
+reports "<Provider> sign-in is not set up yet. Use your email and password for
+now." So the client is finished; enabling is purely the dashboard step above.
+
+To confirm a provider went live, re-run the probe and look for a `302` instead
+of the `400`:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}
+' "https://qievymkkprhbvxrsdukb.supabase.co/auth/v1/authorize?provider=facebook&redirect_to=bookd://"
+```
+
+Repeat with `provider=google`, `provider=azure` (Microsoft) and
+`provider=apple`. A `302` means that provider is enabled and the redirect URI
+was accepted; a `400` means it is still not configured.
+
 After enabling each one, the in-app probe stops reporting it as unavailable;
 that is the fastest way to confirm it took.
 
