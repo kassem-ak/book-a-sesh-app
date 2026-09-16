@@ -80,3 +80,28 @@ eas build --profile production --platform android
 
 Requires EAS CLI 14 or newer (`eas.json` pins `>= 14.0.0`); older CLIs ignore the
 `environment` field and would produce a build showing the configuration error described above.
+
+### Building the APK locally
+
+`android/local.properties` is gitignored and must exist, pointing at your
+Android SDK. Use forward slashes — a Java properties file treats a single
+backslash as an escape, so a Windows path written with `\` silently resolves to
+nonsense and Gradle reports "SDK location not found":
+
+```bash
+echo 'sdk.dir=C:/Users/<you>/AppData/Local/Android/Sdk' > android/local.properties
+```
+
+```bash
+cd android && ./gradlew assembleRelease
+```
+
+The APK lands at `android/app/build/outputs/apk/release/app-release.apk`.
+
+Note that `android/app/build.gradle` signs the release variant with the DEBUG
+key, so this artifact installs for testing but cannot be uploaded to Play. A
+store-ready AAB comes from `eas build --profile production --platform android`
+with your own release credentials.
+
+Gradle's wrapper can exit 0 on a failed build here, so check the log for
+`BUILD SUCCESSFUL` rather than trusting the exit code.
