@@ -18,8 +18,8 @@ import { AuthForm } from '../overlays/AuthOverlay';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 
-// Onboarding gate from the redesign board: Get Started -> Are you? -> Where are
-// we looking? Shown until a real account signs in or guest mode is chosen.
+// Onboarding gate: Get Started -> Are you? -> Add an area label.
+// Shown until a real account signs in or guest mode is chosen.
 type Step = 'start' | 'role' | 'where';
 const STEPS: Step[] = ['start', 'role', 'where'];
 
@@ -110,7 +110,7 @@ export function AuthLanding() {
               <RolePill label="Trainee/Student" active={kind === 'trainee'} onPress={() => setKind('trainee')} />
             </Row>
             <View style={{ height: 54 }} />
-            <NextButton label="NEXT" accessibilityLabel="Next, choose your area" onPress={() => {
+            <NextButton label="NEXT" accessibilityLabel="Next, add an area label" onPress={() => {
               s.set('signupIntent', kind);
               // Make the answer mean something. It was recorded and then read
               // nowhere, so this step of onboarding changed nothing at all.
@@ -123,9 +123,15 @@ export function AuthLanding() {
         ) : (
           <>
             <Text style={[t.bodySm, { color: c.txt2 }]}>Hey Champ -</Text>
-            <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Where are we looking?</Text>
+            <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Add an area label</Text>
             <LocationField value={loc} onChange={setLoc} />
-            <Text style={[t.labelSm, { color: c.txt, marginTop: 22 }]}>Search Radius</Text>
+            <Text style={[t.bodySm, { color: c.txt2, marginTop: 12 }]}>
+              Your area is a display label; it does not restrict results. The search words you entered earlier start your search.
+            </Text>
+            <Text style={[t.labelSm, { color: c.txt, marginTop: 22 }]}>Distance preference</Text>
+            <Text style={[t.bodySm, { color: c.txt2, marginTop: 6 }]}>
+              This narrows results to people we can place within that distance of you. Anyone whose location we do not know stays visible.
+            </Text>
             <RadiusSlider value={radius} onChange={setRadius} />
             <Row style={{ justifyContent: 'space-between', marginTop: 6 }}>
               <Text style={[t.caption, { color: c.txt2 }]}>1 Km</Text>
@@ -256,7 +262,7 @@ function LocationField({ value, onChange }: { value: string; onChange: (v: strin
     const point = await getDevicePoint();
     setLocating(false);
     if (!point) {
-      setLocateError('Location unavailable — type your area instead.');
+      setLocateError('Location unavailable. You can still add an area label; it will not filter results.');
       return;
     }
     onChange(`${point.latitude.toFixed(4)}, ${point.longitude.toFixed(4)}`);
@@ -280,11 +286,11 @@ function LocationField({ value, onChange }: { value: string; onChange: (v: strin
       <TextInput
         value={value}
         onChangeText={onChange}
-        placeholder="Location"
+        placeholder="Area label (optional)"
         placeholderTextColor={c.txt3}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        accessibilityLabel="Location"
+        accessibilityLabel="Area label (optional)"
         style={[t.body, { flex: 1, color: c.txt, padding: 0, paddingVertical: 10 }]}
       />
       <Pressable
@@ -325,7 +331,8 @@ function RadiusSlider({ value, onChange }: { value: number; onChange: (v: number
       }}
       accessible
       accessibilityRole="adjustable"
-      accessibilityLabel="Search radius in kilometres"
+      accessibilityLabel="Distance preference in kilometres"
+      accessibilityHint="Narrows results to people within this distance. Profiles with no known location stay visible."
       accessibilityValue={{ min: 1, max: 100, now: value }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={(e) => {

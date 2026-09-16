@@ -91,10 +91,10 @@ export function ProfileScreen() {
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Coach tools</SectionHeading>
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
-              <ToolRow title="Appointment requests" body="Approve bookings & change requests" onPress={() => s.set('overlay', 'coachRequests')} />
+              <ToolRow title="Appointment requests" body="Review requests · record decisions" onPress={() => s.set('overlay', 'coachRequests')} />
               <ToolRow title="My schedule" body="Edit weekly timetable" onPress={() => s.set('overlay', 'coachSchedule')} />
               <ToolRow title="Today's sessions" body="Day view - mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
-              <ToolRow title="Packages, pricing & promos" body="Set prices · create discounts" onPress={() => s.set('overlay', 'coachPackages')} />
+              <ToolRow title="Packages, pricing & promos" body="Set prices · record codes, not yet redeemable" onPress={() => s.set('overlay', 'coachPackages')} />
             </View>
           </Card>
         </>
@@ -151,8 +151,8 @@ export function ProfileScreen() {
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
               <ToolRow icon="user-check" title="Approvals" body="Hobby requests, communities and venues" onPress={() => s.set('overlay', 'adminApprovals')} />
-              <ToolRow icon="flag" title="Misconduct reports" body="Review evidence · ban or suspend" onPress={() => s.set('overlay', 'adminReports')} />
-              <ToolRow icon="percent" title="Promotions & promo codes" body="Create discounts · generate codes" onPress={() => s.set('overlay', 'adminPromos')} />
+              <ToolRow icon="flag" title="Misconduct reports" body="Review evidence · record decisions only" onPress={() => s.set('overlay', 'adminReports')} />
+              <ToolRow icon="percent" title="Promotions & promo codes" body="Record codes · not yet redeemable in the app" onPress={() => s.set('overlay', 'adminPromos')} />
               <ToolRow icon="tag" title="Loyalty offers" body="Edit rewards & point costs" onPress={() => s.set('overlay', 'adminLoyalty')} />
               {/* No Accounting row on purpose. The console exists but is a
                   simulation: "Propose changes" can never enable because the

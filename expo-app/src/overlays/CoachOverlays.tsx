@@ -446,8 +446,8 @@ export function CoachRequestsOverlay() {
             {/* A decision is a record on the request row. Nothing reschedules
                 or cancels the client's booking as a side effect, so say so. */}
             <Text style={[t.bodySm, { color: c.txt3, marginTop: 12 }]}>
-              Approving or declining records your answer on the request. It does not move or cancel the client's
-              booking — do that from the session itself.
+              Approving or declining only records your answer on the request. It does not change the client's
+              booking. This screen cannot reschedule or cancel sessions.
             </Text>
 
             <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Client packages</SectionHeading>
@@ -969,14 +969,18 @@ export function CoachPackagesOverlay() {
               Packages are live on your public profile — clients book from exactly this list.
             </Text>
 
-            <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Create a promo</SectionHeading>
+            <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Record a promo code</SectionHeading>
+            {/* Promo codes persist, but no booking flow redeems them. */}
+            <Text style={[t.bodySm, { color: c.txt3, marginBottom: 11 }]}>
+              Codes are recorded in your promo list. They are not yet redeemable in the app and do not change booking prices.
+            </Text>
             <Row gap={8}>
               {[10, 15, 20, 25].map((p) => (
                 <Pressable
                   key={p}
                   onPress={() => setPromoPct(p)}
                   accessibilityRole="radio"
-                  accessibilityLabel={`${p} percent off`}
+                  accessibilityLabel={`Record ${p} percent`}
                   accessibilityState={{ selected: promoPct === p }}
                   style={{
                     flex: 1,
@@ -1006,16 +1010,16 @@ export function CoachPackagesOverlay() {
               />
             </View>
 
-            <SectionHeading style={{ marginTop: 24, marginBottom: 11 }}>Your active promos</SectionHeading>
+            <SectionHeading style={{ marginTop: 24, marginBottom: 11 }}>Your recorded promo codes</SectionHeading>
             <View style={{ gap: 10 }}>
               {promos.length === 0 ? (
-                <Note>No active promos.</Note>
+                <Note>No promo codes to show.</Note>
               ) : (
                 promos.map((promo) => (
                   <PromoCard
                     key={promo.id}
                     code={promo.code}
-                    sub={`${promo.pct}% off your sessions`}
+                    sub={`${promo.pct}% recorded · not redeemable in the app`}
                     onRemove={() => run(() => retireCoachPromo(promo.id), 'Could not remove that promo.')}
                     removeLabel={`Deactivate promo code ${promo.code}`}
                     disabled={busy}
@@ -1023,12 +1027,6 @@ export function CoachPackagesOverlay() {
                 ))
               )}
             </View>
-            {/* Nothing in the app redeems coach_promos at checkout yet. Saying
-                the code "works" would be the exact lie this pass removes. */}
-            <Text style={[t.bodySm, { color: c.txt3, marginTop: 16 }]}>
-              Promo codes are saved to your profile, but checkout does not redeem them yet — share one only once
-              BOOK'D turns redemption on. Platform-wide promotions are managed by BOOK'D admins.
-            </Text>
           </>
         )}
       </View>
