@@ -200,11 +200,26 @@ the client secrets those issue — account access and credential handling I do n
 do on your behalf. `SUBMISSION.md` §1 has the exact redirect URI, bundle id,
 per-provider steps and a one-line curl to confirm each one flips to `302`.
 
-**The APK is debug-signed.** `android/app/build.gradle` signs the release variant
-with the debug key, so the attached APK installs and runs for testing but cannot
-be uploaded to Play. A store-ready AAB needs EAS with your credentials, and a
-release keystore — which is yours to generate and keep, permanently, and which
-I deliberately did not create for you.
+**The APK is a debug-variant build, and that is not a shortcut.** Two separate
+reasons:
+
+1. `android/app/build.gradle` signs the *release* variant with the debug key, so
+   even a release APK from this tree could not be uploaded to Play.
+2. The release variant cannot finish compiling on this machine at all. The C++
+   codegen step composes object paths from the full source path, and under this
+   project directory that exceeds the Windows 260-character limit:
+   `ninja: error: Stat(...RNCSafeAreaViewShadowNode.cpp.o): Filename longer than
+   260 characters`. Raising that limit is a system-wide setting I do not change.
+
+This is why `plugins/withBookdAndroid.js` sets `debuggableVariants = []` — it
+makes the debug variant embed the JS bundle, so the APK is standalone and runs
+without a Metro server. It is the right artifact for installing and testing this
+build; it is not the artifact you submit.
+
+A store-ready AAB comes from `eas build --profile production --platform android`,
+which builds on EAS Linux workers (no path limit) with your own release keystore
+— yours to generate and keep permanently, and which I deliberately did not
+create for you.
 
 **Decisions only you can make:**
 
