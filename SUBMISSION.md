@@ -75,8 +75,7 @@ To confirm a provider went live, re-run the probe and look for a `302` instead
 of the `400`:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}
-' "https://qievymkkprhbvxrsdukb.supabase.co/auth/v1/authorize?provider=facebook&redirect_to=bookd://"
+curl -s -o /dev/null -w "%{http_code}" "https://qievymkkprhbvxrsdukb.supabase.co/auth/v1/authorize?provider=facebook&redirect_to=bookd://"
 ```
 
 Repeat with `provider=google`, `provider=azure` (Microsoft) and
