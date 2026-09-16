@@ -1,4 +1,5 @@
 import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading } from '../components/ui';
@@ -142,6 +143,7 @@ export function CoachDayViewOverlay() {
       await markCompleted(session.id);
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(e instanceof Error ? e.message : 'Could not close out that session.');
     } finally {
       setBusyId(null);

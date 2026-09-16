@@ -1,6 +1,7 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
+import { identify, track } from './analytics';
 import { supabase, assertSupabaseConfigured, supabaseUrl } from './supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -77,6 +78,7 @@ export async function ensureAppSession() {
 export async function signInEmail(email: string, password: string) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
+  track('email_sign_in');
 }
 
 // Returns true when the project requires email confirmation (no session yet).
@@ -91,6 +93,7 @@ export async function signUpEmail(name: string, email: string, password: string)
     options: { data: { name } },
   });
   if (error) throw error;
+  track('email_sign_up', { confirmation_required: !data.session });
   return !data.session;
 }
 
@@ -140,11 +143,15 @@ async function assertProviderEnabled(provider: SsoProvider) {
   } catch {
     return; // offline or blocked — let the normal flow surface it
   }
-  if (disabled) throw new ProviderDisabledError(provider);
+  if (disabled) {
+    track('sso_unavailable', { provider });
+    throw new ProviderDisabledError(provider);
+  }
   providerChecked.add(provider);
 }
 
 export async function signInWithProvider(provider: SsoProvider) {
+  track('sso_attempted', { provider });
   assertSupabaseConfigured();
   await assertProviderEnabled(provider);
   // Drop any anonymous guest session so the SSO account is a clean identity.
@@ -197,6 +204,8 @@ export async function deleteAccount(): Promise<void> {
   if (data && typeof data === 'object' && 'error' in data) {
     throw new Error(String((data as { error: unknown }).error));
   }
+  identify(null);
+  track('account_deleted');
   // The credentials are gone; drop the local session so the app returns to the
   // landing gate instead of holding a token that no longer resolves.
   await supabase.auth.signOut();

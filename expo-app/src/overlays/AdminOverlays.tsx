@@ -1,4 +1,5 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, MicroBadge, Row, SectionHeading, VoltButton } from '../components/ui';
@@ -298,6 +299,7 @@ export function AdminCaseOverlay() {
     try {
       setReport(await decideReport(caseId, decision));
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setError(e instanceof Error ? e.message : 'The decision was not saved.');
     } finally {
       setBusy(false);
@@ -397,6 +399,7 @@ export function SafetyCaseOverlay() {
     try {
       setFlag(await decideSafetyFlag(flagId, verdict));
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setError(e instanceof Error ? e.message : 'The decision was not saved.');
     } finally {
       setBusy(false);
@@ -504,6 +507,7 @@ export function AdminPromosOverlay() {
       await write();
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, fallback));
     } finally {
       setBusy(false);
@@ -621,6 +625,7 @@ export function AdminLoyaltyOverlay() {
       await setRewardCost(reward.id, next);
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, 'Could not save that point cost.'));
     } finally {
       setBusy(false);

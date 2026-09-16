@@ -18,9 +18,13 @@ import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { track } from './src/lib/analytics';
 import { Root } from './src/navigation/Root';
 import { useStore } from './src/state/store';
 import { dark, light } from './src/theme/colors';
+
+// Module initialization runs once per launch, before fonts or auth settle.
+track('app_open');
 
 export default function App() {
   const [loaded, fontError] = useFonts({

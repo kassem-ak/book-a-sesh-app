@@ -4,6 +4,7 @@ import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Ov
 import { Card, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import { coachPackageOptions } from '../state/models';
 import { fetchPackageUsage, PackageUsage } from '../lib/queries';
+import { track } from '../lib/analytics';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -111,8 +112,17 @@ export function BookingOverlay() {
             onPress={() => {
               // A late balance read may include this booking's redemption.
               // Only the quote known before submission can describe it.
-              setBookingQuote(usageKnown ? { redeeming, dueNow } : null);
-              void s.confirmBooking();
+              const quote = usageKnown ? { redeeming, dueNow } : null;
+              setBookingQuote(quote);
+              void s.confirmBooking().then(() => {
+                if (!useStore.getState().booked) return;
+                // The amount the screen actually quoted. When the balance was
+                // still unknown the event carries no amount at all -- a wrong
+                // number in the funnel is worse than a missing one.
+                track('booking_confirmed', quote
+                  ? { booking_type: quote.redeeming ? 'redemption' : 'purchase', amount_cents: quote.dueNow * 100 }
+                  : {});
+              });
             }}
             busy={s.writeBusy === 'booking'}
             busyLabel="Booking..."
@@ -170,7 +180,10 @@ export function BookingOverlay() {
           {pkgs.map((pk, i) => {
             const sel = s.bookPkg === i;
             return (
-              <Pressable key={pk.name} onPress={() => s.set('bookPkg', i)}>
+              <Pressable key={pk.name} onPress={() => {
+                s.set('bookPkg', i);
+                track('package_selected', { package_index: i, sessions: pk.sessions });
+              }}>
                 <Card background={sel ? alpha(c.volt, 0.1) : c.surface} borderColor={sel ? c.volt : c.line} style={{ padding: 14 }}>
                   <Row style={{ justifyContent: 'space-between' }}>
                     <View>

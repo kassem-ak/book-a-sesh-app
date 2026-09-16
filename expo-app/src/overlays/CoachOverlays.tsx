@@ -1,4 +1,5 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, VoltButton } from '../components/ui';
@@ -348,6 +349,7 @@ export function CoachRequestsOverlay() {
       await decideApptRequest(id, status);
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, 'Could not save that decision.'));
     } finally {
       setBusyId(null);
@@ -361,6 +363,7 @@ export function CoachRequestsOverlay() {
       const saved = await rateTrainee(trainee.id, stars);
       setTrainees((list) => list.map((x) => (x.id === trainee.id ? { ...x, stars: saved } : x)));
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, 'Could not save that rating.'));
     } finally {
       setBusyId(null);
@@ -615,6 +618,7 @@ export function CoachScheduleOverlay() {
       await write();
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, fallback));
     } finally {
       setBusy(false);
@@ -840,6 +844,7 @@ export function CoachPackagesOverlay() {
       await write();
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, fallback));
     } finally {
       setBusy(false);

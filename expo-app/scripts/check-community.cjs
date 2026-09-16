@@ -63,12 +63,17 @@ async function main() {
     } },
     '../lib/queries': queries, './models': {}, '../lib/courts': {},
     '../lib/moderation': {}, './courtsData': {}, './sampleData': load('state/sampleData.ts'),
+    // Analytics is a fire-and-forget seam; this check is about data flow, so a
+    // no-op stub keeps it out of the way while still proving nothing calls it
+    // with a signature it does not have.
+    '../lib/analytics': { track: () => {}, identify: () => {}, analyticsErrorCode: () => 'UNKNOWN_ERROR' },
   });
   let effect;
   const { CommunityScreen } = load('screens/CommunityScreen.tsx', {
     react: { ...React, useEffect: (run) => { effect = run; } }, 'react-native': {},
     '../components/ui': {}, '../lib/queries': queries, '../state/store': { useStore },
     '../theme': { useTheme: () => ({ c: {}, t: {} }) },
+    '../lib/analytics': { track: () => {}, identify: () => {}, analyticsErrorCode: () => 'UNKNOWN_ERROR' },
   });
   const mount = () => { CommunityScreen(); return effect(); };
   const membershipRequests = () => requests.filter((url) => url.pathname.endsWith('/community_members'));

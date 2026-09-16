@@ -4,6 +4,7 @@ import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Ov
 import { Avatar, Card, Icon, Row, SectionHeading, Stars, VoltButton } from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
 import { startConversation } from '../lib/chat';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 
@@ -19,7 +20,9 @@ export function PersonOverlay() {
     setMessaging(true);
     try {
       s.openChat(await startConversation(p.id));
+      track('conversation_started_from_profile');
     } catch (error) {
+      track('write_failed', { error_code: analyticsErrorCode(error) });
       s.set('writeError', error instanceof Error ? error.message : 'Could not open that conversation.');
     } finally {
       setMessaging(false);

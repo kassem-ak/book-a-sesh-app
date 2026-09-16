@@ -1,4 +1,5 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, MicroBadge, Row, SectionHeading } from '../components/ui';
@@ -65,6 +66,7 @@ export function BookingsOverlay() {
       setConfirmingId(null);
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(e instanceof Error ? e.message : 'Could not cancel that session.');
     } finally {
       setCancellingId(null);

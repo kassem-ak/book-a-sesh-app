@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, MicroBadge, Row, SectionHeading } from '../components/ui';
@@ -38,6 +39,7 @@ export function AdminApprovalsOverlay() {
       await decideSportRequest(id, status);
       await load();
     } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
       // A failed response cannot establish whether the server saved the write.
       setActionError(e instanceof Error ? e.message : 'Could not confirm the decision. Refresh requests before trying again.');
     } finally {

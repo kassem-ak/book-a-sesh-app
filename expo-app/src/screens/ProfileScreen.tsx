@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Toggle } from '../components/ui';
 import { fetchMyBookings } from '../lib/bookings';
 import { deleteAccount, signOutUser } from '../lib/session';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import { initials } from '../state/models';
 import { errorMessage, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -186,7 +187,10 @@ export function ProfileScreen() {
               title="Sign out"
               body={`${s.authName ?? 'Signed in'} · ${s.authEmail}`}
               onPress={() => {
-                void signOutUser().catch((error) => s.set('writeError', errorMessage(error)));
+                void signOutUser().catch((error) => {
+                  track('write_failed', { error_code: analyticsErrorCode(error) });
+                  s.set('writeError', errorMessage(error));
+                });
               }}
             />
             {/* Required in-app by both stores wherever accounts can be created.
@@ -202,7 +206,10 @@ export function ProfileScreen() {
               onPress={() => {
                 if (!confirmDelete) { setConfirmDelete(true); return; }
                 setConfirmDelete(false);
-                void deleteAccount().catch((error) => s.set('writeError', errorMessage(error)));
+                void deleteAccount().catch((error) => {
+                  track('write_failed', { error_code: analyticsErrorCode(error) });
+                  s.set('writeError', errorMessage(error));
+                });
               }}
             />
           </>

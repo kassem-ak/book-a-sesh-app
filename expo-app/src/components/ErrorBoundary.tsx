@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { dark, light } from '../theme/colors';
+import { track } from '../lib/analytics';
 
 /**
  * Catches render-time crashes.
@@ -25,8 +26,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // No crash reporter is wired up yet. Logging at least puts the stack in
-    // `adb logcat` / the browser console instead of losing it entirely.
+    track('render_crash', { error_type: error.name });
+    // The analytics record contains no message/stack. Local diagnostics stay
+    // in `adb logcat` / the browser console; no remote reporter is attached.
     console.error('Unhandled render error', error, info.componentStack);
   }
 

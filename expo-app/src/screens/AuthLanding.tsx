@@ -14,6 +14,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } f
 import { BrandIcon, Field, Icon, Row } from '../components/ui';
 import { signInWithProvider, SSO_LABELS, SsoProvider } from '../lib/session';
 import { getDevicePoint } from '../lib/geo';
+import { track } from '../lib/analytics';
 import { AuthForm } from '../overlays/AuthOverlay';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
@@ -39,10 +40,19 @@ export function AuthLanding() {
   const radius = s.searchRadius;
   const setRadius = (value: number) => s.set('searchRadius', value);
 
+  const viewedStep = account ? 'account' : step;
+  const lastViewed = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastViewed.current === viewedStep) return;
+    lastViewed.current = viewedStep;
+    track('onboarding_step_viewed', { step: viewedStep });
+  }, [viewedStep]);
+
   const finish = () => {
     s.set('authLoc', loc.trim());
     s.set('discSearch', seek.trim());
     s.set('guestMode', true);
+    track('guest_entered');
   };
   const socialSignIn = async (provider: SsoProvider) => {
     setBusy(true);
@@ -112,6 +122,7 @@ export function AuthLanding() {
             <View style={{ height: 54 }} />
             <NextButton label="NEXT" accessibilityLabel="Next, add an area label" onPress={() => {
               s.set('signupIntent', kind);
+              track('onboarding_role_chosen', { role: kind });
               // Make the answer mean something. It was recorded and then read
               // nowhere, so this step of onboarding changed nothing at all.
               // A coach is looking for training partners and clients; someone

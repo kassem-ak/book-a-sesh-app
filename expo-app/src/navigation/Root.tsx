@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { currentAppUserId } from '../lib/bookings';
 import { ensureAppSession } from '../lib/session';
+import { identify } from '../lib/analytics';
 import { fetchCoaches, fetchPartners } from '../lib/queries';
 import { assertSupabaseConfigured, supabase } from '../lib/supabase';
 import { useStore } from '../state/store';
@@ -30,12 +32,23 @@ export function Root() {
 
   useEffect(() => {
     ensureAppSession()
-      .then(() => Promise.all([useStore.getState().refreshRole(), useStore.getState().refreshBlocked()]))
+      .then(() => Promise.all([
+        useStore.getState().refreshRole(),
+        useStore.getState().refreshBlocked(),
+        // Analytics is labelled with the internal account id, never an email.
+        // Deliberately swallowed: a failure here must not take down startup,
+        // and an unlabelled event is better than a broken launch.
+        currentAppUserId().then(identify).catch(() => {}),
+      ]))
       .catch((error) => console.warn('Supabase session unavailable', error));
     // Mirror the real (non-anonymous) account into the store for the Profile UI.
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const user = session?.user;
       const real = user && !user.is_anonymous;
+      // Signing out drops the label immediately. Signing in re-resolves it
+      // below, once the new session's account id is known.
+      if (!real || event === 'SIGNED_OUT') identify(null);
+      else void currentAppUserId().then(identify).catch(() => {});
       useStore.getState().set('authEmail', real ? user.email ?? null : null);
       useStore.getState().set('authName', real ? (user.user_metadata?.name as string | undefined) ?? null : null);
       // Signing out of a real account returns to the landing gate.
