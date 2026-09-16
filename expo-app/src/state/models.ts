@@ -204,12 +204,13 @@ export const coachPackageOptions = (p: Person): BookingPackageOption[] => {
     .map((pkg) => ({
       name: pkg.sessions === 1 ? 'Single session' : `${pkg.sessions}-session pack`,
       price: pkg.price,
-      note: pkg.sessions === 1 ? '60 min' : `${pkg.sessions} sessions`,
+      // Packages carry a session count, but no duration.
+      note: pkg.sessions === 1 ? '1 session' : `${pkg.sessions} sessions`,
       packageId: pkg.id,
       sessions: pkg.sessions,
     }));
   if (realPackages.length > 0) return realPackages;
   // Was `p.price ?? 30`, which quoted a price the coach never set. 0 means
   // "no price on file"; the booking screen says so rather than printing $0.
-  return [{ name: 'Single session', price: p.price ?? 0, note: '60 min', packageId: null, sessions: 1 }];
+  return [{ name: 'Single session', price: p.price ?? 0, note: '1 session', packageId: null, sessions: 1 }];
 };

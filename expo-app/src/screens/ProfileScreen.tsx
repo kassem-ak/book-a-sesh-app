@@ -108,8 +108,8 @@ export function ProfileScreen() {
           title="My bookings"
           body={
             upcomingCount === null
-              ? 'Sessions, packages and past ratings'
-              : `${upcomingCount} upcoming ${upcomingCount === 1 ? 'session' : 'sessions'} · packages and past ratings`
+              ? 'Sessions and packages'
+              : `${upcomingCount} upcoming ${upcomingCount === 1 ? 'session' : 'sessions'} · packages`
           }
           badge={upcomingCount ? String(upcomingCount) : undefined}
           onPress={s.openBookings}
@@ -127,7 +127,7 @@ export function ProfileScreen() {
         <GroupRow
           icon="bell"
           title="Notifications"
-          body="Booking and community updates"
+          body="Booking updates"
           onPress={s.openNotifs}
         />
       </Card>

@@ -348,7 +348,7 @@ export function NotificationsOverlay() {
             onRetry={() => { setItems(null); setReloads((n) => n + 1); }}
           />
         ) : items.length === 0 ? (
-          <EmptyCard icon="bell" title="You’re all caught up" detail="Booking updates and community news land here." />
+          <EmptyCard icon="bell" title="You’re all caught up" detail="Booking updates land here." />
         ) : (
           items.map((n) => <NotifCard key={n.id} notification={n} onPress={() => openOne(n)} />)
         )}

@@ -127,8 +127,7 @@ async function fetchClientPacks(): Promise<ClientPack[]> {
 /**
  * You may review only someone you actually trained, so the candidate list is
  * the distinct clients of this coach's completed bookings — not an arbitrary
- * user picker. Existing stars are read back so the UI shows what is really
- * published rather than a local tally.
+ * user picker. Existing stars are read back so the UI shows the saved rating.
  */
 async function fetchTrainees(): Promise<Trainee[]> {
   const coachId = await currentAppUserId();
@@ -159,9 +158,8 @@ async function fetchTrainees(): Promise<Trainee[]> {
 }
 
 /**
- * `reviews` is unique on (subject_id, author_id) and policy `reviews_read` is
- * `using (true)`, so this genuinely upserts one public review — which is why
- * the copy is allowed to say it shows on their profile.
+ * `reviews` is unique on (subject_id, author_id), so this replaces the coach's
+ * previous rating. Public read access does not mean partner profiles show it.
  */
 async function rateTrainee(traineeId: string, stars: number): Promise<number> {
   const coachId = await currentAppUserId();
@@ -474,7 +472,7 @@ export function CoachRequestsOverlay() {
                         <Text style={[t.name, { color: c.txt }]}>{trainee.name}</Text>
                         <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>
                           {trainee.stars
-                            ? `You rated ${trainee.stars}/5 — shown on their public profile`
+                            ? `You rated ${trainee.stars}/5`
                             : 'Not rated yet'}
                         </Text>
                       </View>
@@ -498,8 +496,7 @@ export function CoachRequestsOverlay() {
               )}
             </View>
             <Text style={[t.bodySm, { color: c.txt3, marginTop: 14 }]}>
-              You can rate only trainees you have completed a session with. A rating is public and replaces your
-              previous one.
+              You can rate only trainees you have completed a session with. A new rating replaces your previous one.
             </Text>
           </>
         )}
@@ -880,7 +877,7 @@ export function CoachPackagesOverlay() {
                           {p.sessions === 1 ? 'Single session' : `${p.sessions}-session pack`}
                         </Text>
                         <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
-                          {formatCents(Math.round(p.priceCents / p.sessions))} per session · 60 min each
+                          {formatCents(Math.round(p.priceCents / p.sessions))} per session
                         </Text>
                       </View>
                       <Pressable

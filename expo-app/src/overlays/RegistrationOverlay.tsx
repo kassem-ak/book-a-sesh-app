@@ -8,8 +8,8 @@ import { useTheme } from '../theme';
 
 // Delta section D → "Registration (community · venue · shop) — ONE shared form".
 // The prototype keeps a single `reg` overlay and switches only its copy on
-// `regKind`; the field list, ordering and the admin hand-off are identical for
-// all three kinds. Every submission is an admin approval item.
+// `regKind`; only shops have a persisted admin hand-off. Community and venue
+// requests stay in memory, so their copy must not imply submission or storage.
 export type RegKind = 'community' | 'venue' | 'shop';
 
 const CHANNELS = ['Phone call', 'WhatsApp', 'Email', 'In-app chat'];
@@ -34,7 +34,7 @@ const COPY: Record<RegKind, Copy> = {
     namePh: 'e.g. Summit Trail Co.',
     officialQ: 'Is it an official Entity? (federation, institute, etc..)',
     footnote: 'New communities start unofficial. The OFFICIAL badge is granted only by BOOK’D admins after review.',
-    sentLine: 'Your community request is saved on this device.',
+    sentLine: 'Your community request is held on this device and has not been sent yet.',
   },
   venue: {
     title: 'Venue registration',
@@ -42,7 +42,7 @@ const COPY: Record<RegKind, Copy> = {
     namePh: 'e.g. Let’s Go Paddle',
     officialQ: 'Is it an official Entity? (federation, institute, etc..)',
     footnote: 'Venue listings require BOOK’D admin setup before they can go live.',
-    sentLine: 'Your venue request is saved on this device.',
+    sentLine: 'Your venue request is held on this device and has not been sent yet.',
   },
   shop: {
     title: 'Shop registration',
@@ -77,13 +77,13 @@ export function RegistrationOverlay() {
   const [channel, setChannel] = useState<string | null>(typeof store.regChannel === 'string' ? (store.regChannel as string) : null);
   const [bestTime, setBestTime] = useState(typeof store.regTime === 'string' ? (store.regTime as string) : '');
   const [official, setOfficial] = useState<boolean | null>(null);
-  const [docs, setDocs] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   const blocked = isExplicit(name);
   const trimmed = name.trim();
   const canSend = trimmed.length > 1 && !blocked && (phone.trim().length > 0 || email.trim().length > 0);
   const busy = s.writeBusy === 'shop-registration';
+  const submitLabel = kind === 'shop' ? 'Send request to admins' : 'Keep request on this device';
 
   const submit = () => {
     if (!canSend || busy) return;
@@ -102,8 +102,8 @@ export function RegistrationOverlay() {
       });
       return;
     }
-    // Community and venue have no server table yet, so the request is queued in
-    // the store and rendered in the admin approvals list rather than dropped.
+    // This store is memory-only: other devices cannot review these requests,
+    // and restarting the app discards them.
     const meta = [
       phone.trim() && `Phone ${phone.trim()}`,
       email.trim() && email.trim(),
@@ -133,14 +133,14 @@ export function RegistrationOverlay() {
           >
             <Icon name="check" size={32} color={c.accent} />
           </View>
-          <Text style={[t.overlayTitle, { fontSize: 23, color: c.txt, marginTop: 20 }]}>Request sent</Text>
+          <Text style={[t.overlayTitle, { fontSize: 23, color: c.txt, marginTop: 20 }]}>{kind === 'shop' ? 'Request sent' : 'Request not sent'}</Text>
           <Text style={[t.bodyLg, { color: c.soft, marginTop: 9, textAlign: 'center', lineHeight: 22, maxWidth: 290 }]}>
             {copy.sentLine}
           </Text>
           <Text style={[t.caption, { color: c.txt3, marginTop: 14, textAlign: 'center' }]}>
             {kind === 'shop'
               ? 'Tracked as an admin approval item.'
-              : 'Saved on this device for review.'}
+              : 'It will be lost when the app restarts. Admins on other devices cannot see it.'}
           </Text>
           <View style={{ width: '100%', maxWidth: 260, marginTop: 26 }}>
             <TapTarget label="Done, close registration" onPress={s.closeOverlay}>
@@ -157,8 +157,8 @@ export function RegistrationOverlay() {
       header={<OverlayHeader title={copy.title} onBack={s.closeOverlay} />}
       bottomBar={
         <View style={{ padding: 16, backgroundColor: c.bg }}>
-          <TapTarget label="Send request to admins" onPress={submit} disabled={!canSend || busy}>
-            <VoltButton label={busy ? 'Sending…' : 'Send request to admins'} enabled={canSend && !busy} onPress={submit} />
+          <TapTarget label={submitLabel} onPress={submit} disabled={!canSend || busy}>
+            <VoltButton label={busy ? 'Sending…' : submitLabel} enabled={canSend && !busy} onPress={submit} />
           </TapTarget>
         </View>
       }
@@ -168,7 +168,7 @@ export function RegistrationOverlay() {
         <Field value={name} onChange={setName} placeholder={copy.namePh} icon={nameIcon[kind]} />
         {blocked && (
           <Text style={[t.caption, { color: c.danger, marginTop: 8 }]}>
-            Contains blocked content — this will be flagged.
+            Contains blocked content. Edit it to continue; nothing has been sent for review.
           </Text>
         )}
 
@@ -258,31 +258,17 @@ export function RegistrationOverlay() {
         </Row>
 
         {official === true && (
-          <Pressable
-            onPress={() => setDocs(docs ? null : 'official-documents.pdf')}
-            accessibilityRole="button"
-            accessibilityLabel={docs ? `Attached ${docs}. Tap to remove` : 'Upload official documents'}
-            style={{
-              marginTop: 16,
-              height: 150,
-              borderRadius: 18,
-              borderColor: docs ? c.volt : c.line,
-              borderWidth: 1,
-              borderStyle: 'dashed',
-              backgroundColor: c.surface,
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-            }}
-          >
-            <Icon name={docs ? 'file-text' : 'image'} size={28} color={docs ? c.accent : c.txt3} />
-            <Text style={[t.labelSm, { color: docs ? c.accent : c.txt3 }]}>
-              {docs ?? 'Upload official documents'}
-            </Text>
-          </Pressable>
+          <Text style={[t.bodySm, { color: c.txt2, marginTop: 16, lineHeight: 20 }]}>
+            An admin will request supporting documents after your request is reviewed.
+          </Text>
         )}
 
         <Text style={[t.caption, { color: c.txt3, marginTop: 22, lineHeight: 18 }]}>{copy.footnote}</Text>
+        {kind !== 'shop' && (
+          <Text style={[t.bodySm, { color: c.txt2, marginTop: 12, lineHeight: 20 }]}>
+            This request will stay on this device until the app restarts. It will not be sent to admins.
+          </Text>
+        )}
       </View>
     </OverlayScaffold>
   );
@@ -308,6 +294,7 @@ function TapTarget({
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected, disabled }}

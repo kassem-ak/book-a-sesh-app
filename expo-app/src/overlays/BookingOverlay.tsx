@@ -21,10 +21,8 @@ export function BookingOverlay() {
   const pkgs = coachPackageOptions(p);
   const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
 
-  // What the server will actually charge. `create_booking_for_coach` bills a
-  // pack once, on purchase, and writes 0 for every later redemption -- so
-  // quoting the list price on session 2 of a 5-pack tells the user to hand over
-  // $203 that nobody is owed.
+  // The first booking records the pack price; later redemptions record zero.
+  // Usage establishes pack coverage, not whether the coach has been paid.
   const [usage, setUsage] = React.useState<Record<string, number>>({});
   React.useEffect(() => {
     let live = true;
@@ -56,7 +54,7 @@ export function BookingOverlay() {
           </Text>
           <Text style={[t.bodySm, { color: c.txt3, marginTop: 8, textAlign: 'center' }]}>
             {redeeming
-              ? `Already covered by your pack — nothing to pay ${p.name.split(' ')[0]} for this one.`
+              ? 'Covered by your pack — nothing extra to pay for this booking.'
               : dueNow > 0
                 ? `$${dueNow} is payable to ${p.name.split(' ')[0]} directly at your session.`
                 : `Agree the price with ${p.name.split(' ')[0]} directly — BOOK'D does not take payment.`}
@@ -83,7 +81,7 @@ export function BookingOverlay() {
             {exhausted
               ? 'Every session in this pack has been used. Pick another option.'
               : redeeming
-                ? `Already paid for — ${remaining} of ${selectedPkg.sessions} sessions left in this pack.`
+                ? `Covered by your pack — nothing extra to pay for this booking. ${remaining} of ${selectedPkg.sessions} sessions left in this pack.`
                 : dueNow > 0
                   ? "Payable to the coach at your session — BOOK'D does not take payment."
                   : "This coach has not set a price. Agree it with them directly — BOOK'D does not take payment."}

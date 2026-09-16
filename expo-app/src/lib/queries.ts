@@ -298,6 +298,38 @@ export async function submitSportRequest(name: string, kind: string) {
   return callRpc<string>('submit_sport_request', { p_name: name, p_kind: kind });
 }
 
+export type SportRequest = {
+  id: string;
+  name: string;
+  kind: 'sport' | 'hobby';
+  votes: number | null;
+};
+
+export async function fetchPendingSportRequests(): Promise<SportRequest[]> {
+  await ensureAppSession();
+  const { data, error } = await supabase
+    .from('sport_requests')
+    .select('id, name, kind, votes')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as SportRequest[];
+}
+
+export async function decideSportRequest(id: string, status: 'approved' | 'rejected') {
+  // reviewed_by references public.users, which can differ from the auth id.
+  const adminId = await currentAppUserId();
+  const { error } = await supabase
+    .from('sport_requests')
+    .update({ status, reviewed_by: adminId })
+    .eq('id', id)
+    .eq('status', 'pending')
+    // Confirm a row changed: RLS or another admin's decision can yield zero rows.
+    .select('id, status, reviewed_by')
+    .single();
+  if (error) throw error;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // `create_booking_for_coach` expects a users.id uuid. Coaches loaded from the
