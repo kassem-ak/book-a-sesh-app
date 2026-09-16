@@ -6,13 +6,21 @@ import { Platform } from 'react-native';
 // Values come from env (EXPO_PUBLIC_* are inlined at build time).
 // Set them in expo-app/.env (see .env.example). The anon key is publishable
 // and safe to ship in the client; RLS enforces access server-side.
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
 export const isSupabaseConfigured = Boolean(url && anon);
 export const supabaseUrl = url ?? '';
 
-export const supabase = createClient(url ?? 'http://localhost', anon ?? 'anon', {
+export function assertSupabaseConfigured() {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY. See expo-app/DEPLOY.md.');
+  }
+}
+
+// Defer a missing-config error until render so ErrorBoundary can display it.
+// Direct client access also fails before any request can be sent.
+export const supabase = url && anon ? createClient(url, anon, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
@@ -22,4 +30,6 @@ export const supabase = createClient(url ?? 'http://localhost', anon ?? 'anon', 
     // Native: the deep-link callback is handled manually in session.ts.
     detectSessionInUrl: Platform.OS === 'web',
   },
+}) : new Proxy({} as ReturnType<typeof createClient>, {
+  get() { assertSupabaseConfigured(); },
 });

@@ -69,8 +69,8 @@ Repeat with `--environment preview` for internal builds. Plain-text visibility i
 correct here: both values are embedded in the client anyway, and RLS — not
 secrecy — is what enforces access.
 
-Without these, `src/lib/supabase.ts` falls back to `http://localhost` and the
-installed app cannot reach the backend at all.
+Without these, the app shows a configuration error naming both variables
+and pointing to this guide before browsing or sign-in can start.
 
 Then:
 
@@ -79,4 +79,4 @@ eas build --profile production --platform android
 ```
 
 Requires EAS CLI 14 or newer (`eas.json` pins `>= 14.0.0`); older CLIs ignore the
-`environment` field and would silently produce the localhost build described above.
+`environment` field and would produce a build showing the configuration error described above.

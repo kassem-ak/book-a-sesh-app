@@ -809,8 +809,8 @@ export function CoachPackagesOverlay() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [newSessions, setNewSessions] = useState(10);
-  const [newPriceCents, setNewPriceCents] = useState(38000);
+  const [newSessions, setNewSessions] = useState<number | null>(null);
+  const [newPriceCents, setNewPriceCents] = useState<number | null>(null);
   const [promoPct, setPromoPct] = useState(15);
 
   const load = useCallback(async () => {
@@ -933,35 +933,45 @@ export function CoachPackagesOverlay() {
               }}
             >
               <Text style={[t.labelSm, { color: c.txt2 }]}>
-                New package — {newSessions === 1 ? 'Single session' : `${newSessions}-session pack`}
+                New package{newSessions === null ? '' : ` — ${newSessions === 1 ? 'Single session' : `${newSessions}-session pack`}`}
               </Text>
               <Row style={{ marginTop: 12 }} gap={10}>
                 <PkgStepper
-                  value={`${newSessions}`}
+                  value={newSessions === null ? '—' : `${newSessions}`}
                   unit="sessions"
                   name="the new package"
                   disabled={busy}
-                  onMinus={() => setNewSessions((n) => Math.max(1, n - 1))}
-                  onPlus={() => setNewSessions((n) => n + 1)}
+                  onMinus={() => setNewSessions((n) => Math.max(1, (n ?? 0) - 1))}
+                  onPlus={() => setNewSessions((n) => (n ?? 0) + 1)}
                 />
                 <PkgStepper
-                  value={formatCents(newPriceCents)}
+                  value={newPriceCents === null ? '—' : formatCents(newPriceCents)}
                   unit="total price"
                   name="the price of the new package"
                   accent
                   disabled={busy}
-                  onMinus={() => setNewPriceCents((v) => Math.max(500, v - 500))}
-                  onPlus={() => setNewPriceCents((v) => v + 500)}
+                  onMinus={() => setNewPriceCents((v) => Math.max(500, (v ?? 0) - 500))}
+                  onPlus={() => setNewPriceCents((v) => (v ?? 0) + 500)}
                 />
               </Row>
               <View style={{ marginTop: 12 }}>
                 <VoltButton
                   label="Add package"
                   height={44}
-                  enabled={!busy}
+                  enabled={!busy && newSessions !== null && newPriceCents !== null}
                   busy={busy}
                   busyLabel="Saving…"
-                  onPress={() => run(() => createPackage(newSessions, newPriceCents), 'Could not add that package.')}
+                  onPress={() => {
+                    if (newSessions === null || newPriceCents === null) {
+                      setActionError('Choose the session count and total price before adding a package.');
+                      return;
+                    }
+                    void run(async () => {
+                      await createPackage(newSessions, newPriceCents);
+                      setNewSessions(null);
+                      setNewPriceCents(null);
+                    }, 'Could not add that package.');
+                  }}
                 />
               </View>
             </View>

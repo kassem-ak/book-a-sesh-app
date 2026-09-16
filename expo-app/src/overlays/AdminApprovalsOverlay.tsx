@@ -37,9 +37,9 @@ export function AdminApprovalsOverlay() {
     try {
       await decideSportRequest(id, status);
       await load();
-    } catch {
+    } catch (e) {
       // A failed response cannot establish whether the server saved the write.
-      setActionError('Could not confirm the decision. Refresh requests before trying again.');
+      setActionError(e instanceof Error ? e.message : 'Could not confirm the decision. Refresh requests before trying again.');
     } finally {
       setBusyId(null);
     }

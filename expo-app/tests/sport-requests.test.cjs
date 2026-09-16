@@ -67,32 +67,40 @@ test('an empty queue succeeds; read errors do not become empty queues', async ()
   await assert.rejects(h.api.fetchPendingSportRequests(), { message: 'Permission denied' });
 });
 
-test('approve and reject persist the app-user reviewer and allow a fresh pending read', async () => {
+test('approve and reject go through the admin RPC, not a direct table write', async () => {
+  // The client has SELECT and INSERT on sport_requests but NOT UPDATE, so the
+  // original direct PATCH failed with permission denied for every admin. The
+  // decision now goes through decide_sport_request, which is SECURITY DEFINER
+  // and checks is_platform_admin itself.
   for (const status of ['approved', 'rejected']) {
-    const saved = { id: 'request-a', status, reviewed_by: 'app-admin-id' };
-    const h = harness([{ body: 'app-admin-id' }, { body: saved }, { body: [] }]);
+    const h = harness([{ body: [{ id: 'request-a', status }] }, { body: [] }]);
     await h.api.decideSportRequest('request-a', status);
-    assert.equal(h.sessions(), 1);
-    assert.equal(h.calls[0].url.pathname, '/rest/v1/rpc/current_app_user');
-    const write = h.calls[1];
-    assert.equal(write.url.pathname, '/rest/v1/sport_requests');
-    assert.equal(write.init.method, 'PATCH');
-    assert.deepEqual(JSON.parse(write.init.body), { status, reviewed_by: 'app-admin-id' });
-    assert.equal(write.url.searchParams.get('id'), 'eq.request-a');
-    assert.equal(write.url.searchParams.get('status'), 'eq.pending');
-    assert.equal(write.url.searchParams.get('select'), 'id,status,reviewed_by');
+
+    const write = h.calls[0];
+    assert.equal(write.url.pathname, '/rest/v1/rpc/decide_sport_request');
+    assert.equal(write.init.method, 'POST');
+    assert.deepEqual(JSON.parse(write.init.body), { p_id: 'request-a', p_status: status });
+    // No PATCH against the table, and no separate current_app_user round-trip:
+    // the function resolves the reviewer server-side.
+    assert.ok(!h.calls.some((c) => c.url.pathname === '/rest/v1/sport_requests' && c.init.method === 'PATCH'));
+    assert.ok(!h.calls.some((c) => c.url.pathname === '/rest/v1/rpc/current_app_user'));
+
     assert.equal((await h.api.fetchPendingSportRequests()).length, 0);
-    assert.equal(h.calls[2].init.method, 'GET');
+    assert.equal(h.calls[1].init.method, 'GET');
   }
 });
 
-test('a denied write or a request already reviewed cannot report success', async () => {
-  for (const status of [403, 406]) {
-    const h = harness([
-      { body: 'app-admin-id' },
-      { status, body: { message: status === 403 ? 'Permission denied' : 'No pending row', code: status === 403 ? '42501' : 'PGRST116' } },
-    ]);
-    await assert.rejects(h.api.decideSportRequest('request-a', 'approved'));
-    assert.equal(h.calls.length, 2);
+test('an already-decided request is reported as a conflict, never as success', async () => {
+  // The function only moves a still-pending row, so a second decision returns
+  // zero rows. That must not look like it worked.
+  const h = harness([{ body: [] }]);
+  await assert.rejects(h.api.decideSportRequest('request-a', 'approved'), /already decided/i);
+});
+
+test('a refused decision surfaces the error', async () => {
+  for (const [status, message] of [[403, 'Permission denied'], [400, 'only a platform admin can decide a request']]) {
+    const h = harness([{ status, body: { message, code: status === 403 ? '42501' : 'P0001' } }]);
+    await assert.rejects(h.api.decideSportRequest('request-a', 'approved'), { message });
+    assert.equal(h.calls.length, 1);
   }
 });

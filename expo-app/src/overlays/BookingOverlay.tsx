@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import { coachPackageOptions } from '../state/models';
-import { fetchPackageUsage } from '../lib/queries';
+import { fetchPackageUsage, PackageUsage } from '../lib/queries';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -25,23 +25,36 @@ export function BookingOverlay() {
 
   // The first booking records the pack price; later redemptions record zero.
   // Usage establishes pack coverage, not whether the coach has been paid.
-  const [usage, setUsage] = React.useState<Record<string, number>>({});
+  const [usage, setUsage] = React.useState<PackageUsage | null>(null);
+  const [usageLoading, setUsageLoading] = React.useState(true);
+  const [bookingQuote, setBookingQuote] = React.useState<{ redeeming: boolean; dueNow: number } | null>(null);
   React.useEffect(() => {
     let live = true;
-    fetchPackageUsage().then((rows) => { if (live) setUsage(rows); });
+    setUsage(null);
+    setUsageLoading(true);
+    fetchPackageUsage().then((rows) => {
+      if (live) {
+        setUsage(rows);
+        setUsageLoading(false);
+      }
+    });
     return () => { live = false; };
   }, [p.id]);
 
-  const used = selectedPkg?.packageId ? usage[selectedPkg.packageId] ?? 0 : 0;
-  const remaining = selectedPkg ? selectedPkg.sessions - used : 0;
-  const redeeming = used > 0 && remaining > 0;
-  const exhausted = used > 0 && remaining <= 0;
+  const usageKnown = !selectedPkg?.packageId || usage !== null;
+  const balance = selectedPkg?.packageId ? usage?.[selectedPkg.packageId] : undefined;
+  const total = balance?.total ?? selectedPkg?.sessions ?? 0;
+  const remaining = total - (balance?.used ?? 0);
+  const redeeming = Boolean(balance) && remaining > 0;
+  const exhausted = Boolean(balance) && remaining <= 0;
   const dueNow = redeeming ? 0 : selectedPkg?.price ?? 0;
-  const priceLabel = redeeming
-    ? 'Included'
-    : dueNow > 0
-      ? `$${dueNow}`
-      : 'To agree';
+  const priceLabel = !usageKnown
+    ? usageLoading ? 'Loading…' : 'Unavailable'
+    : redeeming
+      ? 'Included'
+      : dueNow > 0
+        ? `$${dueNow}`
+        : 'To agree';
 
   if (s.booked) {
     return (
@@ -54,13 +67,15 @@ export function BookingOverlay() {
           <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
             {selectedPkg.name} with {p.name.split(' ')[0]} · {D.bookingMonthName} {s.bookDay} · {D.slotDefs[s.bookSlot]}
           </Text>
-          <Text style={[t.bodySm, { color: c.txt3, marginTop: 8, textAlign: 'center' }]}>
-            {redeeming
-              ? 'Covered by your pack — nothing extra to pay for this booking.'
-              : dueNow > 0
-                ? `$${dueNow} is payable to ${p.name.split(' ')[0]} directly at your session.`
-                : `Agree the price with ${p.name.split(' ')[0]} directly — BOOK'D does not take payment.`}
-          </Text>
+          {bookingQuote && (
+            <Text style={[t.bodySm, { color: c.txt3, marginTop: 8, textAlign: 'center' }]}>
+              {bookingQuote.redeeming
+                ? 'Covered by your pack — nothing extra to pay for this booking.'
+                : bookingQuote.dueNow > 0
+                  ? `$${bookingQuote.dueNow} is payable to ${p.name.split(' ')[0]} directly at your session.`
+                  : `Agree the price with ${p.name.split(' ')[0]} directly — BOOK'D does not take payment.`}
+            </Text>
+          )}
           <View style={{ height: 24 }} />
           <View style={{ width: '100%' }}>
             <VoltButton label="View in bookings" onPress={s.goToBookings} />
@@ -80,18 +95,25 @@ export function BookingOverlay() {
             <Text style={[t.price, { color: c.accent }]}>{priceLabel}</Text>
           </Row>
           <Text style={[t.caption, { color: c.txt3, marginBottom: 12 }]}>
-            {exhausted
-              ? 'Every session in this pack has been used. Pick another option.'
-              : redeeming
-                ? `Covered by your pack — nothing extra to pay for this booking. ${remaining} of ${selectedPkg.sessions} sessions left in this pack.`
-                : dueNow > 0
-                  ? "Payable to the coach at your session — BOOK'D does not take payment."
-                  : "This coach has not set a price. Agree it with them directly — BOOK'D does not take payment."}
+            {!usageKnown
+              ? usageLoading ? 'Checking your pack balance…' : 'Could not check your pack balance. You can still book.'
+              : exhausted
+                ? 'Every session in this pack has been used. Pick another option.'
+                : redeeming
+                  ? `Covered by your pack — nothing extra to pay for this booking. ${remaining} of ${total} sessions left in this pack.`
+                  : dueNow > 0
+                    ? "Payable to the coach at your session — BOOK'D does not take payment."
+                    : "This coach has not set a price. Agree it with them directly — BOOK'D does not take payment."}
           </Text>
           <VoltButton
             label={exhausted ? 'Pack already used' : 'Confirm booking'}
             enabled={!exhausted}
-            onPress={s.confirmBooking}
+            onPress={() => {
+              // A late balance read may include this booking's redemption.
+              // Only the quote known before submission can describe it.
+              setBookingQuote(usageKnown ? { redeeming, dueNow } : null);
+              void s.confirmBooking();
+            }}
             busy={s.writeBusy === 'booking'}
             busyLabel="Booking..."
           />

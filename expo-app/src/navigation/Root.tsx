@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ensureAppSession } from '../lib/session';
 import { fetchCoaches, fetchPartners } from '../lib/queries';
-import { supabase } from '../lib/supabase';
+import { assertSupabaseConfigured, supabase } from '../lib/supabase';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 import { ErrorBanner } from '../components/ErrorBanner';
@@ -19,6 +19,7 @@ import { SheetRouter } from './SheetRouter';
 import { TabBar } from './TabBar';
 
 export function Root() {
+  assertSupabaseConfigured();
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   const tab = useStore((s) => s.tab);
