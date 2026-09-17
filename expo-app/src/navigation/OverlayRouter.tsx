@@ -23,19 +23,6 @@ import {
   NotificationsOverlay,
   ReportOverlay,
 } from '../overlays/UtilityOverlays';
-import { AdminApprovalsOverlay } from '../overlays/AdminApprovalsOverlay';
-import {
-  AdminReportsOverlay,
-  AdminCaseOverlay,
-  SafetyCaseOverlay,
-  AdminPromosOverlay,
-  AdminLoyaltyOverlay,
-} from '../overlays/AdminOverlays';
-import {
-  AdminAccountingOverlay,
-  AccountingExpenseOverlay,
-  AccountingHistoryOverlay,
-} from '../overlays/AccountingOverlays';
 import {
   CoachRequestsOverlay,
   CoachScheduleOverlay,
@@ -90,24 +77,6 @@ export function OverlayRouter({ id }: { id: string }) {
       return <CoachScheduleOverlay />;
     case 'coachPackages':
       return <CoachPackagesOverlay />;
-    case 'adminApprovals':
-      return <AdminApprovalsOverlay />;
-    case 'adminReports':
-      return <AdminReportsOverlay />;
-    case 'adminCase':
-      return <AdminCaseOverlay />;
-    case 'safetyCase':
-      return <SafetyCaseOverlay />;
-    case 'adminPromos':
-      return <AdminPromosOverlay />;
-    case 'adminLoyalty':
-      return <AdminLoyaltyOverlay />;
-    case 'adminAccounting':
-      return <AdminAccountingOverlay />;
-    case 'acctExpense':
-      return <AccountingExpenseOverlay />;
-    case 'acctHistory':
-      return <AccountingHistoryOverlay />;
     default:
       return null;
   }
