@@ -207,6 +207,7 @@ export interface SpotterState {
   role: Role;
   /** What the user said they were at signup. Intent only, never a grant. */
   signupIntent: 'coach' | 'trainee' | null;
+  signupSports: string[];
   isDark: boolean;
   overlay: string | null;
   // handoff v2 adds a second presentation layer: bottom sheets, distinct from
@@ -216,6 +217,9 @@ export interface SpotterState {
   writeError: string | null;
   authEmail: string | null; // signed-in real account email (null = guest)
   authName: string | null;
+  authUid: string | null;
+  authAvatarUrl: string | null;
+  profileRevision: number;
   /** public.users.id of the signed-in account, resolved by refreshRole(). Null
    *  until the server answers; never substitute a placeholder, because this is
    *  compared against row ownership. */
@@ -521,6 +525,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   role: 'USER',
   blockedIds: [],
   signupIntent: null,
+  signupSports: [],
   isDark: true,
   overlay: null,
   sheet: null,
@@ -528,6 +533,9 @@ export const useStore = create<SpotterState>((set, get) => ({
   writeError: null,
   authEmail: null,
   authName: null,
+  authUid: null,
+  authAvatarUrl: null,
+  profileRevision: 0,
   authUserId: null,
   guestMode: false,
   loaded: { people: false, shops: false, communities: false, events: false, suggestions: false },
@@ -968,15 +976,19 @@ export const useStore = create<SpotterState>((set, get) => ({
   // Role follows the account, so it is read from the server rather than
   // chosen in the UI. Failures leave the current value alone.
   refreshRole: async () => {
+    const uid = get().authUid;
     try {
-      set({ role: await fetchAccountRole() });
+      const role = await fetchAccountRole();
+      if (get().authUid === uid) set({ role });
     } catch {
       /* offline or unauthenticated - keep whatever we already had */
     }
   },
   refreshBlocked: async () => {
+    const uid = get().authUid;
     try {
-      set({ blockedIds: (await fetchBlockedUsers()).map((row) => row.id) });
+      const blockedIds = (await fetchBlockedUsers()).map((row) => row.id);
+      if (get().authUid === uid) set({ blockedIds });
     } catch {
       /* offline or unauthenticated - keep whatever we already had */
     }

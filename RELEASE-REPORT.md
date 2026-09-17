@@ -226,8 +226,9 @@ create for you.
 1. **No cancellation or no-show policy exists.** Cancelling a package session
    neither returns the session nor adjusts what was recorded, and nothing is
    disclosed to the user.
-2. **The COACH role is free and permanent.** Creating a coach profile makes you
-   a coach forever; nothing charges or expires.
+2. ~~The COACH role is free and permanent.~~ **Resolved 17 September 2026:** the
+   owner confirmed the base service is free for coaches and members alike. This
+   is the intended model, and sign-up now says "Free for coaches and members".
 3. **`admin_shares` is empty** — nothing computes an admin revenue share.
 4. **Community News/Gallery**: the design draws them; only events have a
    backend.

@@ -12,17 +12,19 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { BrandIcon, Field, Icon, Row } from '../components/ui';
-import { signInWithProvider, SSO_LABELS, SsoProvider } from '../lib/session';
+import { SSO_LABELS, SsoProvider, signInWithProvider } from '../lib/session';
+import { SportsPicker } from '../components/SportsPicker';
+import { saveSignupDraft } from '../lib/signup';
 import { getDevicePoint } from '../lib/geo';
 import { track } from '../lib/analytics';
 import { AuthForm } from '../overlays/AuthOverlay';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 
-// Onboarding gate: Get Started -> Are you? -> Add an area label.
+// Onboarding gate: Get Started -> role -> interests -> area -> account.
 // Shown until a real account signs in or guest mode is chosen.
-type Step = 'start' | 'role' | 'where';
-const STEPS: Step[] = ['start', 'role', 'where'];
+type Step = 'start' | 'role' | 'interests' | 'where';
+const STEPS: Step[] = ['start', 'role', 'interests', 'where'];
 
 export function AuthLanding() {
   const { c, t } = useTheme();
@@ -31,9 +33,10 @@ export function AuthLanding() {
   const s = useStore();
   const [step, setStep] = useState<Step>('start');
   const [account, setAccount] = useState(false);
+  const [accountMode, setAccountMode] = useState<'in' | 'up'>('in');
+  const [ssoBusy, setSsoBusy] = useState(false);
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [kind, setKind] = useState<'coach' | 'trainee'>('trainee');
   const [seek, setSeek] = useState(s.authSeek);
   const [loc, setLoc] = useState(s.authLoc);
@@ -54,19 +57,23 @@ export function AuthLanding() {
     s.set('guestMode', true);
     track('guest_entered');
   };
+
+
+  // The provider round-trip is started from the first step, exactly as the
+  // board draws it. session.ts probes the provider first, so one that is not
+  // enabled yet reports that plainly instead of opening a dead browser tab.
   const socialSignIn = async (provider: SsoProvider) => {
-    setBusy(true);
+    setSsoBusy(true);
     setError(null);
     try { await signInWithProvider(provider); }
-    catch (error) { setError(error instanceof Error ? error.message : 'Sign-in failed. Try email instead.'); }
-    finally { setBusy(false); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Sign-in failed. Try email instead.'); }
+    finally { setSsoBusy(false); }
   };
-
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <AnimatedGradient />
       <ScrollView
-        contentContainerStyle={{ paddingTop: account ? insets.top + 26 : Math.max(insets.top + 50, height * 0.32), paddingBottom: insets.bottom + 74, paddingHorizontal: 26 }}
+        contentContainerStyle={{ paddingTop: account || step === 'interests' ? insets.top + 26 : Math.max(insets.top + 50, height * 0.32), paddingBottom: insets.bottom + 74, paddingHorizontal: 26 }}
         keyboardShouldPersistTaps="handled"
       >
         {account ? (
@@ -75,7 +82,7 @@ export function AuthLanding() {
               <Icon name="arrow-left" size={22} color={c.txt} />
             </Pressable>
             <Text style={[t.pageTitle, { color: c.txt, marginBottom: 22 }]}>Account</Text>
-            <AuthForm initialEmail={email} onDone={() => setAccount(false)} />
+            <AuthForm initialEmail={email} initialMode={accountMode} onDone={() => setAccount(false)} />
           </>
         ) : step === 'start' ? (
           <>
@@ -90,10 +97,9 @@ export function AuthLanding() {
               s.set('authSeek', seek.trim());
               setStep('role');
             }} />
-            {/* The board draws two square icon buttons (Facebook, Google).
-                All four providers ship, so the same square treatment is used
-                for each: Apple is not optional -- the App Store requires Sign
-                in with Apple wherever other third-party sign-in is offered. */}
+            {/* All four providers ship: Apple is not optional -- the App Store
+                requires Sign in with Apple wherever other third-party sign-in
+                is offered. */}
             <Row gap={20} style={{ justifyContent: 'center', marginTop: 27 }}>
               {([
                 ['facebook', 'facebook'],
@@ -101,13 +107,14 @@ export function AuthLanding() {
                 ['azure', 'windows'],
                 ['apple', 'apple'],
               ] as const).map(([provider, icon]) => (
-                <Pressable key={provider} onPress={() => void socialSignIn(provider)} disabled={busy} accessibilityRole="button" accessibilityLabel={`Continue with ${SSO_LABELS[provider]}`} accessibilityState={{ disabled: busy }} style={{ width: 48, height: 48, borderRadius: 9, borderWidth: 1, borderColor: c.txt, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.5 : 1 }}>
+                <Pressable key={provider} onPress={() => void socialSignIn(provider)} disabled={ssoBusy} accessibilityRole="button" accessibilityLabel={`Continue with ${SSO_LABELS[provider]}`} accessibilityState={{ disabled: ssoBusy }} style={{ width: 48, height: 48, borderRadius: 9, borderWidth: 1, borderColor: c.txt, alignItems: 'center', justifyContent: 'center', opacity: ssoBusy ? 0.5 : 1 }}>
                   <BrandIcon name={icon} size={26} color={c.txt} />
                 </Pressable>
               ))}
             </Row>
             {error && <Text style={[t.bodySm, { color: c.danger, marginTop: 16 }]}>{error}</Text>}
-            <Pressable accessibilityRole="button" onPress={() => setAccount(true)} style={{ minHeight: 44, justifyContent: 'center', marginTop: 12 }}>
+            <Text style={[t.bodySm, { color: c.txt2, textAlign: 'center', marginTop: 20 }]}>Free for coaches and members</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Sign in or create account" onPress={() => { setAccountMode('in'); setAccount(true); }} style={{ minHeight: 44, justifyContent: 'center', marginTop: 12 }}>
               <Text style={[t.labelSm, { color: c.txt2, textAlign: 'center' }]}>Sign in or create account</Text>
             </Pressable>
           </>
@@ -120,17 +127,23 @@ export function AuthLanding() {
               <RolePill label="Trainee/Student" active={kind === 'trainee'} onPress={() => setKind('trainee')} />
             </Row>
             <View style={{ height: 54 }} />
-            <NextButton label="NEXT" accessibilityLabel="Next, add an area label" onPress={() => {
+            <NextButton label="NEXT" accessibilityLabel="Next, choose sports and hobbies" onPress={() => {
               s.set('signupIntent', kind);
               track('onboarding_role_chosen', { role: kind });
-              // Make the answer mean something. It was recorded and then read
-              // nowhere, so this step of onboarding changed nothing at all.
-              // A coach is looking for training partners and clients; someone
-              // training is looking for coaches.
               s.set('mode', kind === 'coach' ? 'partners' : 'coaches');
-              setStep('where');
+              setStep('interests');
             }} />
           </>
+        ) : step === 'interests' ? (
+          <View style={{ gap: 24 }}>
+            <Text style={[t.pageTitle, { color: c.txt }]}>{kind === 'coach' ? 'What do you teach?' : 'Your interests'}</Text>
+            <SportsPicker selected={s.signupSports} onChange={(ids) => s.set('signupSports', ids)} coach={kind === 'coach'} />
+            {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
+            <NextButton label={s.signupSports.length ? 'NEXT' : 'SKIP FOR NOW'} accessibilityLabel="Continue to your area" onPress={() => {
+              void saveSignupDraft({ role: kind === 'coach' ? 'coach' : 'member', sportIds: s.signupSports })
+                .then(() => setStep('where')).catch(() => setError('Could not keep your choices. Please try again.'));
+            }} />
+          </View>
         ) : (
           <>
             <Text style={[t.bodySm, { color: c.txt2 }]}>Hey Champ -</Text>
@@ -150,8 +163,15 @@ export function AuthLanding() {
               <Text style={[t.caption, { color: c.txt2 }]}>100 Km</Text>
             </Row>
             <View style={{ height: 36 }} />
-            <NextButton label="NEXT" accessibilityLabel="Start browsing as a guest" onPress={finish} />
-            <Text style={[t.caption, { color: c.txt3, textAlign: 'center', marginTop: 12 }]}>Browse as a guest</Text>
+            <NextButton label="CREATE ACCOUNT" accessibilityLabel="Continue to create your free account" onPress={() => {
+              s.set('authLoc', loc.trim());
+              s.set('discSearch', seek.trim());
+              setAccountMode('up');
+              setAccount(true);
+            }} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Browse as a guest" onPress={finish} style={{ minHeight: 44, justifyContent: 'center' }}>
+              <Text style={[t.caption, { color: c.txt3, textAlign: 'center' }]}>Browse as a guest</Text>
+            </Pressable>
           </>
         )}
       </ScrollView>

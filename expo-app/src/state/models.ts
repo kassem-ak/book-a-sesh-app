@@ -1,6 +1,7 @@
 export interface Person {
   id: string;
   name: string;
+  avatarUrl?: string | null;
   sport: string;
   rating: number;
   reviews: number;

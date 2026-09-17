@@ -3,6 +3,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import { identify, track } from './analytics';
 import { supabase, assertSupabaseConfigured, supabaseUrl } from './supabase';
+import { bindSignupEmail, readSignupDraft } from './signup';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -76,6 +77,7 @@ export async function ensureAppSession() {
 // ---- real auth (email/password) -------------------------------------------
 
 export async function signInEmail(email: string, password: string) {
+  await bindSignupEmail(email);
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
   track('email_sign_in');
@@ -83,6 +85,8 @@ export async function signInEmail(email: string, password: string) {
 
 // Returns true when the project requires email confirmation (no session yet).
 export async function signUpEmail(name: string, email: string, password: string) {
+  await bindSignupEmail(email);
+  const draft = await readSignupDraft();
   // Drop any anonymous guest session first so the signup creates a clean user.
   const { data: existing } = await supabase.auth.getSession();
   if (existing.session?.user?.is_anonymous) await supabase.auth.signOut();
@@ -90,7 +94,8 @@ export async function signUpEmail(name: string, email: string, password: string)
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { name } },
+    // Metadata also carries the choices if confirmation happens on another device.
+    options: { data: { name, signup_role: draft?.role ?? 'member', signup_sports: draft?.sportIds ?? [] } },
   });
   if (error) throw error;
   track('email_sign_up', { confirmation_required: !data.session });
@@ -162,7 +167,7 @@ export async function signInWithProvider(provider: SsoProvider) {
     const redirectTo = typeof window !== 'undefined' ? window.location.origin + window.location.pathname : undefined;
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
     if (error) throw error;
-    return; // browser navigates away
+    return false; // browser navigates away
   }
 
   const redirectTo = Linking.createURL('auth-callback');
@@ -174,12 +179,13 @@ export async function signInWithProvider(provider: SsoProvider) {
   if (!data.url) throw new Error('No auth URL returned');
 
   const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-  if (result.type !== 'success') return; // user cancelled
+  if (result.type !== 'success') return false; // user cancelled
 
   const code = new URL(result.url).searchParams.get('code');
   if (!code) throw new Error('No auth code in callback');
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
   if (exchangeError) throw exchangeError;
+  return true;
 }
 
 /**

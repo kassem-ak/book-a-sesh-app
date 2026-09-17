@@ -150,7 +150,8 @@ provider connected. Recheck these answers for the submitted build.
 | Personal info collected | Name, email address, approximate location |
 | Payment info | **None.** There is no payment path in the app; clients pay the coach directly |
 | Messages | Yes — in-app chat content |
-| Photos / camera / contacts / calendar / microphone / health | None requested |
+| Photos | **Yes — photo library read access**, only to pick a profile picture. The OS picker is used, so the app never enumerates the library. Declare as "Photos and videos", collected, linked to the user, for app functionality |
+| Camera / contacts / calendar / microphone / health | None requested |
 | Location precision | **Approximate only.** The code requests `Accuracy.Balanced`, and `ACCESS_FINE_LOCATION` is explicitly blocked in `app.json` |
 | Advertising ID / tracking | None. No ad networks, no analytics SDK, no crash SDK |
 | Analytics / App activity | Activity is recorded locally from launch, but **not collected off-device today**. No provider is connected. **Change this answer when an analytics sink is connected**, including app interactions and applicable booking/purchase activity |
@@ -197,10 +198,11 @@ as the privacy policy contact.
 - **`admin_shares` is empty.** The launch truncate cascaded it away. It needs
   re-setting once you decide who the platform admins are; until then nothing
   computes an admin revenue share.
-- **The COACH role is free.** Creating a coach profile makes you a coach
-  permanently — `guard_coach_profile_privileges` forces `subscription_status`
-  to `active` with no expiry, and nothing charges. Correct if coaching is free
-  in v1, a revenue hole if not.
+- **The base service is free for coaches and members — confirmed intentional**
+  (owner decision, 17 September 2026). Creating a coach profile makes you a
+  coach permanently: `guard_coach_profile_privileges` forces
+  `subscription_status` to `active` with no expiry, and nothing charges. This is
+  the intended v1 model, not an oversight, and the sign-up copy says so.
 - **Courts and Shop code still ships in the binary** even though both are
   deferred. They are unreachable from the four tabs; confirm that holds before
   submitting, because a reachable half-finished screen is a common rejection.
