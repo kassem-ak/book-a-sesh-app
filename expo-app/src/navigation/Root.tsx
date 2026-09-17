@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ensureAppSession } from '../lib/session';
 import { identify } from '../lib/analytics';
 import { fetchCoaches, fetchPartners } from '../lib/queries';
+import { fetchVisibleModules } from '../lib/modules';
 import { applySignupProfile, fetchMyProfile } from '../lib/profiles';
 import { assertSupabaseConfigured, supabase } from '../lib/supabase';
 import { errorMessage, useStore } from '../state/store';
@@ -111,6 +112,28 @@ export function Root() {
     return () => { active = false; };
   }, [admitted, authUid, profileRevision, loadAttempt]);
 
+  // Which modules this account may reach. Re-read when the account changes,
+  // because an admin sees the testing releases an ordinary member does not.
+  const modules = useStore((s) => s.modules);
+  const [modulesLoaded, setModulesLoaded] = useState(false);
+  useEffect(() => {
+    if (!admitted) return;
+    let active = true;
+    setModulesLoaded(false);
+    fetchVisibleModules().then((keys) => {
+      if (!active) return;
+      const state = useStore.getState();
+      state.set('modules', keys);
+      // A tab that is no longer released must not stay selected.
+      if (!keys.includes(state.tab) && state.tab !== 'profile') {
+        state.set('tab', keys[0] ?? '');
+      }
+      setModulesLoaded(true);
+    });
+    return () => { active = false; };
+  }, [admitted, authUid, profileRevision]);
+  const released = (key: string) => tab === key && modules.includes(key);
+
   // Landing gate: no real account and guest mode not chosen yet.
   if (!authUid && !guestMode) return <AuthLanding />;
 
@@ -121,15 +144,30 @@ export function Root() {
           onPress={() => setProfileAttempt(profileAttempt + 1)} style={{ minHeight: 44, padding: 12, backgroundColor: c.surface }}>
           <Text style={{ color: c.danger }}>Profile setup could not finish: {profileError} Tap to retry.</Text>
         </Pressable>}
-        {tab === 'discover' && <DiscoverScreen loadError={peopleError} onRetry={retryPeople} />}
-        {tab === 'maps' && <MapsScreen loadError={peopleError} onRetry={retryPeople} />}
-        {tab === 'courts' && <CourtsScreen />}
-        {tab === 'community' && <CommunityScreen />}
-        {tab === 'chat' && <ChatScreen />}
+        {/* Rendering is gated on the same server answer as the tab bar, so a
+            stale `tab` value from a module withdrawn mid-session cannot keep
+            the screen on screen. */}
+        {released('discover') && <DiscoverScreen loadError={peopleError} onRetry={retryPeople} />}
+        {released('maps') && <MapsScreen loadError={peopleError} onRetry={retryPeople} />}
+        {released('courts') && <CourtsScreen />}
+        {released('community') && <CommunityScreen />}
+        {released('chat') && <ChatScreen />}
         {/* Off-nav destination: Profile opens from the header person icon.
             The Shop section is parked — its screens and overlays are still
             in the tree, just unreachable until it comes back. */}
         {tab === 'profile' && <ProfileScreen />}
+        {/* Every module withdrawn, or the lookup failed. Saying so beats a
+            blank screen that looks like a crash. */}
+        {modulesLoaded && modules.length === 0 && tab !== 'profile' && (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+            <Text style={{ color: c.txt, fontSize: 17, textAlign: 'center', marginBottom: 8 }}>
+              Nothing to show yet
+            </Text>
+            <Text style={{ color: c.txt3, textAlign: 'center' }}>
+              No sections have been released to your account. Your profile is still available from the header.
+            </Text>
+          </View>
+        )}
       </View>
       <TabBar />
       {overlay ? <OverlayRouter id={overlay} /> : null}
