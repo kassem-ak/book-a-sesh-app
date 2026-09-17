@@ -30,7 +30,6 @@ export function Root() {
   const sheet = useStore((s) => s.sheet);
   const authUid = useStore((s) => s.authUid);
   const profileRevision = useStore((s) => s.profileRevision);
-  const guestMode = useStore((s) => s.guestMode);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileAttempt, setProfileAttempt] = useState(0);
 
@@ -63,8 +62,6 @@ export function Root() {
       }
       state.set('authEmail', real ? user.email ?? null : null);
       state.set('authUid', uid);
-      // Signing out of a real account returns to the landing gate.
-      if (event === 'SIGNED_OUT' && wasReal) state.set('guestMode', false);
       // Database/auth calls run in the effect below, outside Supabase's auth
       // callback lock. Awaiting them here can deadlock the SSO round-trip.
     });
@@ -101,7 +98,7 @@ export function Root() {
   const [peopleError, setPeopleError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const retryPeople = () => setLoadAttempt((attempt) => attempt + 1);
-  const admitted = Boolean(authUid || guestMode);
+  const admitted = Boolean(authUid);
   useEffect(() => {
     if (!admitted) return;
     let active = true;
@@ -142,8 +139,9 @@ export function Root() {
   }, [admitted, authUid, profileRevision, moduleAttempt]);
   const released = (key: string) => tab === key && modules.includes(key);
 
-  // Landing gate: no real account and guest mode not chosen yet.
-  if (!authUid && !guestMode) return <AuthLanding />;
+  // Landing gate. There is no guest tier: nothing in the app renders until a
+  // registered account is signed in.
+  if (!authUid) return <AuthLanding />;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>

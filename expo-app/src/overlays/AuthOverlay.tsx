@@ -9,8 +9,8 @@ import { saveSignupDraft } from '../lib/signup';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
-// Shared email/password + SSO form. Used by the AuthLanding gate and the
-// in-app 'auth' overlay. Calls onDone() after a successful sign-in.
+// Shared email/password + SSO form. Used by the AuthLanding gate, which is the
+// only way into the app. Calls onDone() after a successful sign-in.
 export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { onDone: () => void; initialEmail?: string; initialMode?: 'in' | 'up' }) {
   const { c, t } = useTheme();
   const s = useStore();
@@ -207,22 +207,5 @@ function SsoButton({
       {/* No line clamp: clamping made Android ellipsize these short labels. */}
       <Text style={[t.label, { color: c.txt, flexShrink: 0, paddingRight: 2 }]}>{label}</Text>
     </Pressable>
-  );
-}
-
-// In-app overlay wrapper (e.g. reached from Profile while in guest mode).
-export function AuthOverlay() {
-  const { c, t } = useTheme();
-  const s = useStore();
-  return (
-    <OverlayScaffold header={<OverlayHeader title="Account" onBack={s.closeOverlay} />}>
-      <View style={{ paddingHorizontal: 18 }}>
-        <AuthForm onDone={() => { if (useStore.getState().overlay === 'auth') s.closeOverlay(); }} />
-        <Text style={[t.bodySm, { color: c.txt3, marginTop: 18 }]}>
-          You can keep browsing as a guest — an account saves your bookings
-          and communities under your own name.
-        </Text>
-      </View>
-    </OverlayScaffold>
   );
 }

@@ -5,7 +5,6 @@ export type AnalyticsEvent =
   | 'app_open'
   | 'onboarding_step_viewed'
   | 'onboarding_role_chosen'
-  | 'guest_entered'
   | 'sso_attempted'
   | 'sso_unavailable'
   | 'email_sign_in'

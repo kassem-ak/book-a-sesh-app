@@ -8,10 +8,16 @@ import { bindSignupEmail, readSignupDraft } from './signup';
 WebBrowser.maybeCompleteAuthSession();
 
 let pendingSession: Promise<string> | null = null;
+// Auth ids already checked against a live public.users row this launch. Every
+// write calls ensureAppSession, and the check is a round trip -- doing it once
+// per account rather than once per write.
+const verified = new Set<string>();
 
-// Ensures a Supabase session before a write. The legacy-named bootstrap RPC
-// links an anonymous session to its own Guest row without demo memberships.
-// Real email users get their public.users row from handle_new_user at signup.
+// Ensures a Supabase session before a write. BOOK'D has no guest tier: every
+// account is a registered one, so this reports the signed-in identity and
+// refuses rather than creating anything. It used to mint an anonymous account
+// on first launch, before the user had chosen anything at all.
+//
 // A session whose account no longer exists. PostgREST reports the failed
 // foreign key as 23503; the auth layer reports the missing subject separately.
 function isStaleSessionError(error: unknown): boolean {
@@ -24,6 +30,16 @@ function isStaleSessionError(error: unknown): boolean {
     || message.includes('user not found');
 }
 
+/** Thrown when a write is attempted with no signed-in account. The UI that
+ *  allowed it is the bug; this makes that visible instead of writing as
+ *  somebody else. */
+export class NotSignedInError extends Error {
+  constructor() {
+    super('Sign in to continue.');
+    this.name = 'NotSignedInError';
+  }
+}
+
 export async function ensureAppSession() {
   assertSupabaseConfigured();
   if (pendingSession) return pendingSession;
@@ -32,39 +48,25 @@ export async function ensureAppSession() {
     const { data: existing, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) throw sessionError;
 
-    let user = existing.session?.user ?? null;
-    if (!user) {
-      const { data, error } = await supabase.auth.signInAnonymously({
-        // A guest is not a specific person. This metadata lands on the
-        // real public.users row, so naming it after a demo character put
-        // "Alex Morgan" on every anonymous account's bookings.
-        options: { data: { name: 'Guest' } },
-      });
-      if (error) throw error;
-      user = data.user;
+    const user = existing.session?.user ?? null;
+    if (!user) throw new NotSignedInError();
+
+    // The stored token can outlive its account: deleted from another device,
+    // or removed by an admin. auth.uid() then points at a row that is gone and
+    // every write fails its foreign key forever, wedging the app on a session
+    // it can never complete. Sign out so the landing gate can take over --
+    // there is no anonymous identity to fall back to any more.
+    if (!verified.has(user.id)) {
+      const { error } = await supabase.rpc('current_app_user');
+      if (error) {
+        if (!isStaleSessionError(error)) throw error;
+        verified.delete(user.id);
+        await supabase.auth.signOut();
+        throw new NotSignedInError();
+      }
+      verified.add(user.id);
     }
-
-    if (user?.is_anonymous) {
-      const { data, error } = await supabase.rpc('bootstrap_demo_session');
-      if (!error) return data as string;
-
-      // The stored token can outlive its account: the user deleted it from
-      // another device, or an admin removed it. auth.uid() then points at a row
-      // that is gone and the bootstrap fails its foreign key (23503) forever,
-      // leaving the app wedged on a session it can never complete.
-      // Verified against the live project by deleting a guest out from under a
-      // live session: every reload 409'd until the token was replaced.
-      // One clean retry with a fresh identity, not a loop.
-      if (!isStaleSessionError(error)) throw error;
-
-      await supabase.auth.signOut();
-      const retry = await supabase.auth.signInAnonymously({ options: { data: { name: 'Guest' } } });
-      if (retry.error) throw retry.error;
-      const second = await supabase.rpc('bootstrap_demo_session');
-      if (second.error) throw second.error;
-      return second.data as string;
-    }
-    return user?.id ?? '';
+    return user.id;
   })();
 
   try {

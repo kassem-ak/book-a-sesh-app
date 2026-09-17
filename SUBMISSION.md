@@ -220,6 +220,11 @@ as the privacy policy contact.
 ## 6. What is already done
 
 - Four tabs only — Discover, Maps, Community, Chat. Courts is removed from navigation.
+- **No guest tier.** Nothing in the app renders until a registered account is
+  signed in. The app no longer calls `signInAnonymously`, and the server-side
+  `bootstrap_demo_session` that gave an anonymous session an app identity is
+  revoked from `public`/`anon`/`authenticated` and refuses outright. Turn off
+  *Allow anonymous sign-ins* in the Supabase dashboard for defence in depth.
 - All test data truncated; every list renders real server rows with honest empty states.
 - Money paths verified against the live database and pinned by `db/tests/release_invariants.sql` (10 invariant groups).
 - In-app account deletion, deployed and verified.

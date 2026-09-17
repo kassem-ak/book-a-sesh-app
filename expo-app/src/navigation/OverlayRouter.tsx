@@ -1,6 +1,5 @@
 import React from 'react';
 import { useStore } from '../state/store';
-import { AuthOverlay } from '../overlays/AuthOverlay';
 import { EditProfileOverlay } from '../overlays/EditProfileOverlay';
 import { MyCommunitiesOverlay } from '../overlays/MyCommunitiesOverlay';
 import { CommunityProfileOverlay } from '../overlays/CommunityProfileOverlay';
@@ -31,8 +30,6 @@ import {
 
 export function OverlayRouter({ id }: { id: string }) {
   switch (id) {
-    case 'auth':
-      return <AuthOverlay />;
     case 'editProfile':
       return <EditProfileOverlay />;
     case 'communityProfile':

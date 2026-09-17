@@ -17,12 +17,22 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_auth)::text, true);
   select count(*) into v_members from community_members where user_id = v_user;
 
-  if bootstrap_demo_session() <> v_user then raise exception 'Bootstrap changed account identity'; end if;
+  -- There is no guest tier any more. bootstrap_demo_session used to mint an
+  -- app identity for an anonymous session; it must now refuse outright, and
+  -- must not have touched the caller's name or memberships on the way out.
+  begin
+    perform bootstrap_demo_session();
+    raise exception 'Guest bootstrap still succeeds';
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%guest sessions are not supported%' then raise; end if;
+  end;
   if (select name from users where id = v_user) is distinct from v_name then
-    raise exception 'Bootstrap overwrote the account name';
+    raise exception 'Guest bootstrap overwrote the account name';
   end if;
   if (select count(*) from community_members where user_id = v_user) <> v_members then
-    raise exception 'Bootstrap granted a community role';
+    raise exception 'Guest bootstrap granted a community role';
   end if;
 
   select * into v_community from create_community_with_owner('Release check ' || gen_random_uuid());
