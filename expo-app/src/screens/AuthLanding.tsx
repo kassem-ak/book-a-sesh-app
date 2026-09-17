@@ -22,7 +22,7 @@ import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 
 // Onboarding gate: Get Started -> role -> interests -> area -> account.
-// Shown until a real account signs in or guest mode is chosen.
+// Shown until a registered account signs in. It is the only way into the app.
 type Step = 'start' | 'role' | 'interests' | 'where';
 const STEPS: Step[] = ['start', 'role', 'interests', 'where'];
 
@@ -50,13 +50,6 @@ export function AuthLanding() {
     lastViewed.current = viewedStep;
     track('onboarding_step_viewed', { step: viewedStep });
   }, [viewedStep]);
-
-  const finish = () => {
-    s.set('authLoc', loc.trim());
-    s.set('discSearch', seek.trim());
-    s.set('guestMode', true);
-    track('guest_entered');
-  };
 
 
   // The provider round-trip is started from the first step, exactly as the
@@ -169,9 +162,6 @@ export function AuthLanding() {
               setAccountMode('up');
               setAccount(true);
             }} />
-            <Pressable accessibilityRole="button" accessibilityLabel="Browse as a guest" onPress={finish} style={{ minHeight: 44, justifyContent: 'center' }}>
-              <Text style={[t.caption, { color: c.txt3, textAlign: 'center' }]}>Browse as a guest</Text>
-            </Pressable>
           </>
         )}
       </ScrollView>

@@ -239,7 +239,6 @@ export interface SpotterState {
    *  until the server answers; never substitute a placeholder, because this is
    *  compared against row ownership. */
   authUserId: string | null;
-  guestMode: boolean; // user chose "Continue as guest" on the landing gate
 
   // --- onboarding (handoff v2) ---
   authLoc: string;
@@ -556,7 +555,6 @@ export const useStore = create<SpotterState>((set, get) => ({
   authAvatarUrl: null,
   profileRevision: 0,
   authUserId: null,
-  guestMode: false,
   loaded: { people: false, shops: false, communities: false, events: false, suggestions: false },
 
   authSeek: '',

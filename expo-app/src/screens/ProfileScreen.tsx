@@ -13,8 +13,8 @@ export function ProfileScreen() {
   const s = useStore();
   const role = s.role;
   const joinedCount = s.joinedCommunities.length;
-  // Identity is whatever the signed-in account says it is. A guest has no name,
-  // so this screen stays neutral rather than borrowing a sample person's.
+  // Identity is whatever the signed-in account says it is, never a sample
+  // person's. An account that has not set a name yet renders neutrally.
   const name = s.authName;
   // `null` means "not loaded / could not load" and renders no badge at all —
   // the same contract as joinedCount. A count is never invented.
@@ -48,7 +48,7 @@ export function ProfileScreen() {
           <Text style={[t.pageTitle, { color: c.txt }]}>Profile</Text>
           {/* The board had "<name> - <city>" here, but no account or device city
               exists to fill the second half, so only the real name is shown. */}
-          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{name ?? 'Guest'}</Text>
+          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{name ?? 'Your account'}</Text>
         </View>
         <Row gap={10}>
           <Pressable
@@ -81,7 +81,7 @@ export function ProfileScreen() {
               ) : role === 'COACH' ? (
                 <MicroBadge label="Coach" bg={alpha(c.volt, 0.14)} fg={c.accent} />
               ) : (
-                <MicroBadge label={s.authUid ? "Member" : "Guest"} bg={alpha(c.volt, 0.12)} fg={c.accent} />
+                <MicroBadge label="Member" bg={alpha(c.volt, 0.12)} fg={c.accent} />
               )}
               {/* The city badge is gone with the header city: no real source. */}
             </Row>
@@ -170,7 +170,7 @@ export function ProfileScreen() {
             <RowDivider />
           </>
         )}
-        {s.authUid ? (
+        <>
           <>
             <GroupRow
               icon="log-out"
@@ -205,14 +205,7 @@ export function ProfileScreen() {
               }}
             />
           </>
-        ) : (
-          <GroupRow
-            icon="log-in"
-            title="Sign in or create account"
-            body="Guest mode now · an account saves your activity"
-            onPress={() => s.set('overlay', 'auth')}
-          />
-        )}
+        </>
       </Card>
     </ScrollView>
   );
