@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ensureAppSession } from '../lib/session';
+import { ensureAppSession, signOutUser } from '../lib/session';
 import { identify } from '../lib/analytics';
 import { fetchCoaches, fetchPartners } from '../lib/queries';
 import { fetchVisibleModules } from '../lib/modules';
@@ -53,6 +53,13 @@ export function Root() {
         state.set('blockedIds', []);
         state.set('overlay', null);
         state.set('sheet', null);
+        // Everything below is per-account. Leaving it behind showed the new
+        // account the previous one's communities and permissions until the
+        // Community tab happened to rehydrate.
+        state.set('joinedCommunities', []);
+        state.set('joinedSubs', []);
+        state.set('communityRoles', {});
+        state.set('modules', []);
       }
       state.set('authEmail', real ? user.email ?? null : null);
       state.set('authUid', uid);
@@ -116,6 +123,7 @@ export function Root() {
   // because an admin sees the testing releases an ordinary member does not.
   const modules = useStore((s) => s.modules);
   const [modulesLoaded, setModulesLoaded] = useState(false);
+  const [moduleAttempt, setModuleAttempt] = useState(0);
   useEffect(() => {
     if (!admitted) return;
     let active = true;
@@ -131,7 +139,7 @@ export function Root() {
       setModulesLoaded(true);
     });
     return () => { active = false; };
-  }, [admitted, authUid, profileRevision]);
+  }, [admitted, authUid, profileRevision, moduleAttempt]);
   const released = (key: string) => tab === key && modules.includes(key);
 
   // Landing gate: no real account and guest mode not chosen yet.
@@ -164,8 +172,25 @@ export function Root() {
               Nothing to show yet
             </Text>
             <Text style={{ color: c.txt3, textAlign: 'center' }}>
-              No sections have been released to your account. Your profile is still available from the header.
+              No sections have been released to your account, or they could not be checked.
             </Text>
+            {/* With no module released the tab bar renders nothing and no
+                screen renders its header, so these two buttons are the only
+                way out. Without them this state is a dead end: Profile is not
+                offered because it draws no header of its own and would be a
+                second trap. */}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Check again"
+                onPress={() => setModuleAttempt(moduleAttempt + 1)}
+                style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line }}>
+                <Text style={{ color: c.txt }}>Check again</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Sign out"
+                onPress={() => { void signOutUser(); }}
+                style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line }}>
+                <Text style={{ color: c.txt }}>Sign out</Text>
+              </Pressable>
+            </View>
           </View>
         )}
       </View>

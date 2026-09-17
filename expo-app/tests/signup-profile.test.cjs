@@ -49,7 +49,22 @@ function harness({ user, draft }) {
   return { module: exports, calls, cleared: () => cleared };
 }
 
-const USER = { id: 'auth-1', email: 'a@example.com', is_anonymous: false, user_metadata: {} };
+// An account that was created a moment ago, which is what a real sign-up is
+// when applySignupProfile runs. Both timestamps come from the auth server.
+const NOW = Date.now();
+const fresh = (over = {}) => ({
+  id: 'auth-1', email: 'a@example.com', is_anonymous: false, user_metadata: {},
+  created_at: new Date(NOW - 2000).toISOString(),
+  last_sign_in_at: new Date(NOW).toISOString(),
+  ...over,
+});
+// The same account signing in again, weeks later.
+const returning = (over = {}) => fresh({
+  created_at: new Date(NOW - 30 * 24 * 3600 * 1000).toISOString(),
+  last_sign_in_at: new Date(NOW).toISOString(),
+  ...over,
+});
+const USER = fresh();
 
 test('a plain sign-in creates nothing and reports no signup', async () => {
   const h = harness({ user: USER, draft: null });
@@ -74,5 +89,31 @@ test('signup_role metadata applies when the draft was lost', async () => {
 
 test('a draft bound to another account is ignored', async () => {
   const h = harness({ user: USER, draft: { role: 'coach', sportIds: [], authUid: 'someone-else' } });
+  assert.equal(await h.module.applySignupProfile('auth-1'), false);
+});
+
+// An SSO sign-up saves its draft before leaving for the provider, so the draft
+// carries neither uid nor email. Abandon that round trip and it outlives the
+// attempt. Without this rule the next person to sign in on the same device is
+// silently converted to the abandoned role and interests.
+test('an abandoned unbound draft cannot convert a returning account', async () => {
+  const h = harness({ user: returning(), draft: { role: 'coach', sportIds: ['s1'] } });
+  assert.equal(await h.module.applySignupProfile('auth-1'), false);
+  assert.ok(!h.calls.some((call) => call.startsWith('POST /rest/v1/coach_profiles')),
+    'a returning sign-in must not be given a coach profile');
+  // Refused for good, rather than left to ambush the sign-in after this one.
+  assert.equal(h.cleared(), true);
+});
+
+test('an unbound draft still applies to the account that just signed up', async () => {
+  const h = harness({ user: fresh(), draft: { role: 'coach', sportIds: [] } });
+  assert.equal(await h.module.applySignupProfile('auth-1'), true);
+  assert.ok(h.calls.some((call) => call.startsWith('POST /rest/v1/coach_profiles')));
+});
+
+// Without both timestamps there is no evidence the account is new, and the
+// unsafe direction is to assume it is.
+test('a draft is refused when the account age cannot be established', async () => {
+  const h = harness({ user: { ...fresh(), last_sign_in_at: undefined }, draft: { role: 'member', sportIds: [] } });
   assert.equal(await h.module.applySignupProfile('auth-1'), false);
 });

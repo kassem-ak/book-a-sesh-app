@@ -151,6 +151,31 @@ export function ConversationOverlay() {
     };
   }, [conversationId, live, reloads]);
 
+  // The thread loaded once and never again, so a reply arriving while it was
+  // open was invisible until the user backed out and returned -- a chat that
+  // cannot receive. Poll while the thread is on screen; the app has no realtime
+  // subscription and adding one is a bigger change than this needs.
+  // ponytail: 10s poll, swap for a Supabase realtime channel if it gets chatty.
+  React.useEffect(() => {
+    if (!live) return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const rows = await fetchMessages(conversationId);
+        // Never clobber an optimistic send that has not round-tripped yet.
+        if (alive) setMessages((prev) => (prev && rows.length < prev.length ? prev : rows));
+      } catch {
+        // A failed poll is not worth a banner: the thread on screen is still
+        // valid and the next tick retries.
+      }
+    };
+    const id = setInterval(tick, 10000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [conversationId, live]);
+
   // OverlayScaffold pins the composer to the bottom edge, which iOS keyboards
   // cover. Android's resize mode already lifts it, so only iOS needs the shift.
   const [keyboard, setKeyboard] = React.useState(0);

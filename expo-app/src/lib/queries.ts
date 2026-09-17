@@ -340,6 +340,22 @@ async function resolveCoachId(coach: { id: string; name: string }) {
   throw new Error(`${coach.name} is not bookable yet.`);
 }
 
+/** A coach's saved weekly schedule, keyed 0=Mon..6=Sun to match
+ *  `coach_availability.weekday`. `null` means the coach has not set one, which
+ *  `create_booking_for_coach` treats as open — so the picker must too. */
+export async function fetchCoachAvailability(coachId: string): Promise<Record<number, string[]> | null> {
+  if (!UUID_RE.test(coachId)) return null;
+  const { data, error } = await supabase
+    .from('coach_availability').select('weekday, slot').eq('coach_id', coachId);
+  if (error) throw error;
+  if (!data?.length) return null;
+  const week: Record<number, string[]> = {};
+  for (const row of data as { weekday: number; slot: string }[]) {
+    week[row.weekday] = [...(week[row.weekday] ?? []), row.slot];
+  }
+  return week;
+}
+
 export async function createBooking(
   coach: { id: string; name: string },
   scheduledFor: string,
