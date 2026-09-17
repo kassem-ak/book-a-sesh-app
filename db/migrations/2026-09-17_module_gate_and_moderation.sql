@@ -1,0 +1,104 @@
+-- Applied to the live project on 17 September 2026, in this order:
+--   module_release_gate
+--   module_gate_allow_emergency_takedown
+--   enforce_bans_and_suspensions
+--   moderation_decisions_and_admin_views
+--   moderation_sanctions_elevate_for_privileged_columns   (superseded)
+--   privilege_guard_distinguishes_client_from_definer
+--
+-- This file is the record of what changed and why. The authoritative copies
+-- live in Supabase's own migration history.
+
+-- ---------------------------------------------------------------------------
+-- 1. Module release gate
+-- ---------------------------------------------------------------------------
+-- A module is a section of the mobile app whose reachability is decided by the
+-- admin console, not by a build. Three states, and 'hidden' is the default: a
+-- module nobody has released is invisible to every client, so shipping new code
+-- can never expose an unfinished screen by accident. 'admins' is the testing
+-- step -- live against real data, reachable only by admins.
+--
+--   create type module_visibility as enum ('hidden','admins','public');
+--   create table app_modules (key text primary key, name text not null,
+--       description text, visibility module_visibility not null default 'hidden',
+--       updated_at timestamptz not null default now(), updated_by uuid references users(id));
+--
+-- guard_module_visibility(): widening requires updated_by to be an active admin.
+-- The console holds the service role and so bypasses RLS entirely; this trigger
+-- is what makes the rule true in the database rather than in PHP.
+--
+-- Narrowing to 'hidden' is deliberately unguarded. Requiring a verified admin to
+-- pull a module could stall an emergency takedown at exactly the moment the
+-- admin records are what is in doubt. Hidden is the safe state and is always
+-- reachable. (This was found by a test, not by review: the first version
+-- refused a takedown from 'admins' back to 'hidden'.)
+--
+-- my_modules(): the client's read. Returns the keys the caller may reach --
+-- 'public' for everyone, 'admins' only when is_platform_admin(). Granted to
+-- anon and authenticated; the table itself is granted to neither. A key absent
+-- from the result is hidden, so clients fail closed on anything unrecognised.
+--
+-- Seeded: discover/maps/community/chat public; courts/shop hidden.
+
+-- ---------------------------------------------------------------------------
+-- 2. Bans and suspensions are now enforced
+-- ---------------------------------------------------------------------------
+-- RELEASE-REPORT.md recorded that "moderation records decisions without
+-- enforcing them". That was accurate: account_state existed and was written,
+-- and nothing consulted it, so a banned account kept full access.
+--
+-- 55 RLS policies route through current_app_user(), so the ban belongs there --
+-- one guarded choke point instead of 55 chances to miss one:
+--
+--   current_app_user() now returns the id only when the account is
+--   deleted_at is null, not 'banned', and either not 'suspended' or past its
+--   suspended_until. is_platform_admin() gets the same condition, so
+--   sanctioning an account that holds is_admin actually removes its powers.
+--
+-- A lapsed suspension is evaluated, not swept: once suspended_until passes the
+-- account works again with no job needing to have run. A 'suspended' row with
+-- no end date is an indefinite suspension and stays blocked. 'paused' is a
+-- coach hiding their own listing, not a sanction, and is untouched.
+
+-- ---------------------------------------------------------------------------
+-- 3. Moderation decisions
+-- ---------------------------------------------------------------------------
+-- admin_decide_report(p_report, p_actor, p_decision, p_days)
+-- admin_decide_flag(p_flag, p_actor, p_verdict, p_days)
+-- admin_reinstate_user(p_user, p_actor)
+--
+-- All three re-verify that p_actor is an active admin, because the console
+-- reaches them with the service role and holding that key is not by itself
+-- authority. Other invariants, each covered by a test:
+--   * only a still-open report moves, so two admins deciding at once cannot
+--     both apply a sanction -- the second finds nothing to update;
+--   * a suspension needs a length between 1 and 3650 days;
+--   * an admin cannot sanction their own account;
+--   * the last active admin cannot be sanctioned, for the same reason the last
+--     admin cannot be demoted -- it would lock the platform out of its console.
+--
+-- Views for the console, granted to service_role only (they carry names and
+-- reported content and must never be client-readable): admin_reports,
+-- admin_safety_flags, admin_modules.
+
+-- ---------------------------------------------------------------------------
+-- 4. guard_user_privileges now distinguishes a client from a definer function
+-- ---------------------------------------------------------------------------
+-- The guard exists to stop a signed-in client writing its own privileged
+-- columns -- it is what prevents an account lifting its own ban or granting
+-- itself is_admin. It expressed that as:
+--
+--   if current_setting('role', true) = 'service_role' then return new; end if;
+--
+-- which also refused the sanction functions above, because a SECURITY DEFINER
+-- function runs as its owner and Postgres forbids SET ROLE inside one
+-- ("cannot set parameter role within security-definer function").
+--
+-- Rewritten to key on the effective user instead:
+--
+--   if current_user not in ('authenticated','anon') then return new; end if;
+--
+-- A PostgREST client is always 'authenticated' or 'anon', so the original
+-- protection is unchanged -- verified by re-running the self-write attempts
+-- under `set role authenticated`, both of which are still refused -- while the
+-- vetted functions, each of which re-verifies its actor, can apply a sanction.

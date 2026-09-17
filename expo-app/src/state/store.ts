@@ -204,6 +204,11 @@ const scheduledFor = (day: number, slot: string) => {
 export interface SpotterState {
   // top level
   tab: string;
+  /**
+   * Module keys the server has released to this account. Empty until the
+   * lookup returns, and empty is "show nothing" -- never "show everything".
+   */
+  modules: string[];
   role: Role;
   /** What the user said they were at signup. Intent only, never a grant. */
   signupIntent: 'coach' | 'trainee' | null;
@@ -522,6 +527,7 @@ const chgLines = (from: MarginsShares, to: MarginsShares): string[] => {
 
 export const useStore = create<SpotterState>((set, get) => ({
   tab: 'discover',
+  modules: [],
   role: 'USER',
   blockedIds: [],
   signupIntent: null,

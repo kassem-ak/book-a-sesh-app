@@ -49,14 +49,10 @@ async function applySignup(authUid: string): Promise<boolean> {
   if (!draft && (metadata.signup_role === 'coach' || metadata.signup_role === 'member')) {
     draft = { role: metadata.signup_role, sportIds: Array.isArray(metadata.signup_sports) ? metadata.signup_sports : [] };
   }
-  const [coach, partner] = await Promise.all([
-    supabase.from('coach_profiles').select('user_id').eq('user_id', appId).maybeSingle(),
-    supabase.from('partner_profiles').select('user_id').eq('user_id', appId).maybeSingle(),
-  ]);
-  if (coach.error) throw coach.error;
-  if (partner.error) throw partner.error;
-  if (!draft && (coach.data || partner.data)) return false;
-  draft ??= { role: 'member', sportIds: [] };
+  // No draft and no signup metadata means this is a sign-in, not a sign-up.
+  // Inventing a 'member' draft here sent every returning user to the profile
+  // editor instead of the home tab.
+  if (!draft) return false;
   if (matches) await saveSignupDraft({ ...draft, authUid: user.id });
   const sports = draft.sportIds.length ? await fetchSports() : [];
   const selected = draft.sportIds.map((id) => sports.find((sport) => sport.id === id)).filter((sport): sport is Sport => !!sport);

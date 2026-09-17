@@ -6,23 +6,31 @@ import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
-// First release ships Discover · Maps · Community · Chat.
-// Courts and Shop are both SECOND RELEASE: the Courts screens, data layer and
-// reserve_court money path are built and live, just not reachable from the nav
-// yet, so re-adding the entry below is all it takes to ship them.
+// Every module the app can render. Which of these a given account actually
+// sees is decided by the server, not by this list and not by the build: the
+// web admin console releases a module to admins first and then to everyone.
+// A key missing from the server's answer is hidden, so adding an entry here
+// ships the code without exposing the screen.
 // Profile lives on the header person icon rather than the tab bar.
 const TABS: { key: string; label: string; icon: IconName }[] = [
   { key: 'discover', label: 'Discover', icon: 'search' },
   { key: 'maps', label: 'Maps', icon: 'map' },
   { key: 'community', label: 'Community', icon: 'share-2' },
   { key: 'chat', label: 'Chat', icon: 'message-square' },
+  { key: 'courts', label: 'Courts', icon: 'calendar' },
+  { key: 'shop', label: 'Shop', icon: 'shopping-bag' },
 ];
 
 export function TabBar() {
   const { c, t } = useTheme();
   const insets = useSafeAreaInsets();
   const tab = useStore((s) => s.tab);
+  const modules = useStore((s) => s.modules);
   const setKey = useStore((s) => s.set);
+  const visible = TABS.filter((item) => modules.includes(item.key));
+  // Nothing released yet, or the lookup failed: render no tab bar rather than
+  // guessing. Guessing here would be guessing in the unsafe direction.
+  if (visible.length === 0) return null;
   return (
     <View
       style={{
@@ -34,7 +42,7 @@ export function TabBar() {
         paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
       }}
     >
-      {TABS.map((item) => {
+      {visible.map((item) => {
         const active = tab === item.key;
         return (
           <Pressable
