@@ -341,6 +341,27 @@ begin
   v_pass := v_pass + 1;
   v_log := v_log || E'\n  PASS 8  is_admin, email and auth_id not readable by clients';
 
+  -- ================= 9. deleting a user actually deletes it ================
+  -- guard_last_admin is a BEFORE trigger covering DELETE. Returning NEW on a
+  -- DELETE returns NULL, which cancels the row in silence: no error, no rows
+  -- removed, caller sees success. That shipped, and 32 orphaned rows survived
+  -- repeated cleanups because of it. A delete that reports success and does
+  -- nothing is worse than one that fails.
+  declare
+    v_probe uuid;
+    v_still int;
+  begin
+    insert into users (name) values ('invariant probe') returning id into v_probe;
+    delete from users where id = v_probe;
+    select count(*) into v_still from users where id = v_probe;
+    if v_still <> 0 then
+      raise exception 'FAIL 9: deleting a non-admin user silently did nothing';
+    end if;
+  end;
+  v_pass := v_pass + 1;
+  v_log := v_log || E'
+  PASS 9  deleting a non-admin user row removes it';
+
   -- Always abort: this is what discards the fixture.
   raise exception 'ALL INVARIANTS PASSED (% groups)%', v_pass, v_log;
 end $$;
