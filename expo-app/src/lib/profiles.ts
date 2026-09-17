@@ -27,6 +27,15 @@ export async function realProfileIdentity() {
   return { user: data.user, appId: await currentAppUserId() };
 }
 
+/** Whether this sign-in is the one that created the account. `created_at` and
+ *  `last_sign_in_at` are both issued by the auth server, so comparing them is
+ *  safe across a device whose clock is wrong. */
+function isFirstSignIn(user: { created_at?: string; last_sign_in_at?: string }) {
+  if (!user.created_at || !user.last_sign_in_at) return false;
+  const gap = new Date(user.last_sign_in_at).getTime() - new Date(user.created_at).getTime();
+  return Number.isFinite(gap) && gap < 5 * 60 * 1000;
+}
+
 const applying = new Map<string, Promise<boolean>>();
 
 export function applySignupProfile(authUid: string): Promise<boolean> {
@@ -42,8 +51,19 @@ async function applySignup(authUid: string): Promise<boolean> {
   if (user.id !== authUid) return false;
   const saved = await readSignupDraft();
   // A confirmation pending for another email must never alter this account.
-  const matches = saved && (!saved.authUid || saved.authUid === user.id)
+  const bound = saved && (!!saved.authUid || !!saved.email);
+  const addressed = saved && (!saved.authUid || saved.authUid === user.id)
     && (!saved.email || saved.email === user.email?.toLowerCase());
+  // An SSO sign-up saves the draft before leaving for the provider and has no
+  // email or uid to bind it to. Abandon that round trip and the draft outlives
+  // it, so the NEXT person to sign in on this device would be converted to the
+  // abandoned role and interests. An unbound draft is therefore only honoured
+  // for an account that has just been created: both timestamps come from the
+  // auth server, so this does not depend on the device clock.
+  const fresh = isFirstSignIn(user);
+  const matches = addressed && (bound || fresh);
+  // Refused for good — do not leave it to ambush a later sign-in.
+  if (saved && !matches) await clearSignupDraft();
   const metadata = user.user_metadata;
   let draft: SignupDraft | null = matches ? saved : null;
   if (!draft && (metadata.signup_role === 'coach' || metadata.signup_role === 'member')) {
