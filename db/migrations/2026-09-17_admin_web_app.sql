@@ -1,0 +1,50 @@
+-- Reporting surface + access invariants for the admin back office.
+--
+-- The web app itself lives in its own repository:
+--   https://github.com/kassem-ak/bookd-admin
+-- These objects stay here because they belong to this database, and because the
+-- release invariants in db/tests/ are the things that keep them honest.
+--
+-- Aggregation lives in SQL rather than PHP for the same reason the pricing
+-- does: the money rules are already defined and invariant-tested here, and a
+-- second implementation in another language is a second thing that can disagree
+-- with the ledger.
+--
+-- WHAT THE MONEY COLUMNS MEAN. BOOK'D takes no payment -- a client pays their
+-- coach directly. commission_cents is commission RECORDED at booking time, not
+-- money collected, and nothing reconciles it against what a coach has actually
+-- remitted. Every column is named so the dashboard cannot imply otherwise.
+--
+-- Views are granted to service_role only. That app authenticates a user
+-- against Supabase Auth, confirms users.is_admin with the service key, and only
+-- then reads these.
+--
+-- (Applied live 17 September 2026. See the individual migrations:
+--  admin_reporting_views, bootstrap_first_admin, never_remove_the_last_admin.)
+
+-- 1. Reporting views -------------------------------------------------------
+-- admin_kpis            one row of headline counters
+-- admin_revenue_daily   90 days, bookings + court reservations, gross vs recorded commission
+-- admin_coach_revenue   per coach; no payout column, because nothing records a payout
+-- admin_people          the access-management list
+-- (Full bodies are in the applied migration `admin_reporting_views`.)
+
+-- 2. The first administrator ----------------------------------------------
+-- is_admin is not self-writable: guard_user_privileges refuses the column for
+-- any caller whose active role is not service_role. So the first grant has to
+-- come from a privileged migration, which is the point -- privilege escalation
+-- leaves a record in version control instead of happening invisibly.
+-- `set local role service_role` satisfies the guard; `reset role` immediately
+-- after matters, or the migration runner's own bookkeeping insert is denied.
+
+-- 3. Lockout is impossible -------------------------------------------------
+-- The web app guards the last administrator with a PHP file lock. That covers
+-- one host and nothing else: a second instance, a direct PostgREST call with
+-- the service key, or the SQL editor all bypass it, and the result is a
+-- platform nobody can administer -- recoverable only by another privileged
+-- migration. So the invariant is enforced in the database as well.
+--
+-- guard_last_admin refuses to clear is_admin, soft-delete, or delete the last
+-- live administrator. Verified live across all four paths: demotion refused,
+-- soft-delete refused, both allowed once a second admin exists, and the
+-- protection then follows whoever is last.
