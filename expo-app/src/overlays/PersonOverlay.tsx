@@ -63,7 +63,7 @@ export function PersonOverlay() {
     >
       <View style={{ paddingHorizontal: 18 }}>
         <Row gap={14}>
-          <Avatar initials={initials(p.name)} size={72} radius={20} fontSize={24} />
+          <Avatar initials={initials(p.name)} avatarUrl={p.avatarUrl} size={72} radius={20} fontSize={24} />
           <View style={{ flex: 1 }}>
             <Text style={[t.overlayTitle, { color: c.txt }]}>{p.name}</Text>
             <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]}>{personMeta(p)}</Text>

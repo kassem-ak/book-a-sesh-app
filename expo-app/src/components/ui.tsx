@@ -2,6 +2,7 @@ import { Feather, FontAwesome } from '@expo/vector-icons';
 import React, { ReactNode } from 'react';
 import {
   Pressable,
+  Image,
   ScrollView,
   StyleProp,
   Text,
@@ -126,18 +127,21 @@ export function SectionHeading({ children, style }: { children: ReactNode; style
 // `avatarSize` in ../theme.
 export function Avatar({
   initials,
+  avatarUrl,
   size = avatarSize.list,
   radius = radii.avatar,
   fontSize = 18,
   bg,
 }: {
   initials: string;
+  avatarUrl?: string | null;
   size?: number;
   radius?: number;
   fontSize?: number;
   bg?: string;
 }) {
   const { c, t } = useTheme();
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
   return (
     <View
       style={{
@@ -149,7 +153,10 @@ export function Avatar({
         justifyContent: 'center',
       }}
     >
-      <Text style={[t.initials, { fontSize, color: '#F2F3F5' }]}>{initials}</Text>
+      {avatarUrl && avatarUrl !== failedUrl
+        ? <Image source={{ uri: avatarUrl }} onError={() => setFailedUrl(avatarUrl)}
+            accessible={false} style={{ width: size, height: size, borderRadius: radius }} resizeMode="cover" />
+        : <Text style={[t.initials, { fontSize, color: '#F2F3F5' }]}>{initials}</Text>}
     </View>
   );
 }

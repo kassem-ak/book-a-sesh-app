@@ -223,7 +223,7 @@ export function PersonCard({ p, distanceLabel, onPress }: { p: Person; distanceL
   return (
     <Card onPress={onPress} background={p.boosted ? alpha(c.amber, 0.09) : undefined} borderColor={p.boosted ? alpha(c.amber, 0.3) : undefined}>
       <Row style={{ padding: 14 }} gap={14}>
-        <Avatar initials={initials(p.name)} size={54} radius={16} bg={p.boosted ? alpha(c.amber, 0.13) : undefined} />
+        <Avatar initials={initials(p.name)} avatarUrl={p.avatarUrl} size={54} radius={16} bg={p.boosted ? alpha(c.amber, 0.13) : undefined} />
         <View style={{ flex: 1 }}>
           <Text style={[t.name, { color: c.txt }]} numberOfLines={1}>{p.name}</Text>
           <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]} numberOfLines={1}>{personMetaLabel(p, distanceLabel)}</Text>

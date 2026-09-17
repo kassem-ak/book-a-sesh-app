@@ -114,7 +114,7 @@ export function DiscoverMap({ people, emptyMessage }: { people: Person[]; emptyM
       {nearest && <Pressable onPress={() => s.openPerson(nearest.person.id)} accessibilityRole="button" accessibilityLabel={`Nearest boosted coach: ${nearest.person.name}`}
         style={{ position: 'absolute', bottom: 22, left: 30, right: 22 }}>
         <Row gap={14}>
-          <Avatar initials={initials(nearest.person.name)} size={56} radius={16} bg={alpha(c.amber, 0.18)} />
+          <Avatar initials={initials(nearest.person.name)} avatarUrl={nearest.person.avatarUrl} size={56} radius={16} bg={alpha(c.amber, 0.18)} />
           <View style={{ flex: 1 }}>
             <Text style={[t.caption, { color: c.txt3, letterSpacing: 1 }]}>Nearest boosted coach</Text>
             <Text style={[t.name, { color: c.txt, marginTop: 6 }]}>{nearest.person.name}</Text>

@@ -37,7 +37,8 @@ export async function pingSupabase() {
   return { ok: !error, count: count ?? 0, error: error?.message };
 }
 
-type RelatedName = { name?: string | null } | { name?: string | null }[] | null;
+type RelatedProfile = { name?: string | null; avatar_url?: string | null; profile_tags?: { tag: string }[] };
+type RelatedName = RelatedProfile | RelatedProfile[] | null;
 
 type GeoPerson = Person & {
   coordinates?: GeoPoint | null;
@@ -90,6 +91,7 @@ function fromRemoteCoach(row: RemoteCoach): GeoPerson {
   return {
     id: row.user_id,
     name,
+    avatarUrl: firstRelated(row.user)?.avatar_url,
     sport,
     rating: toNumber(row.rating_avg),
     reviews: row.reviews_count ?? 0,
@@ -100,7 +102,7 @@ function fromRemoteCoach(row: RemoteCoach): GeoPerson {
     sessions: String(row.sessions_count ?? 0),
     reply: row.reply_time ?? '',
     bio: row.bio ?? row.headline ?? '',
-    tags: [headline, sport].filter((tag): tag is string => Boolean(tag)),
+    tags: [...new Set([...(firstRelated(row.user)?.profile_tags ?? []).map((tag) => tag.tag), headline, sport].filter(Boolean))],
     isCoach: true,
     packages,
     coordinates,
@@ -123,7 +125,7 @@ export async function fetchCoaches(sort: DiscoverSort = 'rating') {
       : { column: 'rating_avg', ascending: false };
   const { data, error } = await supabase
     .from('coach_profiles')
-    .select('user_id, headline, bio, level, price_cents, reply_time, sessions_count, rating_avg, reviews_count, boosted, user:users(name), sport:sports(name)')
+    .select('user_id, headline, bio, level, price_cents, reply_time, sessions_count, rating_avg, reviews_count, boosted, user:users(name, avatar_url, profile_tags(tag)), sport:sports(name)')
     .order(order.column, { ascending: order.ascending });
   if (error) throw error;
 
@@ -151,16 +153,17 @@ export async function fetchCoaches(sort: DiscoverSort = 'rating') {
 // Public partner profiles share the same discovery list; no private user fields.
 export async function fetchPartners(): Promise<Person[]> {
   const { data, error } = await supabase.from('partner_profiles')
-    .select('user_id, level, goal, bio, looking_for, user:users(name), sport:sports(name)');
+    .select('user_id, level, goal, bio, looking_for, user:users(name, avatar_url, profile_tags(tag)), sport:sports(name)');
   if (error) throw error;
   return (data ?? []).map((row) => ({
     id: row.user_id,
     name: firstRelated(row.user)?.name ?? 'Training partner',
+    avatarUrl: firstRelated(row.user)?.avatar_url,
     sport: firstRelated(row.sport)?.name ?? 'Training',
     level: row.level ?? '',
     goal: row.goal ?? undefined,
     bio: row.bio ?? '',
-    tags: [row.looking_for, row.goal].filter((tag): tag is string => Boolean(tag)),
+    tags: [...new Set([...(firstRelated(row.user)?.profile_tags ?? []).map((tag) => tag.tag), row.looking_for, row.goal].filter((tag): tag is string => Boolean(tag)))],
     rating: 0,
     reviews: 0,
     boosted: false,
@@ -391,8 +394,8 @@ export async function addCoupon(shopId: string, code: string, pct: number) {
 }
 // ---- account role -----------------------------------------------------------
 // The role is a property of the account, not a demo switch: a designated
-// platform admin outranks everything, otherwise an active coach subscription
-// makes you a coach, and everyone else is a regular user.
+// platform admin outranks everything; having a coach profile enables the free
+// coach tools. Legacy subscription dates must not gate the free base model.
 export type AccountRole = 'USER' | 'COACH' | 'ADMIN';
 
 export async function fetchAccountRole(): Promise<AccountRole> {
@@ -400,7 +403,13 @@ export async function fetchAccountRole(): Promise<AccountRole> {
   // Read through the RPC, not the table: the client has no SELECT on
   // public.users (it holds emails and is_admin), and must not get one.
   const role = await callRpc<string>('my_account_role');
-  return role === 'ADMIN' || role === 'COACH' ? role : 'USER';
+  if (role === 'ADMIN') return 'ADMIN';
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session?.user || session.session.user.is_anonymous) return 'USER';
+  const me = await currentAppUserId();
+  const { data: coach, error } = await supabase.from('coach_profiles').select('user_id').eq('user_id', me).maybeSingle();
+  if (error) throw error;
+  return coach ? 'COACH' : 'USER';
 }
 
 export type PackageUsage = Record<string, { used: number; total: number }>;

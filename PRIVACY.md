@@ -27,6 +27,8 @@ BOOK'D is operated by **[LEGAL ENTITY NAME, REGISTERED ADDRESS]** ("we", "us").
 | Display name | Sign-up or your sign-in provider | Shown to other members on your profile, messages and community posts |
 | City / area | You type it during onboarding | To show you people and venues near you |
 | Profile details — headline, bio, sport, level, session price, specialties | You, if you set up a coach profile | Shown publicly to other members so they can decide whether to book you |
+| Whether you joined as a coach or a member, and the sports or hobbies you pick | You, at sign-up, and editable later | Decides which side of Discover you appear on and helps people find you. The base service is free for coaches and members alike |
+| Profile picture | You, if you choose one — the app never browses your photo library | Shown next to you across the app. **Your avatar is publicly readable**, so treat it as public |
 | Message content | You, when you chat with another member | To deliver your messages |
 | Community content — events you create, their title, place and time | You | Shown to members of that community |
 | Reports you file about another member | You | So we can review conduct on the platform |
@@ -78,8 +80,10 @@ provider is paused; collection remains bounded while it is unavailable.
 - Payment card details. **BOOK'D does not process payments.** You pay your coach
   directly, at your session. No card, bank or payment credential ever reaches
   us, because there is nowhere in the app to enter one.
-- Photos, camera, contacts, calendar, microphone or health data. The app does
-  not request these permissions.
+- Camera, contacts, calendar, microphone or health data. The app does not
+  request these permissions.
+- Your photo library. We never browse it. The picker is the operating system's
+  own, and only the single image you choose is sent to us.
 - Advertising identifiers. There are currently no ad networks, analytics SDKs
   or connected third-party trackers. The local activity log above is separate
   from advertising or cross-app tracking.

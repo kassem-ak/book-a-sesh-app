@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
+import { SportsPicker } from '../components/SportsPicker';
 import { BrandIcon, BrandName, Field, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import { signInEmail, signInWithProvider, signUpEmail, SSO_LABELS, SsoProvider } from '../lib/session';
 import { analyticsErrorCode, track } from '../lib/analytics';
+import { saveSignupDraft } from '../lib/signup';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 // Shared email/password + SSO form. Used by the AuthLanding gate and the
 // in-app 'auth' overlay. Calls onDone() after a successful sign-in.
-export function AuthForm({ onDone, initialEmail = '' }: { onDone: () => void; initialEmail?: string }) {
+export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { onDone: () => void; initialEmail?: string; initialMode?: 'in' | 'up' }) {
   const { c, t } = useTheme();
-  const [mode, setMode] = useState<'in' | 'up'>('in');
+  const s = useStore();
+  const [mode, setMode] = useState<'in' | 'up'>(initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -34,6 +37,7 @@ export function AuthForm({ onDone, initialEmail = '' }: { onDone: () => void; in
         await signInEmail(email.trim(), password);
         onDone();
       } else {
+        await saveSignupDraft({ role: s.signupIntent === 'coach' ? 'coach' : 'member', sportIds: s.signupSports, email: email.trim().toLowerCase() });
         const needsConfirm = await signUpEmail(name.trim(), email.trim(), password);
         if (needsConfirm) setConfirmSent(true);
         else onDone();
@@ -50,9 +54,10 @@ export function AuthForm({ onDone, initialEmail = '' }: { onDone: () => void; in
     setBusy(true);
     setError(null);
     try {
-      await signInWithProvider(provider);
+      if (mode === 'up') await saveSignupDraft({ role: s.signupIntent === 'coach' ? 'coach' : 'member', sportIds: s.signupSports });
+      const signedIn = await signInWithProvider(provider);
       // Web redirects away; native resolves here once the deep link returns.
-      onDone();
+      if (signedIn) onDone();
     } catch (e) {
       const raw = e instanceof Error ? e.message : '';
       // Until the provider is turned on in Supabase Auth, GoTrue answers
@@ -78,7 +83,7 @@ export function AuthForm({ onDone, initialEmail = '' }: { onDone: () => void; in
         <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
           We sent a confirmation link to {email.trim()}. Open it, then sign in here.
         </Text>
-        <Pressable onPress={() => setConfirmSent(false)} style={{ marginTop: 18 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to sign in" onPress={() => { setConfirmSent(false); setMode('in'); }} style={{ marginTop: 18, minHeight: 44, justifyContent: 'center' }}>
           <Text style={[t.label, { color: c.accent }]}>Back to sign in</Text>
         </Pressable>
       </View>
@@ -87,6 +92,21 @@ export function AuthForm({ onDone, initialEmail = '' }: { onDone: () => void; in
 
   return (
     <View>
+      {mode === 'up' && <View style={{ gap: 16, marginBottom: 24 }}>
+        <Text style={[t.bodySm, { color: c.txt2 }]}>Free for coaches and members. Add your photo and profile details after creating your account.</Text>
+        <SectionHeading>Are you?</SectionHeading>
+        <Row gap={10}>
+          {(['coach', 'trainee'] as const).map((role) => <Pressable key={role}
+            accessibilityRole="radio" accessibilityLabel={role === 'coach' ? 'Coach or teacher' : 'Member, trainee or student'}
+            accessibilityState={{ checked: (s.signupIntent ?? 'trainee') === role, disabled: busy }} disabled={busy}
+            onPress={() => s.set('signupIntent', role)} style={{ flex: 1, minHeight: 48, padding: 12, borderRadius: 16, backgroundColor: (s.signupIntent ?? 'trainee') === role ? c.volt : c.surface }}>
+            <Text style={[t.label, { color: (s.signupIntent ?? 'trainee') === role ? c.ink : c.txt }]}>{role === 'coach' ? 'Coach/Teacher' : 'Trainee/Student'}</Text>
+          </Pressable>)}
+        </Row>
+        <View pointerEvents={busy ? 'none' : 'auto'}>
+          <SportsPicker selected={s.signupSports} onChange={(ids) => s.set('signupSports', ids)} coach={s.signupIntent === 'coach'} />
+        </View>
+      </View>}
       {/* SSO — Facebook, Google, Microsoft and Apple in a 2x2 grid. */}
       <View style={{ gap: 12 }}>
         <Row gap={12}>
@@ -129,6 +149,10 @@ export function AuthForm({ onDone, initialEmail = '' }: { onDone: () => void; in
       />
 
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={mode === 'in' ? 'Create an account' : 'Sign in to an existing account'}
+        accessibilityState={{ disabled: busy }}
+        disabled={busy}
         onPress={() => {
           setMode(mode === 'in' ? 'up' : 'in');
           setError(null);
@@ -193,7 +217,7 @@ export function AuthOverlay() {
   return (
     <OverlayScaffold header={<OverlayHeader title="Account" onBack={s.closeOverlay} />}>
       <View style={{ paddingHorizontal: 18 }}>
-        <AuthForm onDone={s.closeOverlay} />
+        <AuthForm onDone={() => { if (useStore.getState().overlay === 'auth') s.closeOverlay(); }} />
         <Text style={[t.bodySm, { color: c.txt3, marginTop: 18 }]}>
           You can keep browsing as a guest — an account saves your bookings
           and communities under your own name.

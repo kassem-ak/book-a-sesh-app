@@ -42,6 +42,14 @@
     "plugins": [
       "expo-font",
       "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow BOOK'D to access a photo you choose for your public profile picture.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       "./plugins/withBookdAndroid",
       [
         "expo-location",

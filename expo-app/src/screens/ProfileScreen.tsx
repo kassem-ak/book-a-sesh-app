@@ -39,7 +39,7 @@ export function ProfileScreen() {
       active = false;
     };
     // Signing in or out changes whose bookings these are.
-  }, [s.authEmail]);
+  }, [s.authUid]);
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 26 }}>
@@ -69,7 +69,7 @@ export function ProfileScreen() {
         <Row style={{ padding: 15 }} gap={14}>
           {/* No name means a blank avatar — inventing initials would name a
               person who is not the one holding the phone. */}
-          <Avatar initials={name ? initials(name) : ''} size={64} radius={17} fontSize={22} />
+          <Avatar initials={name ? initials(name) : ''} avatarUrl={s.authAvatarUrl} size={64} radius={17} fontSize={22} />
           <View style={{ flex: 1 }}>
             <Row gap={7}>
               <Text style={[t.overlayTitle, { color: c.txt }]}>{name ?? 'Welcome'}</Text>
@@ -81,7 +81,7 @@ export function ProfileScreen() {
               ) : role === 'COACH' ? (
                 <MicroBadge label="Coach" bg={alpha(c.volt, 0.14)} fg={c.accent} />
               ) : (
-                <MicroBadge label={s.authEmail ? "User" : "Guest"} bg={alpha(c.volt, 0.12)} fg={c.accent} />
+                <MicroBadge label={s.authUid ? "Member" : "Guest"} bg={alpha(c.volt, 0.12)} fg={c.accent} />
               )}
               {/* The city badge is gone with the header city: no real source. */}
             </Row>
@@ -89,7 +89,11 @@ export function ProfileScreen() {
         </Row>
       </Card>
 
-      {/* coach subscription + tools */}
+      {s.authUid && <Card style={{ marginTop: 10, paddingHorizontal: 15 }}>
+        <GroupRow icon="edit-2" title="Edit profile" body="Photo, name, bio and interests" onPress={() => s.set('overlay', 'editProfile')} />
+      </Card>}
+
+      {/* coach tools — free for every coach */}
       {role === 'COACH' && (
         <>
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Coach tools</SectionHeading>
@@ -183,7 +187,7 @@ export function ProfileScreen() {
             <RowDivider />
           </>
         )}
-        {s.authEmail ? (
+        {s.authUid ? (
           <>
             <GroupRow
               icon="log-out"
