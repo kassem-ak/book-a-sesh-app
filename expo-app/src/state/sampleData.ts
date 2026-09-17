@@ -7,22 +7,9 @@ export const sportNames = ['All', 'Strength', 'Boxing', 'Running', 'Climbing', '
 
 export const shopCategories = ['Running', 'Strength', 'Boxing', 'Yoga', 'Cycling', 'Tennis', 'Other'];
 
-// booking calendar: the bookable month is the next calendar month, so every
-// offered slot is genuinely in the future.
-const bookingMonthDate = (() => {
-  const d = new Date();
-  d.setMonth(d.getMonth() + 1, 1);
-  d.setHours(0, 0, 0, 0);
-  return d;
-})();
-export const bookingYear = bookingMonthDate.getFullYear();
-export const bookingMonthNumber = bookingMonthDate.getMonth() + 1;
-export const bookingMonthName = bookingMonthDate.toLocaleString('en-US', { month: 'long' });
-export const monthLabel = bookingMonthDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-export const firstDow = bookingMonthDate.getDay();
-export const daysInMonth = new Date(bookingYear, bookingMonthNumber, 0).getDate();
-// The whole bookable month is in the future, so no day of it is past.
-export const todayNum = 0;
+// Suggested session times, offered only to a coach who has not published a
+// schedule, and to the community event form. A coach WITH a schedule is booked
+// against coach_availability instead -- see bookableDays in BookingOverlay.
 export const slotDefs = ['6:30 AM', '8:00 AM', '12:00 PM', '5:30 PM', '6:30 PM', '7:30 PM'];
 
 // Accounting has no connected ledger yet.

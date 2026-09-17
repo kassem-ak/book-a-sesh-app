@@ -3,13 +3,62 @@ import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import { coachPackageOptions } from '../state/models';
-import { fetchPackageUsage, PackageUsage } from '../lib/queries';
+import { fetchCoachAvailability, fetchPackageUsage, PackageUsage } from '../lib/queries';
 import { track } from '../lib/analytics';
 import * as D from '../state/sampleData';
-import { useStore } from '../state/store';
+import { bookingDayLabel, SCHED_TIMES, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
-const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+// How far ahead the picker offers. The coach's weekly schedule repeats, so a
+// month of it is plenty and keeps the list scannable.
+const DAYS_AHEAD = 28;
+
+const localDay = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const byTime = (slots: string[]) => [...slots].sort((a, b) => SCHED_TIMES.indexOf(a) - SCHED_TIMES.indexOf(b));
+
+const minutesInto = (slot: string) => {
+  const match = slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return 0;
+  let hour = Number(match[1]);
+  if (match[3].toUpperCase() === 'PM' && hour < 12) hour += 12;
+  if (match[3].toUpperCase() === 'AM' && hour === 12) hour = 0;
+  return hour * 60 + Number(match[2]);
+};
+
+export type BookableDay = { date: string; day: string; dow: string; slots: string[] };
+
+/** The days this coach can actually be booked on, from today forward.
+ *
+ *  `week` is keyed 0=Mon..6=Sun, the same as `coach_availability.weekday` and
+ *  the same as the server's `extract(isodow) - 1`. A null week means the coach
+ *  has not set a schedule, which the booking RPC treats as open — so we offer
+ *  every day at suggested times rather than hiding the coach.
+ *
+ *  Today keeps only slots still ahead: the server accepts today, but offering
+ *  a 6:30 AM session at 8 PM is offering something that cannot happen. */
+export function bookableDays(week: Record<number, string[]> | null, now: Date = new Date()): BookableDay[] {
+  const out: BookableDay[] = [];
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const elapsed = now.getHours() * 60 + now.getMinutes();
+  for (let i = 0; i < DAYS_AHEAD; i += 1) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + i);
+    const weekday = (date.getDay() + 6) % 7;
+    let slots = byTime(week ? week[weekday] ?? [] : D.slotDefs);
+    if (i === 0) slots = slots.filter((slot) => minutesInto(slot) > elapsed);
+    if (!slots.length) continue;
+    out.push({
+      date: localDay(date),
+      day: String(date.getDate()),
+      dow: date.toLocaleDateString(undefined, { weekday: 'short' }),
+      slots,
+    });
+  }
+  return out;
+}
 
 export function BookingOverlay() {
   const { c, t } = useTheme();
@@ -26,6 +75,9 @@ export function BookingOverlay() {
   // Usage establishes pack coverage, not whether the coach has been paid.
   const [usage, setUsage] = React.useState<PackageUsage | null>(null);
   const [usageLoading, setUsageLoading] = React.useState(true);
+  // undefined while the coach's schedule is still loading, null once we know
+  // they have not set one.
+  const [week, setWeek] = React.useState<Record<number, string[]> | null | undefined>(undefined);
   const [bookingQuote, setBookingQuote] = React.useState<{ redeeming: boolean; dueNow: number } | null>(null);
   const personId = p?.id;
   React.useEffect(() => {
@@ -33,22 +85,40 @@ export function BookingOverlay() {
     let live = true;
     setUsage(null);
     setUsageLoading(true);
+    setWeek(undefined);
     fetchPackageUsage().then((rows) => {
       if (live) {
         setUsage(rows);
         setUsageLoading(false);
       }
     });
+    // A schedule we cannot read must not hide the coach: fall back to the
+    // open-coach offering, which is what the server would accept anyway.
+    fetchCoachAvailability(personId).then(
+      (rows) => { if (live) setWeek(rows); },
+      () => { if (live) setWeek(null); },
+    );
     return () => { live = false; };
   }, [personId]);
 
+  const days = React.useMemo(() => (week === undefined ? [] : bookableDays(week)), [week]);
+  const bookDate = useStore((state) => state.bookDate);
+  const bookSlot = useStore((state) => state.bookSlot);
+  const chosen = days.find((entry) => entry.date === bookDate) ?? null;
+
+  // Select the first real opening once the schedule arrives, and re-select if
+  // the day or slot the store is holding is not one this coach offers.
+  React.useEffect(() => {
+    if (!days.length) return;
+    const state = useStore.getState();
+    const day = days.find((entry) => entry.date === state.bookDate) ?? days[0];
+    const slot = day.slots.includes(state.bookSlot ?? '') ? state.bookSlot : day.slots[0];
+    if (state.bookDate !== day.date) state.set('bookDate', day.date);
+    if (state.bookSlot !== slot) state.set('bookSlot', slot);
+  }, [days]);
+
   if (!p) return <MissingSubject title="Book a session" message="This coach is no longer available." onBack={s.backToPerson} />;
 
-  // No day is greyed out here: the coach's saved schedule is enforced by the
-  // server at confirm time, not mirrored into this calendar. A client can still
-  // tap a day the coach does not work and is refused on confirm. Showing it
-  // up front needs the schedule fetched per coach -- worth doing, not done.
-  const full: number[] = [];
   const pkgs = coachPackageOptions(p);
   const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
 
@@ -76,7 +146,8 @@ export function BookingOverlay() {
           </View>
           <Text style={[t.overlayTitle, { fontSize: 24, color: c.txt, marginTop: 18 }]}>You are booked!</Text>
           <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
-            {selectedPkg.name} with {p.name.split(' ')[0]} · {D.bookingMonthName} {s.bookDay} · {D.slotDefs[s.bookSlot]}
+            {selectedPkg.name} with {p.name.split(' ')[0]}
+            {bookDate ? ` · ${bookingDayLabel(bookDate)}` : ''}{bookSlot ? ` · ${bookSlot}` : ''}
           </Text>
           {bookingQuote && (
             <Text style={[t.bodySm, { color: c.txt3, marginTop: 8, textAlign: 'center' }]}>
@@ -118,7 +189,7 @@ export function BookingOverlay() {
           </Text>
           <VoltButton
             label={exhausted ? 'Pack already used' : 'Confirm booking'}
-            enabled={!exhausted}
+            enabled={!exhausted && Boolean(bookDate && bookSlot)}
             onPress={() => {
               // A late balance read may include this booking's redemption.
               // Only the quote known before submission can describe it.
@@ -141,49 +212,68 @@ export function BookingOverlay() {
       }
     >
       <View style={{ paddingHorizontal: 18 }}>
-        <SectionHeading style={{ marginBottom: 11 }}>{D.monthLabel}</SectionHeading>
-        <Card style={{ padding: 14 }}>
-          <Row style={{ justifyContent: 'space-around', marginBottom: 8 }}>
-            {DOW.map((d, i) => (
-              <Text key={i} style={[t.caption, { color: c.txt3, width: 36, textAlign: 'center' }]}>{d}</Text>
-            ))}
-          </Row>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            {Array.from({ length: D.firstDow }).map((_, i) => (
-              <View key={`e${i}`} style={{ width: `${100 / 7}%`, height: 42 }} />
-            ))}
-            {Array.from({ length: D.daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const isFull = full.includes(day);
-              const isPast = day < D.todayNum;
-              const sel = s.bookDay === day;
-              const disabled = isFull || isPast;
+        <SectionHeading style={{ marginBottom: 11 }}>Day</SectionHeading>
+        {week === undefined ? (
+          <Text style={[t.bodySm, { color: c.txt3 }]}>Checking when {p.name.split(' ')[0]} is available…</Text>
+        ) : days.length === 0 ? (
+          <Card style={{ padding: 14 }}>
+            <Text style={[t.bodySm, { color: c.txt2 }]}>
+              {p.name.split(' ')[0]} has no bookable times in the next four weeks. Message them to arrange a session.
+            </Text>
+          </Card>
+        ) : (
+          <Row style={{ flexWrap: 'wrap' }} gap={9}>
+            {days.map((entry) => {
+              const sel = bookDate === entry.date;
               return (
                 <Pressable
-                  key={day}
-                  onPress={() => !disabled && s.set('bookDay', day)}
-                  style={{ width: `${100 / 7}%`, height: 42, alignItems: 'center', justifyContent: 'center' }}
+                  key={entry.date}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: sel }}
+                  accessibilityLabel={bookingDayLabel(entry.date)}
+                  onPress={() => {
+                    s.set('bookDate', entry.date);
+                    if (!entry.slots.includes(bookSlot ?? '')) s.set('bookSlot', entry.slots[0]);
+                  }}
+                  style={{ borderRadius: 12, backgroundColor: sel ? c.volt : c.surface, borderColor: sel ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 9, minWidth: 54, alignItems: 'center' }}
                 >
-                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: sel ? c.volt : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={[t.labelSm, { color: sel ? c.ink : disabled ? c.mono : c.txt, textDecorationLine: isFull ? 'line-through' : 'none' }]}>{day}</Text>
-                  </View>
+                  <Text style={[t.caption, { color: sel ? c.ink : c.txt3 }]}>{entry.dow}</Text>
+                  <Text style={[t.labelSm, { color: sel ? c.ink : c.txt }]}>{entry.day}</Text>
                 </Pressable>
               );
             })}
-          </View>
-        </Card>
+          </Row>
+        )}
 
-        <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Time</SectionHeading>
-        <Row style={{ flexWrap: 'wrap' }} gap={9}>
-          {D.slotDefs.map((slot, i) => {
-            const sel = s.bookSlot === i;
-            return (
-              <Pressable key={slot} onPress={() => s.set('bookSlot', i)} style={{ borderRadius: 12, backgroundColor: sel ? c.volt : c.surface, borderColor: sel ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 11 }}>
-                <Text style={[t.labelSm, { color: sel ? c.ink : c.txt }]}>{slot}</Text>
-              </Pressable>
-            );
-          })}
-        </Row>
+        {chosen && (
+          <>
+            <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Time</SectionHeading>
+            <Row style={{ flexWrap: 'wrap' }} gap={9}>
+              {chosen.slots.map((slot) => {
+                const sel = bookSlot === slot;
+                return (
+                  <Pressable
+                    key={slot}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: sel }}
+                    onPress={() => s.set('bookSlot', slot)}
+                    style={{ borderRadius: 12, backgroundColor: sel ? c.volt : c.surface, borderColor: sel ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 11 }}
+                  >
+                    <Text style={[t.labelSm, { color: sel ? c.ink : c.txt }]}>{slot}</Text>
+                  </Pressable>
+                );
+              })}
+            </Row>
+            {/* An open coach is a coach who never opened "My schedule". The
+                server accepts any time for them, so say these are suggestions
+                rather than implying a schedule that does not exist. */}
+            {week === null && (
+              <Text style={[t.caption, { color: c.txt3, marginTop: 9 }]}>
+                {p.name.split(' ')[0]} has not published a schedule. These are suggested times — confirm the exact time with them.
+              </Text>
+            )}
+          </>
+        )}
 
         <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Package</SectionHeading>
         <View style={{ gap: 10 }}>

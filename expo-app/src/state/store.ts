@@ -191,14 +191,24 @@ const suggestionFromRemote = (row: any, fallbackCommunity?: string): EventSugges
   status: row.status === 'approved' ? 'APPROVED' : 'PENDING',
 });
 
-const scheduledFor = (day: number, slot: string) => {
+// `date` is a local calendar day as yyyy-mm-dd, `slot` a label out of
+// coach_availability ("8:00 AM"). Both are what the picker actually offered,
+// so the instant sent to the server is the one the user saw.
+const scheduledFor = (date: string, slot: string) => {
   const match = slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   let hour = match ? Number(match[1]) : 12;
   const minute = match ? Number(match[2]) : 0;
   const meridiem = match?.[3]?.toUpperCase();
   if (meridiem === 'PM' && hour < 12) hour += 12;
   if (meridiem === 'AM' && hour === 12) hour = 0;
-  return new Date(D.bookingYear, D.bookingMonthNumber - 1, day, hour, minute, 0, 0).toISOString();
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0, 0).toISOString();
+};
+
+/** "12 October" for a yyyy-mm-dd day, for booking labels and confirmations. */
+export const bookingDayLabel = (date: string) => {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
 };
 
 export interface SpotterState {
@@ -299,8 +309,11 @@ export interface SpotterState {
   cart: Record<string, number>;
 
   // booking
-  bookDay: number;
-  bookSlot: number;
+  /** The chosen day as local yyyy-mm-dd, and the chosen slot exactly as
+   *  coach_availability stores it. Null until the picker offers one: there is
+   *  no sensible default, because what is bookable depends on the coach. */
+  bookDate: string | null;
+  bookSlot: string | null;
   bookPkg: number;
   booked: boolean;
 
@@ -589,8 +602,8 @@ export const useStore = create<SpotterState>((set, get) => ({
 
   cart: {},
 
-  bookDay: 9,
-  bookSlot: 4,
+  bookDate: null,
+  bookSlot: null,
   bookPkg: 0,
   booked: false,
   bookingChange: false,
@@ -1013,7 +1026,7 @@ export const useStore = create<SpotterState>((set, get) => ({
     }
   },
   openBooking: () => {
-    set({ overlay: 'booking', booked: false, bookPkg: 0, writeError: null });
+    set({ overlay: 'booking', booked: false, bookPkg: 0, bookDate: null, bookSlot: null, writeError: null });
     if (get().personById(get().openId)) track('booking_opened');
   },
   backToPerson: () => set({ overlay: 'person', booked: false }),
@@ -1025,16 +1038,20 @@ export const useStore = create<SpotterState>((set, get) => ({
       set({ writeError: 'That coach is no longer available.' });
       return;
     }
-    const slot = D.slotDefs[s.bookSlot] ?? D.slotDefs[0];
+    const { bookDate, bookSlot } = s;
+    if (!bookDate || !bookSlot) {
+      set({ writeError: 'Pick a day and a time first.' });
+      return;
+    }
     const pkg = coachPackageOptions(person)[s.bookPkg] ?? coachPackageOptions(person)[0];
     set({ writeBusy: 'booking', writeError: null });
     try {
       await createBookingRemote(
         { id: person.id, name: person.name },
-        scheduledFor(s.bookDay, slot),
-        `${pkg.name} - ${D.bookingMonthName} ${s.bookDay} - ${slot}`,
+        scheduledFor(bookDate, bookSlot),
+        `${pkg.name} - ${bookingDayLabel(bookDate)} - ${bookSlot}`,
         pkg.packageId,
-        slot,
+        bookSlot,
       );
       set({ booked: true, writeBusy: null });
     } catch (error) {
