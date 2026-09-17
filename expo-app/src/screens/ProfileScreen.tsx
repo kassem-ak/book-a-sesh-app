@@ -152,28 +152,11 @@ export function ProfileScreen() {
         />
       </Card>
 
-      {/* admin console — admins only, sits inside SETTINGS per spec 6 */}
-      {role === 'ADMIN' && (
-        <>
-          <Text style={[t.labelSm, { color: c.txt2, marginTop: 14, marginBottom: 8 }]}>Admin console</Text>
-          <Card>
-            <View style={{ padding: 15, gap: 13 }}>
-              <ToolRow icon="user-check" title="Approvals" body="Hobby requests, communities and venues" onPress={() => s.set('overlay', 'adminApprovals')} />
-              <ToolRow icon="flag" title="Misconduct reports" body="Review evidence · record decisions only" onPress={() => s.set('overlay', 'adminReports')} />
-              <ToolRow icon="percent" title="Promotions & promo codes" body="Record codes · not yet redeemable in the app" onPress={() => s.set('overlay', 'adminPromos')} />
-              <ToolRow icon="tag" title="Loyalty offers" body="Edit rewards & point costs" onPress={() => s.set('overlay', 'adminLoyalty')} />
-              {/* No Accounting row on purpose. The console exists but is a
-                  simulation: "Propose changes" can never enable because the
-                  profit-share rows it validates are always empty, and saved
-                  expenses live only in memory, so they vanish on restart while
-                  the UI promises they recur. Reaching a tool that quietly
-                  discards an admin's work is worse than not offering it.
-                  Restore this row once accounting writes to the server. */}
-            </View>
-          </Card>
-        </>
-      )}
-
+      {/* The admin console moved to the web back office. Administration is
+          not a phone job: it needs the service role, which must never ship in
+          a client, and every tool that used to sit here now has a server-side
+          actor check rather than a UI-only gate. Nothing privileged is
+          reachable from this build. */}
       <Card style={{ marginTop: 10, paddingHorizontal: 15 }}>
         {/* My day view — coaches only */}
         {role === 'COACH' && (
