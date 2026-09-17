@@ -161,7 +161,7 @@ provider connected. Recheck these answers for the submitted build.
 | Data encrypted in transit | Yes |
 | Can users request deletion? | Yes — in-app, under Profile |
 | User-generated content | Yes: profiles, chat, community events |
-| Content moderation | Report **and** block, both reachable from a member's profile; blocking is enforced server-side |
+| Content moderation | Report **and** block, both reachable from a member's profile; blocking is enforced server-side. Reports and flags are reviewed in the admin console, and a ban or suspension is enforced by the database on every request |
 | Age rating inputs | Answer *yes* to user interaction and user-generated content. Set a 13+ minimum to match `PRIVACY.md` §6 |
 
 The local activity buffer holds the newest 300 pending records, discards the
@@ -203,9 +203,13 @@ as the privacy policy contact.
   coach permanently: `guard_coach_profile_privileges` forces
   `subscription_status` to `active` with no expiry, and nothing charges. This is
   the intended v1 model, not an oversight, and the sign-up copy says so.
-- **Courts and Shop code still ships in the binary** even though both are
-  deferred. They are unreachable from the four tabs; confirm that holds before
-  submitting, because a reachable half-finished screen is a common rejection.
+- **Courts and Shop ship in the binary and are held hidden by the server.**
+  Since 17 September 2026 this is enforced rather than assumed: both are
+  registered in `app_modules` as `hidden`, and the app renders only what
+  `my_modules()` returns, failing closed on anything else. There is no longer a
+  build-time way for either to appear, so the "confirm it is unreachable before
+  submitting" check is now a database query rather than a code review. Releasing
+  either one to testers is a switch in the admin console.
 - **No remote crash reporting.** `ErrorBoundary` catches render crashes and
   shows a recovery screen. It records a sanitized error type in the local
   analytics buffer and logs diagnostics to the console; nothing is delivered

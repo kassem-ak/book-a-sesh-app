@@ -236,5 +236,24 @@ create for you.
    booking, and nothing reconciles it against what a coach actually owes.
 
 **Also outstanding:** no crash reporter, no support URL, privacy policy needs its
-three placeholders and legal review, promos are recorded but not redeemable, and
-moderation records decisions without enforcing them — the last two now say so.
+three placeholders and legal review, and promos are recorded but not redeemable —
+which the app now says.
+
+**Moderation is enforced as of 17 September 2026.** This report previously said
+decisions were recorded but not applied, and that was accurate: `account_state`
+was written and nothing read it, so a banned account kept full access. The check
+now sits in `current_app_user()`, which all 55 RLS policies route through, so one
+guarded choke point covers every table rather than 55 chances to miss one.
+`is_platform_admin()` carries the same condition, so sanctioning an account that
+holds `is_admin` actually removes its powers. A lapsed suspension is evaluated
+rather than swept, so it expires without a job needing to have run.
+
+**Module releases are decided server-side as of 17 September 2026.** A module is
+hidden until the admin console releases it — to admins for testing, then to
+everyone — so shipping code no longer ships a screen. Courts and Shop are
+registered and hidden rather than commented out of the tab list, and are now
+releasable without a code change. The client fails closed: an unrecognised key
+is not rendered, and a failed lookup shows nothing rather than everything.
+
+Both are documented in `db/migrations/2026-09-17_module_gate_and_moderation.sql`,
+including two flaws the tests caught before they shipped.
