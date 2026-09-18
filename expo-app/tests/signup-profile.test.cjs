@@ -31,6 +31,7 @@ function harness({ user, draft }) {
   const dependencies = {
     './supabase': { supabase },
     './bookings': { currentAppUserId: async () => 'app-1' },
+    './geo': { coarsenPoint: (point) => point },
     './signup': {
       readSignupDraft: async () => draft,
       saveSignupDraft: async () => {},

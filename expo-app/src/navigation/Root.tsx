@@ -88,6 +88,10 @@ export function Root() {
       state.set('authName', profile.name);
       state.set('authAvatarUrl', profile.avatarUrl);
       state.set('authUserId', profile.id);
+      // Without this the area only appears after an edit: the store starts
+      // empty every launch, so Profile and Discover would show nothing for an
+      // account that set its area on a previous run.
+      state.set('authLoc', profile.city);
       if (applied) state.set('mode', profile.role === 'coach' ? 'partners' : 'coaches');
       identify(profile.id);
       await Promise.all([state.refreshRole(), state.refreshBlocked()]);

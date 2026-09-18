@@ -29,6 +29,7 @@ function harness({ profileRowExists = true } = {}) {
       calls.push({ method, path: target.pathname, body, prefer: init?.headers?.Prefer ?? init?.headers?.prefer ?? '' });
       let payload = [];
       if (target.pathname.endsWith('/rpc/current_app_user')) payload = APP_ID;
+      else if (target.pathname.endsWith('/rpc/my_location_shared')) payload = false;
       else if (target.pathname.endsWith('/sports')) payload = SPORTS;
       else if (target.pathname.endsWith('/users')) payload = [{ id: APP_ID }];
       else if (/partner_profiles|coach_profiles/.test(target.pathname)) {
@@ -44,6 +45,7 @@ function harness({ profileRowExists = true } = {}) {
   const dependencies = {
     './supabase': { supabase },
     './bookings': { currentAppUserId: async () => APP_ID },
+    './geo': { coarsenPoint: (point) => point },
     './signup': { readSignupDraft: async () => null, saveSignupDraft: async () => {}, clearSignupDraft: async () => {} },
   };
   const filename = join(__dirname, '../src/lib/profiles.ts');
@@ -58,6 +60,7 @@ function harness({ profileRowExists = true } = {}) {
 const PROFILE = {
   id: APP_ID, name: 'Kassem', avatarUrl: null, role: 'member',
   bio: 'hello', headline: '', level: '', sportIds: ['sport-1'],
+  city: 'Beirut', sharesLocation: false,
 };
 
 const profileWrites = (calls) => calls.filter((c) => /partner_profiles|coach_profiles/.test(c.path));
@@ -109,4 +112,26 @@ test('the display name still reaches users', async () => {
   await h.save({ ...PROFILE, name: '  Kassem  ' });
   const users = h.calls.find((c) => c.path.endsWith('/users') && c.method === 'PATCH');
   assert.equal(users.body.name, 'Kassem', 'trimmed');
+});
+
+test('the area is saved, trimmed, alongside the name', async () => {
+  const h = harness({ profileRowExists: true });
+  await h.save({ ...PROFILE, city: '  Beirut  ' });
+  const users = h.calls.find((c) => c.path.endsWith('/users') && c.method === 'PATCH');
+  assert.equal(users.body.city, 'Beirut');
+});
+
+test('an emptied area is stored as null, not an empty string', async () => {
+  const h = harness({ profileRowExists: true });
+  await h.save({ ...PROFILE, city: '   ' });
+  const users = h.calls.find((c) => c.path.endsWith('/users') && c.method === 'PATCH');
+  assert.equal(users.body.city, null, 'unknown must have one representation');
+});
+
+test('saving never writes location -- sharing is its own explicit action', async () => {
+  const h = harness({ profileRowExists: true });
+  await h.save({ ...PROFILE, sharesLocation: true });
+  for (const call of h.calls.filter((c) => c.path.endsWith('/users') && c.method === 'PATCH')) {
+    assert.ok(!('location' in call.body), 'Save must not silently capture a position');
+  }
 });

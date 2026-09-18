@@ -1,4 +1,5 @@
 import { currentAppUserId } from './bookings';
+import { coarsenPoint, GeoPoint } from './geo';
 import { clearSignupDraft, readSignupDraft, saveSignupDraft, SignupDraft, SignupRole } from './signup';
 import { supabase } from './supabase';
 
@@ -12,7 +13,34 @@ export type Profile = {
   headline: string;
   level: string;
   sportIds: string[];
+  /** The area the user typed. Free text, shown to other members. */
+  city: string;
+  /** Whether a device position is stored. The coordinates themselves are not
+   *  readable by any client, so this comes from my_location_shared(). */
+  sharesLocation: boolean;
 };
+
+/** Store an approximate device position for distance sorting.
+ *
+ *  Written as EWKT because users.location is geography(point, 4326). The point
+ *  is coarsened first: PRIVACY.md promises approximate location, and that has
+ *  to be true of what is stored, not only of how it was captured. */
+export async function shareMyLocation(point: GeoPoint): Promise<void> {
+  const { appId } = await realProfileIdentity();
+  const { latitude, longitude } = coarsenPoint(point);
+  const { error } = await supabase.from('users')
+    .update({ location: `SRID=4326;POINT(${longitude} ${latitude})` })
+    .eq('id', appId);
+  if (error) throw error;
+}
+
+/** Forget the stored position. The OS permission is the user's to revoke; this
+ *  is what the app can do about data it already holds. */
+export async function stopSharingMyLocation(): Promise<void> {
+  const { appId } = await realProfileIdentity();
+  const { error } = await supabase.from('users').update({ location: null }).eq('id', appId);
+  if (error) throw error;
+}
 
 export async function fetchSports(): Promise<Sport[]> {
   const { data, error } = await supabase.from('sports').select('id, name, kind').eq('approved', true).order('name');
@@ -99,12 +127,13 @@ async function applySignup(authUid: string): Promise<boolean> {
 
 export async function fetchMyProfile(): Promise<Profile> {
   const { appId } = await realProfileIdentity();
-  const [account, coach, partner, tags, sports] = await Promise.all([
-    supabase.from('users').select('id, name, avatar_url').eq('id', appId).single(),
+  const [account, coach, partner, tags, sports, shared] = await Promise.all([
+    supabase.from('users').select('id, name, avatar_url, city').eq('id', appId).single(),
     supabase.from('coach_profiles').select('bio, headline, level, sport_id').eq('user_id', appId).maybeSingle(),
     supabase.from('partner_profiles').select('bio, sport_id').eq('user_id', appId).maybeSingle(),
     supabase.from('profile_tags').select('tag').eq('user_id', appId),
     fetchSports(),
+    supabase.rpc('my_location_shared'),
   ]);
   for (const result of [account, coach, partner, tags]) if (result.error) throw result.error;
   const row = coach.data ?? partner.data;
@@ -114,6 +143,10 @@ export async function fetchMyProfile(): Promise<Profile> {
     role: coach.data ? 'coach' : 'member', bio: row?.bio ?? '',
     headline: coach.data?.headline ?? '', level: coach.data?.level ?? '',
     sportIds: [...new Set([...(row?.sport_id ? [row.sport_id] : []), ...selected])],
+    city: account.data!.city ?? '',
+    // A failed lookup means unknown, and unknown must not read as "sharing":
+    // claiming to hold a position we may not hold is the worse error.
+    sharesLocation: shared.error ? false : shared.data === true,
   };
 }
 
@@ -124,7 +157,12 @@ export async function saveMyProfile(profile: Profile) {
   const sports = await fetchSports();
   const selected = profile.sportIds.map((id) => sports.find((sport) => sport.id === id));
   if (selected.some((sport) => !sport)) throw new Error('An interest is no longer available. Reload your profile.');
-  const account = await supabase.from('users').update({ name: profile.name.trim() }).eq('id', appId).select('id').single();
+  // An emptied area clears the column rather than storing '', so "unknown" has
+  // one representation -- the same reason the Beirut default was removed.
+  const city = profile.city.trim();
+  const account = await supabase.from('users')
+    .update({ name: profile.name.trim(), city: city || null })
+    .eq('id', appId).select('id').single();
   if (account.error) throw account.error;
   // UPDATE first, INSERT only if there was no row -- NOT an upsert.
   //
