@@ -3,6 +3,40 @@ import { realProfileIdentity } from './profiles';
 import { supabase } from './supabase';
 
 const MAX_BYTES = 2 * 1024 * 1024;
+
+const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/** Decode base64 without `atob`.
+ *
+ *  `atob` is a browser global. Hermes does not provide it and Expo does not
+ *  polyfill it, so the web build decoded photos fine while every native build
+ *  threw ReferenceError the moment one was chosen -- which is exactly what
+ *  "photo upload doesn't work" looked like on a phone.
+ *
+ *  FileReader on React Native implements readAsDataURL but not
+ *  readAsArrayBuffer, so the base64 hop is not avoidable here; only `atob` was.
+ *  base64-js is present in node_modules but only as a transitive dependency of
+ *  a build-time plugin, which is not something to import from app code. */
+export function decodeBase64(input: string): Uint8Array<ArrayBuffer> {
+  const clean = input.replace(/\s/g, '').replace(/=+$/, '');
+  const out = new Uint8Array(new ArrayBuffer((clean.length * 3) >> 2));
+  let acc = 0;
+  let bits = 0;
+  let at = 0;
+  for (const char of clean) {
+    const value = B64_ALPHABET.indexOf(char);
+    if (value < 0) throw new Error('Could not read that photo. Please choose it again.');
+    acc = (acc << 6) | value;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out[at] = (acc >> bits) & 0xff;
+      at += 1;
+    }
+  }
+  // An exact-size array, so callers can hand `.buffer` straight to the upload.
+  return at === out.length ? out : out.slice(0, at);
+}
 export type PickedAvatar = { uri: string; bytes: ArrayBuffer; mimeType: string };
 
 export function avatarMimeType(bytes: Uint8Array): string {
@@ -38,7 +72,7 @@ export async function pickAvatar(): Promise<PickedAvatar | null> {
     reader.onload = () => resolve(String(reader.result));
     reader.readAsDataURL(blob);
   });
-  const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(',') + 1)), (char) => char.charCodeAt(0));
+  const bytes = decodeBase64(dataUrl.slice(dataUrl.indexOf(',') + 1));
   return { uri: asset.uri, bytes: bytes.buffer, mimeType: avatarMimeType(bytes) };
 }
 
