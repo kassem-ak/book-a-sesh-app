@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import Constants from 'expo-constants';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useTheme } from '../theme';
 import type { MapCanvasProps } from './MapCanvas';
@@ -19,7 +20,12 @@ export type { MapMarker } from './TileMap';
 // from a broken app. The raster TileMap already works on every platform, so an
 // unconfigured build falls back to it and the map works either way -- Google is
 // an upgrade, not a prerequisite.
-const GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+// Set by app.config.js from GOOGLE_MAPS_API_KEY at build time. Read from the
+// app config rather than process.env because Metro inlines EXPO_PUBLIC_* from
+// whatever environment the bundler subprocess has, and Gradle's embed step did
+// not have it: the value silently became undefined and the map fell back to
+// raster tiles in a build that looked correct everywhere else.
+const GOOGLE_MAPS_CONFIGURED = Constants.expoConfig?.extra?.googleMapsConfigured === true;
 
 /** Google's own dark style, tuned to the app palette rather than its stock dark
  *  theme, so the map reads as part of BOOK'D instead of a Google surface
@@ -46,7 +52,7 @@ const darkStyle = [
 const spanForZoom = (zoom: number) => 360 / 2 ** zoom;
 
 export function MapCanvas(props: MapCanvasProps) {
-  if (!GOOGLE_MAPS_KEY) return <TileMap {...props} />;
+  if (!GOOGLE_MAPS_CONFIGURED) return <TileMap {...props} />;
   return <GoogleMap {...props} />;
 }
 
