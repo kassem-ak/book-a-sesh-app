@@ -15,7 +15,7 @@ import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, parseGeo
 import { track } from '../lib/analytics';
 import { Person, firstName, initials } from '../state/models';
 import * as D from '../state/sampleData';
-import { matchesQuery, useSports } from '../components/useSports';
+import { groupSports, matchesQuery, useSports } from '../components/useSports';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -68,7 +68,11 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
   const { sports, failed: sportsFailed, retry: retrySports } = useSports();
   const sportNames = ['All', ...(sports ?? []).map((sport) => sport.name)];
   const [sportQuery, setSportQuery] = useState('');
-  const shownSports = sportNames.filter((name) => name === 'All' || matchesQuery(name, sportQuery));
+  // Grouped, not one flat run of names: a sport and a hobby are different
+  // things to go looking for, and the catalogue is long enough that reading it
+  // as a single alphabetical column tells you nothing about which is which.
+  const sportGroups = groupSports(sports ?? [], sportQuery);
+  const matchCount = sportGroups.reduce((total, group) => total + group.names.length, 0);
 
   const base = s.people(isCoaches ? 'coaches' : 'partners').filter((p) => matchesSport(p, s.sport) && (!q || `${p.name} ${p.sport} ${p.tags.join(' ')}`.toLowerCase().includes(q)));
   const hasCoordinatePeople = base.some((p) => personCoordinates(p));
@@ -183,19 +187,32 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
             onPress={retrySports} style={{ padding: 11, minHeight: 44, justifyContent: 'center' }}>
             <Text style={[t.bodySm, { color: c.danger }]}>Sports and hobbies could not load. Tap to retry.</Text>
           </Pressable>}
-          {sports && shownSports.length === 1 && sportQuery.trim().length > 0 && (
+          {sports && matchCount === 0 && sportQuery.trim().length > 0 && (
             <Text style={[t.bodySm, { color: c.txt3, padding: 11 }]}>Nothing matches “{sportQuery.trim()}”.</Text>
           )}
-          {shownSports.map((sport) => (
-            <Pressable key={sport} accessibilityRole="button" accessibilityState={{ selected: s.sport === sport }}
-              onPress={() => {
-                if (sport !== s.sport) track('discover_filter_changed', { filter: 'sport', selected_index: sportNames.indexOf(sport) });
-                s.set('sport', sport); s.set('sportMenu', false); setSportQuery('');
-              }}
-              style={{ paddingVertical: 11, paddingHorizontal: 10, borderRadius: 10, minHeight: 44, justifyContent: 'center', backgroundColor: s.sport === sport ? alpha(c.volt, 0.1) : 'transparent' }}>
-              <Text style={[t.label, { color: s.sport === sport ? c.accent : c.txt }]}>{sport === 'All' ? 'All sports and hobbies' : sport}</Text>
-            </Pressable>
-          ))}
+          {(() => {
+            const choose = (sport: string) => () => {
+              if (sport !== s.sport) track('discover_filter_changed', { filter: 'sport', selected_index: sportNames.indexOf(sport) });
+              s.set('sport', sport); s.set('sportMenu', false); setSportQuery('');
+            };
+            const option = (sport: string, label: string) => (
+              <Pressable key={sport} accessibilityRole="button" accessibilityState={{ selected: s.sport === sport }}
+                onPress={choose(sport)}
+                style={{ paddingVertical: 11, paddingHorizontal: 10, borderRadius: 10, minHeight: 44, justifyContent: 'center', backgroundColor: s.sport === sport ? alpha(c.volt, 0.1) : 'transparent' }}>
+                <Text style={[t.label, { color: s.sport === sport ? c.accent : c.txt }]}>{label}</Text>
+              </Pressable>
+            );
+            return <>
+              {/* Clearing the filter is not a sport, so it sits above both groups. */}
+              {matchesQuery('All sports and hobbies', sportQuery) && option('All', 'All sports and hobbies')}
+              {sportGroups.map((group) => (
+                <View key={group.label}>
+                  <Text accessibilityRole="header" style={[t.labelSm, { color: c.txt3, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }]}>{group.label}</Text>
+                  {group.names.map((name) => option(name, name))}
+                </View>
+              ))}
+            </>;
+          })()}
           <Pressable accessibilityRole="button" onPress={s.openRequest} style={{ padding: 11, borderTopColor: c.line2, borderTopWidth: 1, marginTop: 4 }}>
             <Text style={[t.label, { color: c.accent }]}>Request a sport or hobby</Text>
           </Pressable>
