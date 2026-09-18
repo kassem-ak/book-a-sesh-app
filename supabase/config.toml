@@ -156,12 +156,21 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "https://kassem-ak.github.io/book-a-sesh-app/"
+site_url = "https://www.app-bookd.com/"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
-  "https://kassem-ak.github.io/book-a-sesh-app/",
+  # Web app, served from the domain root by GitHub Pages. The wildcard covers
+  # /auth-callback, which is where Linking.createURL sends the OAuth return on
+  # web; without it that redirect is not allow-listed and falls back to
+  # site_url, losing the PKCE code.
+  "https://www.app-bookd.com/",
+  "https://www.app-bookd.com/**",
+  # Native deep link. The app sends exactly this from Linking.createURL.
+  "bookd://auth-callback",
+  # Admin console.
+  "https://admin.app-bookd.com/auth/callback/finish",
   "http://localhost:3000",
   "http://localhost:3000/",
   "http://127.0.0.1:3000",
