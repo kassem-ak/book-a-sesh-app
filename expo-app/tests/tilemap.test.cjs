@@ -10,7 +10,7 @@ const { test } = require('node:test');
 const { runInNewContext } = require('node:vm');
 const ts = require('typescript');
 
-function load() {
+function load(env) {
   const filename = join(__dirname, '../src/components/TileMap.tsx');
   const source = readFileSync(filename, 'utf8');
   // Export the two module-private helpers for testing without loosening the
@@ -21,7 +21,12 @@ function load() {
   ).outputText;
   const exports = {};
   const stub = new Proxy({}, { get: () => () => null });
-  runInNewContext(code, { exports, Math, Number, String, Array, require: () => stub }, { filename });
+  runInNewContext(code, {
+    exports, Math, Number, String, Array, require: () => stub,
+    // The provider is configuration. An empty env is the default-provider case;
+    // the override case is exercised by loadWith() below.
+    process: { env: env ?? {} },
+  }, { filename });
   return exports;
 }
 
@@ -116,4 +121,26 @@ test('zoomToFit picks a zoom that actually fits, and is not fooled by one point'
 test('tile urls follow the slippy-map scheme, in both themes', () => {
   assert.equal(tileUrl(20, 13, 5, 'dark'), 'https://basemaps.cartocdn.com/dark_all/5/20/13.png');
   assert.equal(tileUrl(20, 13, 5, 'light'), 'https://basemaps.cartocdn.com/light_all/5/20/13.png');
+});
+
+test('a configured provider replaces the default, key and all', () => {
+  const keyed = load({
+    EXPO_PUBLIC_MAP_TILES_DARK: 'https://api.example.com/dark/{z}/{x}/{y}.png?key=SECRET',
+    EXPO_PUBLIC_MAP_TILES_LIGHT: 'https://api.example.com/light/{z}/{x}/{y}.png?key=SECRET',
+    EXPO_PUBLIC_MAP_ATTRIBUTION: '© Example © OpenStreetMap contributors',
+  });
+  assert.equal(keyed.__test.tileUrl(20, 13, 5, 'dark'), 'https://api.example.com/dark/5/20/13.png?key=SECRET');
+  assert.equal(keyed.__test.tileUrl(20, 13, 5, 'light'), 'https://api.example.com/light/5/20/13.png?key=SECRET');
+  assert.equal(keyed.MAP_ATTRIBUTION, '© Example © OpenStreetMap contributors');
+});
+
+test('one configured theme does not drag the other off the default', () => {
+  const half = load({ EXPO_PUBLIC_MAP_TILES_DARK: 'https://api.example.com/d/{z}/{x}/{y}.png' });
+  assert.equal(half.__test.tileUrl(1, 2, 3, 'dark'), 'https://api.example.com/d/3/1/2.png');
+  assert.equal(half.__test.tileUrl(1, 2, 3, 'light'), 'https://basemaps.cartocdn.com/light_all/3/1/2.png');
+});
+
+test('attribution falls back rather than rendering empty', () => {
+  assert.match(load({}).MAP_ATTRIBUTION, /OpenStreetMap/);
+  assert.match(load({ EXPO_PUBLIC_MAP_ATTRIBUTION: '' }).MAP_ATTRIBUTION, /OpenStreetMap/);
 });

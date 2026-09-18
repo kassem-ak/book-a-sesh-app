@@ -28,6 +28,36 @@ pointing it here would need four A records instead, or a forward to `www`.
 
 Requires a public repo (or GitHub Pro for private Pages).
 
+## Map tiles (optional)
+
+The map defaults to CARTO's dark/light OpenStreetMap basemaps, which need no
+key. Both CARTO and OSM serve these freely but intend it for modest use; a
+product at volume is expected to hold an account. Point the map at any XYZ
+provider by setting these, with the key already in the URL:
+
+```bash
+EXPO_PUBLIC_MAP_TILES_DARK="https://api.maptiler.com/maps/streets-v2-dark/{z}/{x}/{y}.png?key=YOUR_KEY"
+```
+
+```bash
+EXPO_PUBLIC_MAP_TILES_LIGHT="https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=YOUR_KEY"
+```
+
+```bash
+EXPO_PUBLIC_MAP_ATTRIBUTION="© MapTiler © OpenStreetMap contributors"
+```
+
+Set the same three as GitHub repo variables so the deployed web build picks them
+up, next to the Supabase ones. Each is independent: setting only the dark URL
+leaves light on the default.
+
+**These are baked into the published bundle and readable by anyone who opens
+it.** That is unavoidable for a client-side map, which is why providers expect
+such keys to be restricted by HTTP referrer in their dashboard. Restrict yours
+to `www.app-bookd.com` or it can be used on any site, at your expense.
+Attribution is a licence condition for every provider, so set it to match
+whichever you choose.
+
 ## Option B — EAS Hosting (Expo-native, free tier, needs Expo login)
 
 ```bash

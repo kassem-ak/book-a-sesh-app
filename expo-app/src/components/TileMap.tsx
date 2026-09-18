@@ -14,19 +14,44 @@ const TILE = 256;
 const MIN_ZOOM = 3;
 const MAX_ZOOM = 18;
 
-// CARTO's basemaps rather than standard OSM tiles, because standard OSM is a
-// bright paper map and this app is near-black with a volt accent: the map was
-// the one surface that ignored the theme. CARTO publishes matched dark and
-// light styles of the same OSM data, so the map follows the app instead of
-// fighting it, and switches with the theme rather than being dark-only.
+// The basemap defaults to CARTO, which publishes matched dark and light styles
+// of OpenStreetMap data. Standard OSM tiles are a bright paper map, which made
+// the map the one surface ignoring a near-black app; CARTO lets it follow the
+// theme both ways.
 //
-// Attribution is required for both OpenStreetMap (the data) and CARTO (the
-// style); it is rendered below and must stay. Their tiles are free for modest
-// use -- heavy or commercial traffic needs a paid provider, which is a change
-// to this one function.
+// CARTO and OSM both serve these without a key, but both intend that for modest
+// use: a real product at volume is expected to hold an account. So the provider
+// is configuration, not code. Set these to any XYZ template -- MapTiler, Stadia,
+// Thunderforest, a self-hosted server -- with the key already in the URL:
+//
+//   EXPO_PUBLIC_MAP_TILES_DARK=https://api.maptiler.com/maps/streets-v2-dark/{z}/{x}/{y}.png?key=YOUR_KEY
+//   EXPO_PUBLIC_MAP_TILES_LIGHT=https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=YOUR_KEY
+//   EXPO_PUBLIC_MAP_ATTRIBUTION=© MapTiler © OpenStreetMap contributors
+//
+// EXPO_PUBLIC_* values are inlined into the published bundle and are readable by
+// anyone who opens it. That is unavoidable for a client-side map and is why
+// every provider expects such keys to be restricted by HTTP referrer in their
+// dashboard. Restrict yours to www.app-bookd.com, or it can be used on any site.
 export type MapTheme = 'dark' | 'light';
+
+const DEFAULT_TILES = {
+  dark: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+  light: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+};
+
+export const MAP_ATTRIBUTION =
+  process.env.EXPO_PUBLIC_MAP_ATTRIBUTION || '© OpenStreetMap contributors © CARTO';
+
+const template = (theme: MapTheme) =>
+  (theme === 'dark'
+    ? process.env.EXPO_PUBLIC_MAP_TILES_DARK
+    : process.env.EXPO_PUBLIC_MAP_TILES_LIGHT) || DEFAULT_TILES[theme];
+
 const tileUrl = (x: number, y: number, z: number, theme: MapTheme) =>
-  `https://basemaps.cartocdn.com/${theme === 'dark' ? 'dark_all' : 'light_all'}/${z}/${x}/${y}.png`;
+  template(theme)
+    .replace('{z}', String(z))
+    .replace('{x}', String(x))
+    .replace('{y}', String(y));
 
 /** Web Mercator, in world pixels at the given zoom. */
 function project(point: GeoPoint, zoom: number) {
@@ -180,10 +205,10 @@ export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
         </Pressable>
       </View>
 
-      {/* Both licences require visible attribution: OpenStreetMap for the data,
-          CARTO for the style. */}
+      {/* Every tile provider's licence requires visible attribution, so this
+          moves with the provider rather than being hardcoded to one. */}
       <Text style={[t.caption, { position: 'absolute', left: 8, bottom: 6, color: c.txt3, fontSize: 9 }]}>
-        © OpenStreetMap contributors © CARTO
+        {MAP_ATTRIBUTION}
       </Text>
     </View>
   );
