@@ -28,6 +28,43 @@ pointing it here would need four A records instead, or a forward to `www`.
 
 Requires a public repo (or GitHub Pro for private Pages).
 
+## Google Maps key (native builds)
+
+The map uses **Google Maps on iOS and Android** and the raster tile map on web.
+`react-native-maps` has no web build, and Google's terms forbid rendering their
+tiles in a non-Google renderer, so the two platforms genuinely use different
+renderers -- see `src/components/MapCanvas.tsx` and `MapCanvas.native.tsx`.
+
+The Maps SDKs for Android and iOS are **free with no monthly cap**. The web
+tile map costs nothing either, so the map has no running cost.
+
+The key is read at **build** time, not runtime: react-native-maps bakes it into
+the native project (an Android manifest entry, an iOS AppDelegate call), so it
+must be set when `expo prebuild` or the EAS build runs.
+
+```bash
+export GOOGLE_MAPS_API_KEY="your-key"
+```
+
+```bash
+eas env:set --name GOOGLE_MAPS_API_KEY --value "your-key" --environment production
+```
+
+Create it in the same Google Cloud project as the OAuth client, enable **Maps
+SDK for Android** and **Maps SDK for iOS**, and enable billing on the project
+(Google requires a billing account even for the free-tier SDKs).
+
+**Restrict the key before shipping.** A Maps key is extractable from any APK,
+and an unrestricted one can be used by anyone and billed to you:
+
+- Android: restrict to the package name `com.bookd.app` plus your signing SHA-1.
+- iOS: restrict to the bundle id `com.bookd.app`.
+- Restrict the API list to the two Maps SDKs above and nothing else.
+
+Without the key the native map renders blank grey and logs "Authorization
+failure" only to the device console, so `app.config.js` prints a build-time
+warning instead of letting that ship silently. Web is unaffected.
+
 ## Map tiles (optional)
 
 The map defaults to CARTO's dark/light OpenStreetMap basemaps, which need no

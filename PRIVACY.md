@@ -148,6 +148,7 @@ We use these processors to run the service:
 |---|---|
 | Supabase | Hosts the database, your account and authentication |
 | Google / Meta / Microsoft / Apple | Only if you choose to sign in with them, and only to confirm who you are |
+| Google Maps | Draws the map on the phone app. Opening the Maps tab sends Google the part of the map you are looking at, as any map does. It is not told who you are, and the positions of other members are worked out by us, not by Google. The web version does not use Google Maps |
 
 We disclose data otherwise only where the law requires it, or where it is
 necessary to investigate abuse or protect someone's safety.
