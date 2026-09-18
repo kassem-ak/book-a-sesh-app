@@ -5,6 +5,7 @@ import { ensureAppSession, signOutUser } from '../lib/session';
 import { identify } from '../lib/analytics';
 import { fetchCoaches, fetchPartners } from '../lib/queries';
 import { fetchVisibleModules } from '../lib/modules';
+import { fetchGeoStatus } from '../lib/geolock';
 import { applySignupProfile, fetchMyProfile } from '../lib/profiles';
 import { assertSupabaseConfigured, supabase } from '../lib/supabase';
 import { errorMessage, useStore } from '../state/store';
@@ -119,6 +120,17 @@ export function Root() {
     });
     return () => { active = false; };
   }, [admitted, authUid, profileRevision, loadAttempt]);
+
+  // Whether the app operates where this device is connecting from. The server
+  // enforces this on every data policy; asking here only lets us say so rather
+  // than render screens that would all come back empty.
+  const [geoBlocked, setGeoBlocked] = useState(false);
+  useEffect(() => {
+    if (!admitted) return;
+    let active = true;
+    fetchGeoStatus().then((status) => { if (active) setGeoBlocked(!status.allowed); });
+    return () => { active = false; };
+  }, [admitted, authUid]);
 
   // Which modules this account may reach. Re-read when the account changes,
   // because an admin sees the testing releases an ordinary member does not.
