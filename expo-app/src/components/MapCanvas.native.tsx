@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useTheme } from '../theme';
 import type { MapCanvasProps } from './MapCanvas';
+import { TileMap } from './TileMap';
 
 export type { MapMarker } from './TileMap';
 
@@ -12,6 +13,13 @@ export type { MapMarker } from './TileMap';
 //
 // Google's terms forbid rendering their tiles in a non-Google renderer, so this
 // could never have been a URL swapped into TileMap -- it has to be their SDK.
+//
+// Without a key, react-native-maps draws a blank grey square and reports
+// "Authorization failure" only to the device log. That is indistinguishable
+// from a broken app. The raster TileMap already works on every platform, so an
+// unconfigured build falls back to it and the map works either way -- Google is
+// an upgrade, not a prerequisite.
+const GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 /** Google's own dark style, tuned to the app palette rather than its stock dark
  *  theme, so the map reads as part of BOOK'D instead of a Google surface
@@ -37,7 +45,12 @@ const darkStyle = [
  *  pyramid uses, so a zoom means the same thing on both platforms. */
 const spanForZoom = (zoom: number) => 360 / 2 ** zoom;
 
-export function MapCanvas({ center, markers, initialZoom = 13, onRecenter }: MapCanvasProps) {
+export function MapCanvas(props: MapCanvasProps) {
+  if (!GOOGLE_MAPS_KEY) return <TileMap {...props} />;
+  return <GoogleMap {...props} />;
+}
+
+function GoogleMap({ center, markers, initialZoom = 13, onRecenter }: MapCanvasProps) {
   const { c, t } = useTheme();
   const map = useRef<MapView>(null);
 

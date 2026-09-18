@@ -9,12 +9,18 @@
 // rather than read at runtime like the EXPO_PUBLIC_* values.
 //
 // Set it before building, or in EAS:
-//   eas env:set --name GOOGLE_MAPS_API_KEY --value "..." --environment production
+//   eas env:set --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value "..." --environment production
+//
+// The EXPO_PUBLIC_ prefix is deliberate. The same value is read at runtime by
+// MapCanvas.native.tsx to decide whether Google can be used at all, and only
+// prefixed vars are inlined into the bundle. It does not weaken anything: a
+// Maps key is already extractable from the APK's AndroidManifest, so the key
+// was never secret and the restriction below is the actual protection.
 //
 // Restrict the key in the Google Cloud console before shipping: Android by
 // package name + SHA-1, iOS by bundle id. An unrestricted Maps key found in an
 // APK can be used by anyone, billed to you.
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 module.exports = ({ config }) => {
   // Without a key, leave the plugin out entirely. Adding it with an empty key
@@ -24,12 +30,11 @@ module.exports = ({ config }) => {
   // honest and obvious.
   const plugins = [...(config.plugins ?? [])];
   if (!GOOGLE_MAPS_API_KEY) {
-    // Say it here, at prebuild/build time, because the failure it prevents is
-    // invisible: a native build without the key renders a blank grey map and
-    // logs "Authorization failure" only to the device console.
+    // Said here, at prebuild/build time, because the difference is otherwise
+    // invisible until someone opens the Maps tab on a phone.
     console.warn(
-      '[app.config] GOOGLE_MAPS_API_KEY is not set - the native map will not render. '
-      + 'Web is unaffected (it uses the raster tile map). See expo-app/DEPLOY.md.',
+      '[app.config] EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is not set - the native build '
+      + 'will use the raster tile map instead of Google Maps. See expo-app/DEPLOY.md.',
     );
   }
   if (GOOGLE_MAPS_API_KEY) {

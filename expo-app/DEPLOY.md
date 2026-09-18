@@ -43,11 +43,11 @@ the native project (an Android manifest entry, an iOS AppDelegate call), so it
 must be set when `expo prebuild` or the EAS build runs.
 
 ```bash
-export GOOGLE_MAPS_API_KEY="your-key"
+export EXPO_PUBLIC_GOOGLE_MAPS_API_KEY="your-key"
 ```
 
 ```bash
-eas env:set --name GOOGLE_MAPS_API_KEY --value "your-key" --environment production
+eas env:set --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value "your-key" --environment production
 ```
 
 Create it in the same Google Cloud project as the OAuth client, enable **Maps
@@ -61,9 +61,15 @@ and an unrestricted one can be used by anyone and billed to you:
 - iOS: restrict to the bundle id `com.bookd.app`.
 - Restrict the API list to the two Maps SDKs above and nothing else.
 
-Without the key the native map renders blank grey and logs "Authorization
-failure" only to the device console, so `app.config.js` prints a build-time
-warning instead of letting that ship silently. Web is unaffected.
+Without the key the native build **falls back to the raster tile map**, which
+works everywhere. Google is an upgrade, not a prerequisite. `app.config.js`
+prints a build-time warning so the difference is not silent. Web is unaffected
+either way.
+
+The `EXPO_PUBLIC_` prefix is deliberate: the same value is read at runtime to
+decide whether Google can be used, and only prefixed vars are inlined into the
+bundle. It weakens nothing -- a Maps key is already extractable from the APK
+manifest, so restriction, not secrecy, is the protection.
 
 ## Map tiles (optional)
 
