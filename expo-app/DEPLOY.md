@@ -6,7 +6,7 @@ The web build is a static single-page app in `dist/` (rebuild any time with
 ## Option A — GitHub Pages (automated, no login, permanent) ← default
 
 A workflow at `.github/workflows/deploy-web.yml` builds and publishes the web
-app automatically. **Public URL: https://kassem-ak.github.io/book-a-sesh-app/**
+app automatically. **Public URL: https://www.app-bookd.com/**
 
 One-time setup: in the repo, **Settings → Pages → Build and deployment →
 Source = GitHub Actions** (the workflow also tries to enable this for you).
@@ -15,8 +15,17 @@ Then:
 - It deploys automatically on every push to `main` that touches `expo-app/`.
 - Or trigger it now: **Actions → "Deploy BOOK'D web" → Run workflow**.
 
-The site is served under the `/book-a-sesh-app/` path (set via
-`experiments.baseUrl` in `app.json`) so the repo-name subpath resolves.
+The site is served from the **domain root**, so `experiments.baseUrl` in
+`app.json` is `/`. That is tied to the custom domain: a Pages project site
+without one lives at `/<repo-name>/`, and the two settings have to agree or
+every asset 404s. The workflow writes `dist/CNAME` before uploading the
+artifact, because Pages reads the custom domain from the published artifact and
+a deploy without it can clear the setting.
+
+DNS: `www.app-bookd.com` is a CNAME to `kassem-ak.github.io` (GoDaddy). The apex
+`app-bookd.com` is not served by Pages and still resolves to GoDaddy parking;
+pointing it here would need four A records instead, or a forward to `www`.
+
 Requires a public repo (or GitHub Pro for private Pages).
 
 ## Option B — EAS Hosting (Expo-native, free tier, needs Expo login)
