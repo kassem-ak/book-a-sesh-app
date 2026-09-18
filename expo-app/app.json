@@ -73,7 +73,7 @@
       "expo-status-bar"
     ],
     "experiments": {
-      "baseUrl": "/book-a-sesh-app"
+      "baseUrl": "/"
     }
   }
 }
