@@ -1,7 +1,7 @@
 name: "Deploy BOOK'D web"
 
 # Builds the Expo web export and publishes it to GitHub Pages.
-# URL: https://kassem-ak.github.io/book-a-sesh-app/
+# URL: https://www.app-bookd.com/
 # Runs on pushes to main that touch expo-app/, or manually.
 
 on:
@@ -38,6 +38,11 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      # A custom domain serves the site at the ORIGIN root, so app.json sets
+      # experiments.baseUrl to "/". The CNAME file keeps the domain attached:
+      # Pages reads it from the published artifact, and without it a deploy can
+      # clear the custom-domain setting.
+      - run: echo 'www.app-bookd.com' > dist/CNAME
       - uses: actions/configure-pages@v5
         with:
           enablement: true
