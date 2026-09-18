@@ -72,7 +72,7 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
   // things to go looking for, and the catalogue is long enough that reading it
   // as a single alphabetical column tells you nothing about which is which.
   const sportGroups = groupSports(sports ?? [], sportQuery);
-  const matchCount = sportGroups.reduce((total, group) => total + group.names.length, 0);
+  const matchCount = sportGroups.reduce((total, group) => total + group.items.length, 0);
 
   const base = s.people(isCoaches ? 'coaches' : 'partners').filter((p) => matchesSport(p, s.sport) && (!q || `${p.name} ${p.sport} ${p.tags.join(' ')}`.toLowerCase().includes(q)));
   const hasCoordinatePeople = base.some((p) => personCoordinates(p));
@@ -208,7 +208,7 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
               {sportGroups.map((group) => (
                 <View key={group.label}>
                   <Text accessibilityRole="header" style={[t.labelSm, { color: c.txt3, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }]}>{group.label}</Text>
-                  {group.names.map((name) => option(name, name))}
+                  {group.items.map((sport) => option(sport.name, sport.name))}
                 </View>
               ))}
             </>;

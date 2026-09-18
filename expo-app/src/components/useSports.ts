@@ -44,8 +44,9 @@ export function groupSports(sports: Sport[], query: string) {
   return ([['sport', 'Sports'], ['hobby', 'Hobbies']] as const)
     .map(([kind, label]) => ({
       label,
-      names: sports.filter((sport) => sport.kind === kind && matchesQuery(sport.name, query))
-        .map((sport) => sport.name),
+      // The rows themselves, not their names: two entries may share a name,
+      // and only the id identifies which one someone actually chose.
+      items: sports.filter((sport) => sport.kind === kind && matchesQuery(sport.name, query)),
     }))
-    .filter((group) => group.names.length > 0);
+    .filter((group) => group.items.length > 0);
 }
