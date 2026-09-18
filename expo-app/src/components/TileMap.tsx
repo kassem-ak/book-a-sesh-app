@@ -14,11 +14,19 @@ const TILE = 256;
 const MIN_ZOOM = 3;
 const MAX_ZOOM = 18;
 
-// OpenStreetMap's public tile servers. Their usage policy allows modest
-// application traffic with attribution, which is displayed below and must stay.
-// Heavy or commercial traffic needs a paid provider -- swapping this one line
-// is the whole migration.
-const tileUrl = (x: number, y: number, z: number) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+// CARTO's basemaps rather than standard OSM tiles, because standard OSM is a
+// bright paper map and this app is near-black with a volt accent: the map was
+// the one surface that ignored the theme. CARTO publishes matched dark and
+// light styles of the same OSM data, so the map follows the app instead of
+// fighting it, and switches with the theme rather than being dark-only.
+//
+// Attribution is required for both OpenStreetMap (the data) and CARTO (the
+// style); it is rendered below and must stay. Their tiles are free for modest
+// use -- heavy or commercial traffic needs a paid provider, which is a change
+// to this one function.
+export type MapTheme = 'dark' | 'light';
+const tileUrl = (x: number, y: number, z: number, theme: MapTheme) =>
+  `https://basemaps.cartocdn.com/${theme === 'dark' ? 'dark_all' : 'light_all'}/${z}/${x}/${y}.png`;
 
 /** Web Mercator, in world pixels at the given zoom. */
 function project(point: GeoPoint, zoom: number) {
@@ -66,6 +74,7 @@ export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
   onRecenter?: () => void;
 }) {
   const { c, t } = useTheme();
+  const mapTheme: MapTheme = c.isDark ? 'dark' : 'light';
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [zoom, setZoom] = useState(initialZoom);
   const [focus, setFocus] = useState(center);
@@ -118,7 +127,7 @@ export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
         if (y < 0 || y >= tileCount) continue;
         tiles.push({
           key: `${zoom}/${x}/${y}`,
-          url: tileUrl(wrappedX, y, zoom),
+          url: tileUrl(wrappedX, y, zoom, mapTheme),
           left: x * TILE - originX,
           top: y * TILE - originY,
         });
@@ -141,7 +150,9 @@ export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
   };
 
   return (
-    <View style={{ flex: 1, overflow: 'hidden', backgroundColor: c.surface }} onLayout={onLayout} {...pan.panHandlers}>
+    // mapBg is the theme's own token for map canvas, so the gap before tiles
+    // load is the app's colour rather than a flash of grey.
+    <View style={{ flex: 1, overflow: 'hidden', backgroundColor: c.mapBg }} onLayout={onLayout} {...pan.panHandlers}>
       {tiles.map((tile) => (
         <Image key={tile.key} source={{ uri: tile.url }} accessibilityIgnoresInvertColors
           style={{ position: 'absolute', left: tile.left, top: tile.top, width: TILE, height: TILE }} />
@@ -169,9 +180,10 @@ export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
         </Pressable>
       </View>
 
-      {/* OpenStreetMap's licence requires visible attribution. */}
+      {/* Both licences require visible attribution: OpenStreetMap for the data,
+          CARTO for the style. */}
       <Text style={[t.caption, { position: 'absolute', left: 8, bottom: 6, color: c.txt3, fontSize: 9 }]}>
-        © OpenStreetMap contributors
+        © OpenStreetMap contributors © CARTO
       </Text>
     </View>
   );

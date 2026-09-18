@@ -113,6 +113,7 @@ test('zoomToFit picks a zoom that actually fits, and is not fooled by one point'
   assert.equal(zoomToFit(spread, 0, 0, 11), 11, 'no layout yet, so keep the fallback');
 });
 
-test('tile urls follow the slippy-map scheme', () => {
-  assert.equal(tileUrl(20, 13, 5), 'https://tile.openstreetmap.org/5/20/13.png');
+test('tile urls follow the slippy-map scheme, in both themes', () => {
+  assert.equal(tileUrl(20, 13, 5, 'dark'), 'https://basemaps.cartocdn.com/dark_all/5/20/13.png');
+  assert.equal(tileUrl(20, 13, 5, 'light'), 'https://basemaps.cartocdn.com/light_all/5/20/13.png');
 });
