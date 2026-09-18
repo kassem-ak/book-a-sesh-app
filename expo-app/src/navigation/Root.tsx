@@ -130,7 +130,7 @@ export function Root() {
     let active = true;
     fetchGeoStatus().then((status) => { if (active) setGeoBlocked(!status.allowed); });
     return () => { active = false; };
-  }, [admitted, authUid]);
+  }, [admitted, authUid, profileAttempt]);
 
   // Which modules this account may reach. Re-read when the account changes,
   // because an admin sees the testing releases an ordinary member does not.
@@ -158,6 +158,36 @@ export function Root() {
   // Landing gate. There is no guest tier: nothing in the app renders until a
   // registered account is signed in.
   if (!authUid) return <AuthLanding />;
+
+  if (geoBlocked) return (
+    <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top, paddingBottom: insets.bottom }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+        <Text accessibilityRole="header" style={{ color: c.txt, fontSize: 22, textAlign: 'center', marginBottom: 12 }}>
+          BOOK'D is not available in your region yet
+        </Text>
+        <Text style={{ color: c.txt3, textAlign: 'center' }}>
+          You're signed in. Access depends on the country your network connects from.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Check again"
+            onPress={() => {
+              setProfileAttempt((attempt) => attempt + 1);
+              retryPeople();
+              setModuleAttempt((attempt) => attempt + 1);
+            }}
+            style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line }}>
+            <Text style={{ color: c.txt }}>Check again</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Sign out"
+            onPress={() => { void signOutUser().catch((error) => useStore.getState().set('writeError', errorMessage(error))); }}
+            style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line }}>
+            <Text style={{ color: c.txt }}>Sign out</Text>
+          </Pressable>
+        </View>
+      </View>
+      <ErrorBanner />
+    </View>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
