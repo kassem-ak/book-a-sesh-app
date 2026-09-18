@@ -28,7 +28,6 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "blockedPermissions": [
-        "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
@@ -54,7 +53,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow BOOK'D to use your location while the app is open so it can show real distances to nearby coaches and partner stores."
+          "locationWhenInUsePermission": "Allow BOOK'D to use your location while the app is open so it can show how far away coaches and partners are. You choose whether other members see a pin or only your approximate area, and you can turn this off at any time."
         }
       ],
       [

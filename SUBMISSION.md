@@ -152,7 +152,7 @@ provider connected. Recheck these answers for the submitted build.
 | Messages | Yes — in-app chat content |
 | Photos | **Yes — photo library read access**, only to pick a profile picture. The OS picker is used, so the app never enumerates the library. Declare as "Photos and videos", collected, linked to the user, for app functionality |
 | Camera / contacts / calendar / microphone / health | None requested |
-| Location precision | **Approximate only.** The code requests `Accuracy.Balanced`, and `ACCESS_FINE_LOCATION` is explicitly blocked in `app.json` |
+| Location precision | **User's choice, off by default.** Sharing is opt-in under Profile → Edit profile. "Approximate area" rounds the position to ~1 km before any disclosure; "Pin point" requests precise location, so `ACCESS_FINE_LOCATION` is no longer blocked in `app.json` — declare **both** precise and approximate location, collected, linked to the user, for app functionality. Background location is never requested |
 | Advertising ID / tracking | None. No ad networks, no analytics SDK, no crash SDK |
 | Analytics / App activity | Activity is recorded locally from launch, but **not collected off-device today**. No provider is connected. **Change this answer when an analytics sink is connected**, including app interactions and applicable booking/purchase activity |
 | Crash logs / diagnostics | Sanitized error codes/types only in the local memory buffer today; no remote crash reporting. Reassess diagnostics disclosures when a sink is connected |

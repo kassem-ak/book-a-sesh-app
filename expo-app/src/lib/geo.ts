@@ -11,6 +11,7 @@ export type MapPoint = {
 type ExpoLocationModule = {
   Accuracy?: {
     Balanced?: number;
+    High?: number;
   };
   requestForegroundPermissionsAsync: () => Promise<{ granted?: boolean; status?: string }>;
   getCurrentPositionAsync: (options?: { accuracy?: number }) => Promise<{
@@ -166,11 +167,31 @@ export async function getDevicePoint(): Promise<GeoPoint | null> {
  *  `getDevicePoint` caches a `null` for the whole session, which is right for
  *  background use -- it stops every screen re-prompting. But it also means a
  *  user who declined once, or who had location off, could never turn sharing on
- *  without restarting the app. An explicit tap is a fresh question. */
-export async function refreshDevicePoint(): Promise<GeoPoint | null> {
+ *  without restarting the app. An explicit tap is a fresh question.
+ *
+ *  `precise` asks for the best fix the OS will give. Everything else in the app
+ *  wants Balanced: it is cheaper, and approximate is all a distance sort needs.
+ *  Only a user explicitly choosing to drop a pin justifies the higher accuracy,
+ *  and the OS may still hand back a coarse fix if they granted only
+ *  approximate -- which is their decision to make, not one to work around. */
+export async function refreshDevicePoint(precise = false): Promise<GeoPoint | null> {
   cachedDevicePoint = undefined;
   pendingDevicePoint = null;
-  return getDevicePoint();
+  if (!precise) return getDevicePoint();
+
+  try {
+    const Location = locationModule();
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.granted !== true && permission.status !== 'granted') return null;
+    const location = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy?.High ?? Location.Accuracy?.Balanced,
+    });
+    const point = asPoint(location.coords?.latitude, location.coords?.longitude);
+    cachedDevicePoint = point;
+    return point;
+  } catch {
+    return null;
+  }
 }
 
 /** Round to ~110 m before anything stores or sends a position.

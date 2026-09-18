@@ -1,6 +1,6 @@
 # BOOK'D — Privacy Policy
 
-**Last updated: 16 September 2026**
+**Last updated: 18 September 2026**
 
 > **Before you publish this.** Everything below describes what the app and the
 > database actually do today — it was written from the live schema, not from a
@@ -37,8 +37,39 @@ BOOK'D is operated by **[LEGAL ENTITY NAME, REGISTERED ADDRESS]** ("we", "us").
 
 | Data | Why | Can you refuse? |
 |---|---|---|
-| Approximate location (city-level / ~100m) | To sort coaches, partners and venues by distance | Yes. The app asks first, and works without it — you can type your area instead. We request *approximate* location only; we do not ask for precise GPS. |
+| Your location, if you turn it on | To show how far away people are, and to place you on the map | Yes. The app asks first and works without it — you can type your area instead. **You choose how precisely it is shared** (see §1a). |
 | Booking records — who, when, the amount and our commission | To show you your bookings and to account for platform commission | No, if you make a booking |
+
+### 1a. Your location, and who sees it
+
+Location is **off until you turn it on**, under Profile → Edit profile. If you
+never turn it on, you are not on the map and no position is stored.
+
+When you turn it on you choose one of two levels, and you can change or revoke
+it at any time:
+
+| Level | What other members see |
+|---|---|
+| **Approximate area** (the default) | Your position rounded to about a kilometre. Enough to tell roughly where you train, not enough to find you. |
+| **Pin point** | Your position as your device reports it. |
+
+Both show **where you actually are**. We never place you at a made-up nearby
+spot: a fake position would mislead the very people you chose to share with,
+and would make distances wrong.
+
+Choosing *Pin point* asks your device for precise location. Your operating
+system may still give only an approximate fix if that is what you granted it —
+that is your choice and we do not work around it.
+
+What is stored is the position your device reported. What is *disclosed* is
+rounded to the level you picked, by the server, before it reaches anyone.
+**Your stored coordinates are not readable by other members' apps at all** —
+not your exact position, and not anyone else's. The only thing published is the
+position at your chosen precision.
+
+Blocking applies here: if either of you has blocked the other, neither appears
+on the other's map. Turning sharing off removes the stored position and takes
+you off the map.
 
 ### Local app activity and diagnostics
 
@@ -80,6 +111,8 @@ provider is paused; collection remains bounded while it is unavailable.
 - Payment card details. **BOOK'D does not process payments.** You pay your coach
   directly, at your session. No card, bank or payment credential ever reaches
   us, because there is nowhere in the app to enter one.
+- Background location. We only ask for location while the app is open, and
+  only after you turn sharing on.
 - Camera, contacts, calendar, microphone or health data. The app does not
   request these permissions.
 - Your photo library. We never browse it. The picker is the operating system's
