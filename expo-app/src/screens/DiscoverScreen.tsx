@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   Avatar,
@@ -15,6 +15,7 @@ import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, parseGeo
 import { track } from '../lib/analytics';
 import { Person, firstName, initials } from '../state/models';
 import * as D from '../state/sampleData';
+import { matchesQuery, useSports } from '../components/useSports';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -62,6 +63,12 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
     track('discover_searched', { has_input: value.trim().length > 0 });
   };
   const q = query.trim().toLowerCase();
+  // The filter used to be a fixed list in sampleData, so a sport an admin
+  // approved never appeared here and could not be filtered for.
+  const { sports, failed: sportsFailed, retry: retrySports } = useSports();
+  const sportNames = ['All', ...(sports ?? []).map((sport) => sport.name)];
+  const [sportQuery, setSportQuery] = useState('');
+  const shownSports = sportNames.filter((name) => name === 'All' || matchesQuery(name, sportQuery));
 
   const base = s.people(isCoaches ? 'coaches' : 'partners').filter((p) => matchesSport(p, s.sport) && (!q || `${p.name} ${p.sport} ${p.tags.join(' ')}`.toLowerCase().includes(q)));
   const hasCoordinatePeople = base.some((p) => personCoordinates(p));
@@ -168,13 +175,24 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
       </Pressable>
       {s.sportMenu && (
         <Card style={{ marginTop: 8, padding: 6 }}>
-          {D.sportNames.map((sport) => (
+          <TextInput value={sportQuery} onChangeText={setSportQuery} placeholder="Search sports and hobbies"
+            placeholderTextColor={c.txt3} accessibilityLabel="Search sports and hobbies" autoCorrect={false}
+            style={[t.label, { color: c.txt, minHeight: 44, paddingHorizontal: 10, borderBottomColor: c.line2, borderBottomWidth: 1, marginBottom: 4 }]} />
+          {!sports && !sportsFailed && <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3, padding: 11 }]}>Loading sports and hobbies…</Text>}
+          {sportsFailed && <Pressable accessibilityRole="button" accessibilityLabel="Retry loading sports and hobbies"
+            onPress={retrySports} style={{ padding: 11, minHeight: 44, justifyContent: 'center' }}>
+            <Text style={[t.bodySm, { color: c.danger }]}>Sports and hobbies could not load. Tap to retry.</Text>
+          </Pressable>}
+          {sports && shownSports.length === 1 && sportQuery.trim().length > 0 && (
+            <Text style={[t.bodySm, { color: c.txt3, padding: 11 }]}>Nothing matches “{sportQuery.trim()}”.</Text>
+          )}
+          {shownSports.map((sport) => (
             <Pressable key={sport} accessibilityRole="button" accessibilityState={{ selected: s.sport === sport }}
               onPress={() => {
-                if (sport !== s.sport) track('discover_filter_changed', { filter: 'sport', selected_index: D.sportNames.indexOf(sport) });
-                s.set('sport', sport); s.set('sportMenu', false);
+                if (sport !== s.sport) track('discover_filter_changed', { filter: 'sport', selected_index: sportNames.indexOf(sport) });
+                s.set('sport', sport); s.set('sportMenu', false); setSportQuery('');
               }}
-              style={{ paddingVertical: 11, paddingHorizontal: 10, borderRadius: 10, backgroundColor: s.sport === sport ? alpha(c.volt, 0.1) : 'transparent' }}>
+              style={{ paddingVertical: 11, paddingHorizontal: 10, borderRadius: 10, minHeight: 44, justifyContent: 'center', backgroundColor: s.sport === sport ? alpha(c.volt, 0.1) : 'transparent' }}>
               <Text style={[t.label, { color: s.sport === sport ? c.accent : c.txt }]}>{sport === 'All' ? 'All sports and hobbies' : sport}</Text>
             </Pressable>
           ))}
