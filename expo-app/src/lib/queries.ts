@@ -356,6 +356,44 @@ export async function fetchCoachAvailability(coachId: string): Promise<Record<nu
   return week;
 }
 
+export type MapPerson = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  role: 'coach' | 'member';
+  sport: string | null;
+  latitude: number;
+  longitude: number;
+  /** 'exact' is a pin; 'area' means the position was rounded to ~1 km by the
+   *  server before we ever saw it. Shown to the viewer so a pin is not read as
+   *  more precise than it is. */
+  shareLevel: 'exact' | 'area';
+};
+
+/** Members who chose to appear on the map.
+ *
+ *  The server decides what this contains: only people who opted in, rounded to
+ *  each subject's own chosen precision, with blocks honoured in both directions
+ *  and the caller excluded. users.location itself stays unreadable, so this is
+ *  the only route by which any position is disclosed. */
+export async function fetchPeopleOnMap(): Promise<MapPerson[]> {
+  await ensureAppSession();
+  const { data, error } = await supabase.rpc('people_on_the_map');
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[])
+    .map((row) => ({
+      id: String(row.id),
+      name: typeof row.name === 'string' && row.name ? row.name : 'Member',
+      avatarUrl: typeof row.avatar_url === 'string' ? row.avatar_url : null,
+      role: row.role === 'coach' ? ('coach' as const) : ('member' as const),
+      sport: typeof row.sport === 'string' ? row.sport : null,
+      latitude: Number(row.latitude),
+      longitude: Number(row.longitude),
+      shareLevel: row.share_level === 'exact' ? ('exact' as const) : ('area' as const),
+    }))
+    .filter((person) => Number.isFinite(person.latitude) && Number.isFinite(person.longitude));
+}
+
 export async function createBooking(
   coach: { id: string; name: string },
   scheduledFor: string,

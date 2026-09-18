@@ -1,5 +1,5 @@
 import { currentAppUserId } from './bookings';
-import { coarsenPoint, GeoPoint } from './geo';
+import { GeoPoint } from './geo';
 import { clearSignupDraft, readSignupDraft, saveSignupDraft, SignupDraft, SignupRole } from './signup';
 import { supabase } from './supabase';
 
@@ -16,21 +16,44 @@ export type Profile = {
   /** The area the user typed. Free text, shown to other members. */
   city: string;
   /** Whether a device position is stored. The coordinates themselves are not
-   *  readable by any client, so this comes from my_location_shared(). */
+   *  readable by any client, so this comes from my_location_sharing(). */
   sharesLocation: boolean;
+  /** How precisely that position is shown to other members. */
+  shareLevel: ShareLevel;
 };
 
-/** Store an approximate device position for distance sorting.
+/** 'exact' shows a pin. 'area' shows the same position snapped to a ~1.1 km
+ *  cell. Both are derived from where the user actually is -- the app never
+ *  invents a nearby position, because a fabricated point would make distances
+ *  quietly wrong and would mislead the people the user chose to share with. */
+export type ShareLevel = 'exact' | 'area';
+
+/** Store the captured device position.
  *
  *  Written as EWKT because users.location is geography(point, 4326). The point
- *  is coarsened first: PRIVACY.md promises approximate location, and that has
- *  to be true of what is stored, not only of how it was captured. */
-export async function shareMyLocation(point: GeoPoint): Promise<void> {
+ *  is stored as captured; the rounding that 'area' implies is applied by the
+ *  server when the position is disclosed, not here. Coarsening on write would
+ *  make the choice irreversible -- switching back to a pin would need the user
+ *  to physically re-capture, and would silently degrade the distance maths for
+ *  everyone.
+ *
+ *  `level` is written in the same call so a position can never sit in the
+ *  database under a precision the user did not choose. */
+export async function shareMyLocation(point: GeoPoint, level: ShareLevel): Promise<void> {
   const { appId } = await realProfileIdentity();
-  const { latitude, longitude } = coarsenPoint(point);
   const { error } = await supabase.from('users')
-    .update({ location: `SRID=4326;POINT(${longitude} ${latitude})` })
+    .update({
+      location: `SRID=4326;POINT(${point.longitude} ${point.latitude})`,
+      location_precision: level,
+    })
     .eq('id', appId);
+  if (error) throw error;
+}
+
+/** Change how precisely an already-shared position is shown. */
+export async function setMyShareLevel(level: ShareLevel): Promise<void> {
+  const { appId } = await realProfileIdentity();
+  const { error } = await supabase.from('users').update({ location_precision: level }).eq('id', appId);
   if (error) throw error;
 }
 
@@ -133,9 +156,12 @@ export async function fetchMyProfile(): Promise<Profile> {
     supabase.from('partner_profiles').select('bio, sport_id').eq('user_id', appId).maybeSingle(),
     supabase.from('profile_tags').select('tag').eq('user_id', appId),
     fetchSports(),
-    supabase.rpc('my_location_shared'),
+    supabase.rpc('my_location_sharing'),
   ]);
   for (const result of [account, coach, partner, tags]) if (result.error) throw result.error;
+  const sharingRow = shared.error ? null : shared.data;
+  const sharing = (Array.isArray(sharingRow) ? sharingRow[0] : sharingRow) as
+    { shared?: boolean; share_level?: string } | null;
   const row = coach.data ?? partner.data;
   const selected = sports.filter((sport) => tags.data?.some((tag) => tag.tag === sport.name)).map((sport) => sport.id);
   return {
@@ -145,8 +171,10 @@ export async function fetchMyProfile(): Promise<Profile> {
     sportIds: [...new Set([...(row?.sport_id ? [row.sport_id] : []), ...selected])],
     city: account.data!.city ?? '',
     // A failed lookup means unknown, and unknown must not read as "sharing":
-    // claiming to hold a position we may not hold is the worse error.
-    sharesLocation: shared.error ? false : shared.data === true,
+    // claiming to hold a position we may not hold is the worse error. The RPC
+    // returns a single row; PostgREST gives it as an array.
+    sharesLocation: sharing?.shared === true,
+    shareLevel: sharing?.share_level === 'exact' ? 'exact' : 'area',
   };
 }
 
