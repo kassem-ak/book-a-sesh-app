@@ -34,3 +34,18 @@ export function matchesQuery(name: string, query: string) {
   const needle = query.trim().toLowerCase();
   return !needle || name.toLowerCase().includes(needle);
 }
+
+/** The catalogue split into the two things it actually contains.
+ *
+ *  A group with nothing matching the search is dropped rather than left as an
+ *  empty heading, and the order is fixed -- sports, then hobbies -- so the
+ *  menu does not reshuffle as someone types. */
+export function groupSports(sports: Sport[], query: string) {
+  return ([['sport', 'Sports'], ['hobby', 'Hobbies']] as const)
+    .map(([kind, label]) => ({
+      label,
+      names: sports.filter((sport) => sport.kind === kind && matchesQuery(sport.name, query))
+        .map((sport) => sport.name),
+    }))
+    .filter((group) => group.names.length > 0);
+}
