@@ -165,9 +165,11 @@ export async function signInWithProvider(provider: SsoProvider) {
   const { data: existing } = await supabase.auth.getSession();
   if (existing.session?.user?.is_anonymous) await supabase.auth.signOut();
 
+  // Supabase needs Microsoft's email claim to identify the account.
+  const scopes = provider === 'azure' ? 'email' : undefined;
   if (Platform.OS === 'web') {
     const redirectTo = typeof window !== 'undefined' ? window.location.origin + window.location.pathname : undefined;
-    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo, scopes } });
     if (error) throw error;
     return false; // browser navigates away
   }
@@ -175,7 +177,7 @@ export async function signInWithProvider(provider: SsoProvider) {
   const redirectTo = Linking.createURL('auth-callback');
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo, skipBrowserRedirect: true },
+    options: { redirectTo, scopes, skipBrowserRedirect: true },
   });
   if (error) throw error;
   if (!data.url) throw new Error('No auth URL returned');
