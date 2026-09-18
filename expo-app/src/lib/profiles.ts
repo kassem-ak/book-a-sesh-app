@@ -126,11 +126,27 @@ export async function saveMyProfile(profile: Profile) {
   if (selected.some((sport) => !sport)) throw new Error('An interest is no longer available. Reload your profile.');
   const account = await supabase.from('users').update({ name: profile.name.trim() }).eq('id', appId).select('id').single();
   if (account.error) throw account.error;
-  const fields = { user_id: appId, bio: profile.bio.trim(), sport_id: profile.sportIds[0] ?? null };
-  const result = profile.role === 'coach'
-    ? await supabase.from('coach_profiles').upsert({ ...fields, headline: profile.headline.trim(), level: profile.level.trim() }, { onConflict: 'user_id' })
-    : await supabase.from('partner_profiles').upsert(fields, { onConflict: 'user_id' });
-  if (result.error) throw result.error;
+  // UPDATE first, INSERT only if there was no row -- NOT an upsert.
+  //
+  // `authenticated` deliberately holds no UPDATE privilege on user_id: that is
+  // what stops a profile row being re-keyed onto another account. An upsert's
+  // ON CONFLICT DO UPDATE assigns every column in the payload, user_id
+  // included, so Postgres refused the whole statement with 42501 for anyone
+  // whose profile row already existed -- i.e. everybody editing their profile.
+  // Sign-up was unaffected because applySignup upserts with ignoreDuplicates,
+  // which compiles to ON CONFLICT DO NOTHING and never updates.
+  const table = profile.role === 'coach' ? 'coach_profiles' : 'partner_profiles';
+  const fields = profile.role === 'coach'
+    ? { bio: profile.bio.trim(), sport_id: profile.sportIds[0] ?? null, headline: profile.headline.trim(), level: profile.level.trim() }
+    : { bio: profile.bio.trim(), sport_id: profile.sportIds[0] ?? null };
+  const updated = await supabase.from(table).update(fields).eq('user_id', appId).select('user_id');
+  if (updated.error) throw updated.error;
+  if (!updated.data?.length) {
+    // No row yet: an account that never completed the sign-up profile step.
+    // user_id is allowed on INSERT, just not on UPDATE.
+    const inserted = await supabase.from(table).insert({ user_id: appId, ...fields });
+    if (inserted.error) throw inserted.error;
+  }
   const names = selected.map((sport) => sport!.name);
   if (names.length) {
     const added = await supabase.from('profile_tags').upsert(names.map((tag) => ({ user_id: appId, tag })), { onConflict: 'user_id,tag', ignoreDuplicates: true });
