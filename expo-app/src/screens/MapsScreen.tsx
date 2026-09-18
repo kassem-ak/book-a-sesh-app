@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Field } from '../components/ui';
-import { MapMarker, TileMap } from '../components/TileMap';
+import { MapCanvas, MapMarker } from '../components/MapCanvas';
 import { useSports } from '../components/useSports';
 import { track } from '../lib/analytics';
 import { getDevicePoint, GeoPoint } from '../lib/geo';
@@ -108,7 +108,7 @@ export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; 
 
   return (
     <View style={{ flex: 1 }}>
-      <TileMap
+      <MapCanvas
         center={center}
         markers={markers}
         initialZoom={me ? 13 : 4}

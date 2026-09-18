@@ -157,7 +157,7 @@ provider connected. Recheck these answers for the submitted build.
 | Analytics / App activity | Activity is recorded locally from launch, but **not collected off-device today**. No provider is connected. **Change this answer when an analytics sink is connected**, including app interactions and applicable booking/purchase activity |
 | Crash logs / diagnostics | Sanitized error codes/types only in the local memory buffer today; no remote crash reporting. Reassess diagnostics disclosures when a sink is connected |
 | Analytics identifiers / linkage | Fresh anonymous launch UUID; identified records also carry `public.users.id` and are therefore pseudonymous/account-linked. Neither identifier is transmitted by analytics today |
-| Data shared with third parties | None for advertising. Processors only: Supabase (hosting/auth), and your chosen sign-in provider |
+| Data shared with third parties | None for advertising. Processors only: Supabase (hosting/auth), your chosen sign-in provider, and **Google Maps** on native builds, which receives map viewport requests when the Maps tab is open. The web build uses raster tiles instead and contacts the tile provider only |
 | Data encrypted in transit | Yes |
 | Can users request deletion? | Yes — in-app, under Profile |
 | User-generated content | Yes: profiles, chat, community events |
