@@ -43,11 +43,11 @@ the native project (an Android manifest entry, an iOS AppDelegate call), so it
 must be set when `expo prebuild` or the EAS build runs.
 
 ```bash
-export EXPO_PUBLIC_GOOGLE_MAPS_API_KEY="your-key"
+export GOOGLE_MAPS_API_KEY="your-key"
 ```
 
 ```bash
-eas env:set --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value "your-key" --environment production
+eas env:set --name GOOGLE_MAPS_API_KEY --value "your-key" --environment production
 ```
 
 Create it in the same Google Cloud project as the OAuth client, enable **Maps
@@ -66,10 +66,20 @@ works everywhere. Google is an upgrade, not a prerequisite. `app.config.js`
 prints a build-time warning so the difference is not silent. Web is unaffected
 either way.
 
-The `EXPO_PUBLIC_` prefix is deliberate: the same value is read at runtime to
-decide whether Google can be used, and only prefixed vars are inlined into the
-bundle. It weakens nothing -- a Maps key is already extractable from the APK
-manifest, so restriction, not secrecy, is the protection.
+The name is deliberately **not** prefixed `EXPO_PUBLIC_`: nothing in the JS
+bundle needs the key. The config plugin puts it in the native project, and the
+app only needs to know *whether* it was configured, which `app.config.js`
+publishes as `extra.googleMapsConfigured` and the app reads with
+`expo-constants`.
+
+That indirection exists because the obvious approach failed silently. Metro
+inlines `EXPO_PUBLIC_*` from whatever environment the bundler subprocess has,
+and Gradle's embed step did not have it: the value became `undefined`, the map
+fell back to raster tiles, and the build looked correct in every other respect.
+
+Related trap: adding a **new** `EXPO_PUBLIC_*` variable needs `expo-app/.expo`
+deleted, or the CLI keeps exporting its cached set and silently ignores it.
+`expo export --clear` does not help -- that clears Metro's cache, not this one.
 
 ## Map tiles (optional)
 

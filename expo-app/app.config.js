@@ -9,18 +9,16 @@
 // rather than read at runtime like the EXPO_PUBLIC_* values.
 //
 // Set it before building, or in EAS:
-//   eas env:set --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value "..." --environment production
+//   eas env:set --name GOOGLE_MAPS_API_KEY --value "..." --environment production
 //
-// The EXPO_PUBLIC_ prefix is deliberate. The same value is read at runtime by
-// MapCanvas.native.tsx to decide whether Google can be used at all, and only
-// prefixed vars are inlined into the bundle. It does not weaken anything: a
-// Maps key is already extractable from the APK's AndroidManifest, so the key
-// was never secret and the restriction below is the actual protection.
+// Deliberately NOT prefixed EXPO_PUBLIC_: nothing in the JS bundle needs the
+// key. The plugin puts it in the native project, and the app only needs to know
+// WHETHER it was configured, which travels in `extra` below.
 //
 // Restrict the key in the Google Cloud console before shipping: Android by
 // package name + SHA-1, iOS by bundle id. An unrestricted Maps key found in an
 // APK can be used by anyone, billed to you.
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
 module.exports = ({ config }) => {
   // Without a key, leave the plugin out entirely. Adding it with an empty key
@@ -33,7 +31,7 @@ module.exports = ({ config }) => {
     // Said here, at prebuild/build time, because the difference is otherwise
     // invisible until someone opens the Maps tab on a phone.
     console.warn(
-      '[app.config] EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is not set - the native build '
+      '[app.config] GOOGLE_MAPS_API_KEY is not set - the native build '
       + 'will use the raster tile map instead of Google Maps. See expo-app/DEPLOY.md.',
     );
   }
@@ -50,6 +48,19 @@ module.exports = ({ config }) => {
   return {
     ...config,
     plugins,
-    extra: { ...(config.extra ?? {}) },
+    extra: {
+      ...(config.extra ?? {}),
+      // The renderer decision, resolved at build time and read at runtime via
+      // expo-constants. NOT the key itself: the key belongs in the native
+      // project (manifest / AppDelegate), which the plugin above handles.
+      //
+      // This is deliberately not a process.env read in the app code. Metro
+      // inlines EXPO_PUBLIC_* from whatever environment the bundler subprocess
+      // happens to have, and Gradle's embed step did not have it -- the var
+      // silently became `undefined` and the map fell back to raster tiles in a
+      // build that otherwise looked fine. app.extra travels with the config
+      // itself, so it cannot disagree with the plugin that consumed the key.
+      googleMapsConfigured: Boolean(GOOGLE_MAPS_API_KEY),
+    },
   };
 };
