@@ -16,6 +16,7 @@ export function ProfileScreen() {
   // Identity is whatever the signed-in account says it is, never a sample
   // person's. An account that has not set a name yet renders neutrally.
   const name = s.authName;
+  const area = s.authLoc.trim();
   // `null` means "not loaded / could not load" and renders no badge at all —
   // the same contract as joinedCount. A count is never invented.
   const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
@@ -46,9 +47,13 @@ export function ProfileScreen() {
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
           <Text style={[t.pageTitle, { color: c.txt }]}>Profile</Text>
-          {/* The board had "<name> - <city>" here, but no account or device city
-              exists to fill the second half, so only the real name is shown. */}
-          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{name ?? 'Your account'}</Text>
+          {/* The board's "<name> - <city>". The city half stayed empty while
+              nothing could set it; Edit profile now can, and an account that
+              has not set one still renders the name alone rather than a
+              placeholder. */}
+          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
+            {name ?? 'Your account'}{area ? ` · ${area}` : ''}
+          </Text>
         </View>
         <Row gap={10}>
           <Pressable

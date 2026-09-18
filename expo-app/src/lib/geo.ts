@@ -161,6 +161,29 @@ export async function getDevicePoint(): Promise<GeoPoint | null> {
   return cachedDevicePoint;
 }
 
+/** Ask for the device point again, ignoring a cached answer.
+ *
+ *  `getDevicePoint` caches a `null` for the whole session, which is right for
+ *  background use -- it stops every screen re-prompting. But it also means a
+ *  user who declined once, or who had location off, could never turn sharing on
+ *  without restarting the app. An explicit tap is a fresh question. */
+export async function refreshDevicePoint(): Promise<GeoPoint | null> {
+  cachedDevicePoint = undefined;
+  pendingDevicePoint = null;
+  return getDevicePoint();
+}
+
+/** Round to ~110 m before anything stores or sends a position.
+ *
+ *  PRIVACY.md promises approximate location only. `Accuracy.Balanced` is
+ *  already coarse, but it still returns full float precision, and a stored
+ *  full-precision point would make that promise untrue in the database
+ *  regardless of how it was captured. */
+export function coarsenPoint(point: GeoPoint): GeoPoint {
+  const round = (value: number) => Math.round(value * 1000) / 1000;
+  return { latitude: round(point.latitude), longitude: round(point.longitude) };
+}
+
 export function distanceKmBetween(from: GeoPoint | null | undefined, to: GeoPoint | null | undefined) {
   if (!from || !to) return null;
 
