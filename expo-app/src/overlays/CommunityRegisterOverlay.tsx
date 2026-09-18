@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Card, Field, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import * as D from '../state/sampleData';
+import { useSports } from '../components/useSports';
 import { isExplicit, useStore } from '../state/store';
 import { useTheme } from '../theme';
 
@@ -14,6 +15,7 @@ export function CommunityRegisterOverlay() {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<string | null>(null);
   const [catMenu, setCatMenu] = useState(false);
+  const { sports } = useSports();
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [official, setOfficial] = useState<boolean | null>(null);
@@ -63,11 +65,13 @@ export function CommunityRegisterOverlay() {
         </Pressable>
         {catMenu && (
           <Card style={{ marginTop: 8, padding: 6 }}>
-            {D.sportNames.filter((n) => n !== 'All').map((n) => (
-              <Pressable key={n} onPress={() => { setCategory(n); setCatMenu(false); }} style={{ paddingVertical: 11, paddingHorizontal: 10 }}>
-                <Text style={[t.label, { color: c.txt }]}>{n}</Text>
+            {(sports ?? []).map((sport) => (
+              <Pressable key={sport.id} accessibilityRole="button" onPress={() => { setCategory(sport.name); setCatMenu(false); }}
+                style={{ paddingVertical: 11, paddingHorizontal: 10, minHeight: 44, justifyContent: 'center' }}>
+                <Text style={[t.label, { color: c.txt }]}>{sport.name}</Text>
               </Pressable>
             ))}
+            {!sports && <Text style={[t.bodySm, { color: c.txt3, padding: 11 }]}>Loading categories…</Text>}
           </Card>
         )}
 

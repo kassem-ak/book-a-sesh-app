@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Field } from '../components/ui';
 import { track } from '../lib/analytics';
 import * as D from '../state/sampleData';
+import { useSports } from '../components/useSports';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 import { DiscoverMap } from './DiscoverMap';
@@ -14,12 +15,16 @@ import { DiscoverMap } from './DiscoverMap';
 //
 // GYM'S stays as a curated grouping: it covers several taxonomy entries rather
 // than one, which is why it has its own pattern in the filter below.
-const AREA_FILTERS = ["GYM'S", ...D.sportNames.filter((name) => name !== 'All').map((name) => name.toUpperCase())];
+// Derived from the live taxonomy at render time, so a sport an admin approves
+// becomes a filter chip without a rebuild.
+const GYMS = "GYM'S";
 
 export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; onRetry?: () => void }) {
   const { c, t } = useTheme();
   const s = useStore();
   const [filter, setFilter] = useState<string | null>(null);
+  const { sports } = useSports();
+  const AREA_FILTERS = [GYMS, ...(sports ?? []).map((sport) => sport.name.toUpperCase())];
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
   const people = s.people(s.mode).filter((p) => {
