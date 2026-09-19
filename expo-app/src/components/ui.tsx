@@ -1,6 +1,7 @@
 import { Feather, FontAwesome } from '@expo/vector-icons';
 import React, { ReactNode } from 'react';
 import {
+  Modal,
   Pressable,
   Image,
   ScrollView,
@@ -11,6 +12,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { avatarSize, radii, useTheme } from '../theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
@@ -230,6 +232,80 @@ export function Segmented({
         );
       })}
     </View>
+  );
+}
+
+
+// ---- Form sheet ----
+//
+// A short form on its own layer, rising from the bottom the way a sheet on a
+// phone does. For work that is a detour from the screen behind it: filling in a
+// certificate, confirming something that cannot be undone.
+//
+// It hugs its content up to 88% of the screen and scrolls past that, so a
+// three-field form is a small sheet and a long one is still reachable.
+//
+// The backdrop dismisses. That is what every sheet does, and a form whose only
+// exit is a button people cannot find is worse than one they leave by accident
+// -- nothing here is written until the action in `footer` is pressed.
+export function FormSheet({
+  visible,
+  title,
+  subtitle,
+  onClose,
+  footer,
+  children,
+}: {
+  visible: boolean;
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  footer?: ReactNode;
+  children: ReactNode;
+}) {
+  const { c, t } = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`}
+        onPress={onClose} style={{ flex: 1, backgroundColor: c.scrim }} />
+      <View
+        accessibilityViewIsModal
+        style={{
+          position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%',
+          backgroundColor: c.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          borderTopWidth: 1, borderColor: c.line, overflow: 'hidden',
+        }}
+      >
+        <View style={{ padding: 18, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.line2 }}>
+          <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={[t.overlayTitle, { fontSize: 20, color: c.txt, flex: 1 }]}>{title}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close"
+              onPress={onClose}
+              style={{ minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
+              <Icon name="x" size={20} color={c.txt3} />
+            </Pressable>
+          </Row>
+          {subtitle ? (
+            <Text style={[t.bodySm, { color: c.txt2, marginTop: 6 }]}>{subtitle}</Text>
+          ) : null}
+        </View>
+
+        <ScrollView
+          contentContainerStyle={{ padding: 18, gap: 14 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {children}
+        </ScrollView>
+
+        {footer ? (
+          <View style={{ padding: 16, paddingBottom: insets.bottom + 16,
+            backgroundColor: c.bg, borderTopWidth: 1, borderTopColor: c.line }}>
+            {footer}
+          </View>
+        ) : null}
+      </View>
+    </Modal>
   );
 }
 
