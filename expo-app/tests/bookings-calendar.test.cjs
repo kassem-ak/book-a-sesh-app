@@ -147,7 +147,11 @@ function calendarHelpers() {
   // The overlay is a .tsx full of React Native imports; only its exported pure
   // helpers are under test, so everything else is stubbed away.
   const noop = new Proxy({}, { get: () => () => null });
+  // The real grid maths: it moved to lib/calendarGrid so the date picker could
+  // share it, and stubbing it would test the stub rather than the calendar.
+  const grid = load('lib/calendarGrid.ts', {});
   return load('overlays/BookingsOverlay.tsx', {
+    '../lib/calendarGrid': grid,
     react: { default: noop, useCallback: () => {}, useEffect: () => {}, useMemo: () => {}, useState: () => [] },
     'react-native': noop,
     '../components/Overlay': noop,
@@ -196,10 +200,11 @@ test('sessions group by day, several to a day', () => {
 
 test('the grid pads so the 1st lands on its own weekday', () => {
   const { monthCells } = calendarHelpers();
-  // September 2026 starts on a Tuesday (weekday 2) and has 30 days.
+  // Monday-first, matching coach_availability.weekday and the app's week.
+  // September 2026 starts on a Tuesday, so one blank, and has 30 days.
   const sept = monthCells(2026, 8);
-  assert.equal(sept.length, 2 + 30);
-  assert.equal(JSON.stringify(sept.slice(0, 3)), '[null,null,1]');
+  assert.equal(sept.length, 1 + 30);
+  assert.equal(JSON.stringify(sept.slice(0, 2)), '[null,1]');
   assert.equal(sept[sept.length - 1], 30);
 });
 
@@ -211,10 +216,20 @@ test('February knows about leap years', () => {
   assert.equal(common.length, 28);
 });
 
-test('a month starting on Sunday needs no padding at all', () => {
+test('a month starting on Monday needs no padding at all', () => {
   const { monthCells } = calendarHelpers();
-  // 1 November 2026 is a Sunday.
+  // 1 June 2026 is a Monday.
+  const june = monthCells(2026, 5);
+  assert.equal(june[0], 1);
+  assert.equal(june.length, 30);
+});
+
+test('a month starting on Sunday is padded by a full week, not none', () => {
+  const { monthCells } = calendarHelpers();
+  // 1 November 2026 is a Sunday -- the last column in a Monday-first week, and
+  // the case a Sunday-first grid gets exactly backwards.
   const nov = monthCells(2026, 10);
-  assert.equal(nov[0], 1);
-  assert.equal(nov.length, 30);
+  assert.equal(nov.slice(0, 6).filter((cell) => cell === null).length, 6);
+  assert.equal(nov[6], 1);
+  assert.equal(nov.length, 6 + 30);
 });

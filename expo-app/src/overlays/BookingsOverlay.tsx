@@ -19,6 +19,7 @@ import {
   formatExpiry,
   formatSessionWhen,
 } from '../lib/bookings';
+import { dateKey as dayKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { initials } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -174,23 +175,12 @@ export function BookingsOverlay() {
   );
 }
 
-// A month at a time.
-//
-// Hand-rolled rather than a calendar dependency: the whole of it is "which
-// weekday does the 1st fall on, and how many days are in the month", and both
-// come free from the Date constructor. A library would be a bigger download
-// than the feature.
-//
-// Local dates throughout. `toISOString()` would bucket a 9pm session into the
-// next day for anyone east of UTC, which is exactly the sort of off-by-one a
-// calendar must not have.
-export function dayKey(value: string | Date): string {
-  const at = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(at.getTime())) return '';
-  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
-}
-
 /** Sessions grouped by the local day they start on. */
+// Re-exported: the grid maths moved to lib/calendarGrid so the date picker can
+// share it, and these are the names the tests and the rest of this file use.
+export { monthCells };
+export { dayKey };
+
 export function byDay(sessions: MyBooking[]): Map<string, MyBooking[]> {
   const days = new Map<string, MyBooking[]>();
   for (const session of sessions) {
@@ -203,21 +193,8 @@ export function byDay(sessions: MyBooking[]): Map<string, MyBooking[]> {
   return days;
 }
 
-/** The cells of a month grid: leading blanks so the 1st lands on its weekday,
- *  then every day of the month. Trailing blanks are not needed -- the grid
- *  simply ends. */
-export function monthCells(year: number, month: number): (number | null)[] {
-  const firstWeekday = new Date(year, month, 1).getDay();
-  // Day 0 of the next month is the last day of this one.
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: (number | null)[] = Array.from({ length: firstWeekday }, () => null);
-  for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
-  return cells;
-}
-
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'];
-const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+// Monday-first, matching monthCells and coach_availability.weekday.
+const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 function MonthCalendar({ sessions, onCancel }: { sessions: MyBooking[]; onCancel: (b: MyBooking) => void }) {
   const { c, t } = useTheme();
@@ -236,7 +213,7 @@ function MonthCalendar({ sessions, onCancel }: { sessions: MyBooking[]; onCancel
       <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <TextAction label="‹ Prev" color={c.txt2} accessibilityLabel="Previous month" onPress={() => step(-1)} />
         <Text style={[t.labelSm, { color: c.txt }]}>
-          {MONTHS[cursor.getMonth()]} {cursor.getFullYear()}
+          {MONTH_NAMES[cursor.getMonth()]} {cursor.getFullYear()}
         </Text>
         <TextAction label="Next ›" color={c.txt2} accessibilityLabel="Next month" onPress={() => step(1)} />
       </Row>
@@ -259,7 +236,7 @@ function MonthCalendar({ sessions, onCancel }: { sessions: MyBooking[]; onCancel
           return (
             <Pressable key={key} onPress={() => setSelected(key)} accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
-              accessibilityLabel={`${day} ${MONTHS[cursor.getMonth()]}, ${onThisDay.length} ${onThisDay.length === 1 ? 'session' : 'sessions'}`}
+              accessibilityLabel={`${day} ${MONTH_NAMES[cursor.getMonth()]}, ${onThisDay.length} ${onThisDay.length === 1 ? 'session' : 'sessions'}`}
               style={{ width: `${100 / 7}%`, height: 46, alignItems: 'center', justifyContent: 'center' }}>
               <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
                 backgroundColor: isSelected ? c.volt : 'transparent',
@@ -310,7 +287,7 @@ function MonthCalendar({ sessions, onCancel }: { sessions: MyBooking[]; onCancel
 function selectedLabel(key: string) {
   const [year, month, day] = key.split('-').map(Number);
   if (!year || !month || !day) return 'Selected day';
-  return `${day} ${MONTHS[month - 1]} ${year}`;
+  return `${day} ${MONTH_NAMES[month - 1]} ${year}`;
 }
 
 function PackageCard({ pack }: { pack: PackageBalance }) {
