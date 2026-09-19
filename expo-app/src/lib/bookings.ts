@@ -4,20 +4,33 @@
 // either party read the row, so an unfiltered select would mix the sessions you
 // booked with the ones you coach. The explicit client_id filter is what makes
 // this "My bookings".
-import { ensureAppSession } from './session';
+import { decidePartnerSession, fetchPartnerSessions, PartnerSession } from './partners';
+import { currentAppUserId, ensureAppSession } from './session';
 import { supabase } from './supabase';
 
 // Exactly the live `booking_status` enum — never widen or invent members here.
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show';
 
+/** What kind of session this is. Two tables, one list -- a coach booking is
+ *  paid and cancelled through `bookings`, a partner session is free and
+ *  answered through `decide_partner_session`, and the card has to know which
+ *  one it is holding. */
+export type SessionKind = 'coach' | 'partner';
+
 export type MyBooking = {
   id: string;
-  coachId: string;
-  coachName: string;
+  kind: SessionKind;
+  /** The other person, whichever side of it this account is on. */
+  withId: string;
+  withName: string;
   scheduledFor: string;
   slotLabel: string | null;
+  /** Partner statuses are mapped onto this for display -- see `toPartnerStatus`.
+   *  The enum itself is never widened: it mirrors the live `booking_status`. */
   status: BookingStatus;
   totalCents: number;
+  /** True only for a partner invitation waiting on this account. */
+  needsAnswer: boolean;
 };
 
 export type PackageBalance = {
@@ -60,17 +73,10 @@ type BalanceRow = {
   coach?: Related<CoachName>;
 };
 
-// `ensureAppSession()` only returns a public.users id on the anonymous demo
-// path; a real email/SSO account gets its auth id back, which is not what these
-// tables key on. Ask the server which app user we are instead of guessing.
-export async function currentAppUserId(): Promise<string> {
-  await ensureAppSession();
-  const { data, error } = await supabase.rpc('current_app_user');
-  if (error) throw error;
-  const id = typeof data === 'string' ? data : null;
-  if (!id) throw new Error('This account has no profile yet.');
-  return id;
-}
+// Re-exported so the many call sites that reach for it here keep working; it
+// now lives in session.ts, next to ensureAppSession, because partners.ts needs
+// it too and this file now imports partners.ts.
+export { currentAppUserId } from './session';
 
 const STATUS_LABEL: Record<BookingStatus, string> = {
   pending: 'Pending',
@@ -125,12 +131,44 @@ export function formatExpiry(expiresOn: string | null) {
 function toBooking(row: BookingRow): MyBooking {
   return {
     id: row.id,
-    coachId: row.coach_id,
-    coachName: firstRelated(row.coach)?.name ?? 'Coach',
+    kind: 'coach',
+    withId: row.coach_id,
+    withName: firstRelated(row.coach)?.name ?? 'Coach',
     scheduledFor: row.scheduled_for,
     slotLabel: row.slot_label,
     status: row.status,
     totalCents: row.total_cents ?? 0,
+    needsAnswer: false,
+  };
+}
+
+/** Partner sessions have their own four statuses. Rather than widen
+ *  `BookingStatus` -- which mirrors a live Postgres enum and must keep doing so
+ *  -- they are mapped onto the nearest booking status for display only.
+ *
+ *  'declined' becomes 'cancelled' because that is what it means to the person
+ *  reading the list: the session is not happening. The distinction between
+ *  "they said no" and "someone called it off" lives in notifications, which is
+ *  where it is actionable. */
+function toPartnerStatus(status: PartnerSession['status']): BookingStatus {
+  if (status === 'accepted') return 'confirmed';
+  if (status === 'declined' || status === 'cancelled') return 'cancelled';
+  return 'pending';
+}
+
+function toPartnerBooking(session: PartnerSession): MyBooking {
+  return {
+    id: session.id,
+    kind: 'partner',
+    withId: session.withId,
+    withName: session.withName,
+    scheduledFor: session.scheduledFor,
+    slotLabel: session.slotLabel,
+    status: toPartnerStatus(session.status),
+    // Free by definition. The card prints "Free" rather than "$0", which reads
+    // like a price someone forgot to set.
+    totalCents: 0,
+    needsAnswer: session.status === 'proposed' && !session.mine,
   };
 }
 
@@ -138,6 +176,12 @@ function toBooking(row: BookingRow): MyBooking {
  * Upcoming = still live (pending/confirmed) and not yet past its start time.
  * Everything else — cancelled, completed, no-show, or simply elapsed — is past,
  * so a session the coach forgot to close out still leaves the Upcoming list.
+ *
+ * Coach bookings and free partner sessions are merged here rather than in the
+ * screen. They are two tables with two sets of rules, and a training session is
+ * a training session to the person looking at the list — a partner session that
+ * only appeared in notifications was a session you had agreed to and could not
+ * find.
  */
 export async function fetchMyBookings(): Promise<MyBookings> {
   const clientId = await currentAppUserId();
@@ -149,20 +193,52 @@ export async function fetchMyBookings(): Promise<MyBookings> {
     .order('scheduled_for', { ascending: false });
   if (error) throw error;
 
+  // A partner-session read that fails must not take the coach bookings down
+  // with it: they are independent, and half a list beats an error screen.
+  let partners: PartnerSession[] = [];
+  try {
+    partners = await fetchPartnerSessions();
+  } catch {
+    partners = [];
+  }
+
+  const sessions = [
+    ...((data ?? []) as unknown as BookingRow[]).map(toBooking),
+    ...partners.map(toPartnerBooking),
+  ];
+
   const now = Date.now();
   const upcoming: MyBooking[] = [];
   const past: MyBooking[] = [];
-  for (const row of (data ?? []) as unknown as BookingRow[]) {
-    const booking = toBooking(row);
+  for (const booking of sessions) {
     const startsAt = new Date(booking.scheduledFor).getTime();
     const live = booking.status === 'pending' || booking.status === 'confirmed';
     if (live && (Number.isNaN(startsAt) || startsAt >= now)) upcoming.push(booking);
     else past.push(booking);
   }
-  // The query sorts newest-first, which is right for Past and backwards for
-  // Upcoming — the next session belongs at the top.
-  upcoming.reverse();
+  // Sorted here rather than relying on the query: two sources cannot be ordered
+  // by one ORDER BY. Next session first, most recent history first.
+  upcoming.sort((a, b) => Date.parse(a.scheduledFor) - Date.parse(b.scheduledFor));
+  past.sort((a, b) => Date.parse(b.scheduledFor) - Date.parse(a.scheduledFor));
   return { upcoming, past };
+}
+
+/** Cancel or decline, whichever this session is.
+ *
+ *  One entry point so the card does not have to know that a coach booking is a
+ *  column update guarded by a trigger and a partner session is an RPC that
+ *  decides who may say what. */
+export async function cancelSession(booking: MyBooking): Promise<void> {
+  if (booking.kind === 'partner') {
+    await decidePartnerSession(booking.id, booking.needsAnswer ? 'declined' : 'cancelled');
+    return;
+  }
+  await cancelBooking(booking.id);
+}
+
+/** Accept a partner's invitation from the bookings list. */
+export async function acceptSession(booking: MyBooking): Promise<void> {
+  await decidePartnerSession(booking.id, 'accepted');
 }
 
 export async function fetchMyPackageBalances(): Promise<PackageBalance[]> {
