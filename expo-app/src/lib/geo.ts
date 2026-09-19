@@ -8,6 +8,14 @@ export type MapPoint = {
   left: number;
 };
 
+type ReverseGeocoded = {
+  city?: string | null;
+  district?: string | null;
+  subregion?: string | null;
+  region?: string | null;
+  country?: string | null;
+};
+
 type ExpoLocationModule = {
   Accuracy?: {
     Balanced?: number;
@@ -20,6 +28,7 @@ type ExpoLocationModule = {
       longitude?: number;
     };
   }>;
+  reverseGeocodeAsync?: (point: GeoPoint) => Promise<ReverseGeocoded[]>;
 };
 
 let cachedDevicePoint: GeoPoint | null | undefined;
@@ -203,6 +212,80 @@ export async function refreshDevicePoint(precise = false): Promise<GeoPoint | nu
 export function coarsenPoint(point: GeoPoint): GeoPoint {
   const round = (value: number) => Math.round(value * 1000) / 1000;
   return { latitude: round(point.latitude), longitude: round(point.longitude) };
+}
+
+// ---- naming a position ------------------------------------------------------
+
+/** Turn a position into "City, Country".
+ *
+ *  Two sources, in order. On a phone `expo-location` asks the operating
+ *  system's own geocoder: no key, no account, and Apple or Google already knows
+ *  where the device is. The web build has no such geocoder -- Expo dropped it
+ *  because the browser has no equivalent -- so it falls back to a keyless HTTP
+ *  service.
+ *
+ *  Either way the COARSENED point is what gets sent. A city name does not need
+ *  110 m of precision, and the promise in PRIVACY.md is easier to keep if the
+ *  exact fix never leaves the device at all.
+ *
+ *  Returns null rather than throwing on every failure: a missing area is a
+ *  field the person can still type into, not an error worth a red banner.
+ */
+export async function describePoint(point: GeoPoint): Promise<string | null> {
+  const coarse = coarsenPoint(point);
+  return (await osPlaceName(coarse)) ?? (await webPlaceName(coarse));
+}
+
+/** "Beirut, Lebanon" from whatever subset of fields a geocoder returned.
+ *
+ *  `city` is missing surprisingly often -- rural addresses, some countries'
+ *  data, and iOS outside built-up areas -- so district, subregion and region
+ *  stand in, in decreasing order of how much they sound like a place you would
+ *  tell someone you train in. A country on its own is still better than a blank
+ *  field.
+ */
+function placeName(place: ReverseGeocoded | null | undefined): string | null {
+  if (!place) return null;
+  const locality = [place.city, place.district, place.subregion, place.region]
+    .map((value) => value?.trim())
+    .find((value) => Boolean(value));
+  const country = place.country?.trim();
+  return [locality, country].filter(Boolean).join(', ') || null;
+}
+
+async function osPlaceName(point: GeoPoint): Promise<string | null> {
+  try {
+    const Location = locationModule();
+    if (!Location.reverseGeocodeAsync) return null;
+    const results = await Location.reverseGeocodeAsync(point);
+    return placeName(results?.[0]);
+  } catch {
+    // Not available on this platform, or the geocoder is offline.
+    return null;
+  }
+}
+
+// Keyless and CORS-enabled, which is what makes it usable from the web build
+// without shipping a credential in the bundle. Only ever reached when the OS
+// geocoder is absent.
+const WEB_GEOCODER = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
+
+async function webPlaceName(point: GeoPoint): Promise<string | null> {
+  try {
+    const url = `${WEB_GEOCODER}?latitude=${point.latitude}&longitude=${point.longitude}&localityLanguage=en`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const body = (await response.json()) as {
+      city?: string; locality?: string; principalSubdivision?: string; countryName?: string;
+    };
+    return placeName({
+      city: body.city || body.locality,
+      region: body.principalSubdivision,
+      country: body.countryName,
+    });
+  } catch {
+    return null;
+  }
 }
 
 export function distanceKmBetween(from: GeoPoint | null | undefined, to: GeoPoint | null | undefined) {

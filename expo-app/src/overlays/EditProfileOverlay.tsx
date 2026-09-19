@@ -4,8 +4,8 @@ import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { SportsPicker } from '../components/SportsPicker';
 import { Avatar, Field, Row, SectionHeading, VoltButton } from '../components/ui';
 import { pickAvatar, PickedAvatar, uploadAvatar } from '../lib/avatars';
-import { fetchMyProfile, Profile, saveMyProfile, setMyShareLevel, ShareLevel, shareMyLocation, stopSharingMyLocation } from '../lib/profiles';
-import { refreshDevicePoint } from '../lib/geo';
+import { fetchMyProfile, Profile, saveMyProfile, setMyArea, setMyShareLevel, ShareLevel, shareMyLocation, stopSharingMyLocation } from '../lib/profiles';
+import { describePoint, refreshDevicePoint } from '../lib/geo';
 import { initials } from '../state/models';
 import { errorMessage, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -54,6 +54,17 @@ export function EditProfileOverlay() {
       }
       await shareMyLocation(point, level);
       setProfile((current) => (current ? { ...current, sharesLocation: true, shareLevel: level } : current));
+
+      // Name the place the person just agreed to share. Written straight away
+      // for the same reason the position is: both came from one decision, and
+      // a profile claiming one area while the map shows another is worse than
+      // either alone. It stays an ordinary editable field afterwards.
+      const area = await describePoint(point);
+      if (area) {
+        await setMyArea(area);
+        setProfile((current) => (current ? { ...current, city: area } : current));
+        useStore.getState().set('authLoc', area);
+      }
     } catch (e) { setError(errorMessage(e)); }
     finally { setLocating(false); }
   };
@@ -132,7 +143,10 @@ export function EditProfileOverlay() {
           <SectionHeading>Area</SectionHeading>
           <Field value={profile.city} onChange={(city) => setProfile({ ...profile, city })}
             placeholder="Where you train" label="Your area" />
-          <Text style={[t.caption, { color: c.txt3 }]}>Shown on your profile so people can find you nearby.</Text>
+          <Text style={[t.caption, { color: c.txt3 }]}>
+            Shown on your profile so people can find you nearby. Filled in for you from your
+            location below — edit it if you would rather say something else.
+          </Text>
 
           <SectionHeading>Location on the map</SectionHeading>
           <Text style={[t.bodySm, { color: c.txt2 }]}>
