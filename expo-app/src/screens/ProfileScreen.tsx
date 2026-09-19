@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Toggle } from '../components/ui';
 import { fetchMyBookings } from '../lib/bookings';
-import { deleteAccount, signOutUser } from '../lib/session';
+import { signOutUser } from '../lib/session';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { initials } from '../state/models';
 import { errorMessage, useStore } from '../state/store';
@@ -20,11 +20,6 @@ export function ProfileScreen() {
   // `null` means "not loaded / could not load" and renders no badge at all —
   // the same contract as joinedCount. A count is never invented.
   const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
-  // Deleting an account is irreversible, so it takes a second tap.
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  // Deletion is irreversible and is not atomic on the server, so a second run
-  // must not start while the first is still in flight.
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -200,27 +195,6 @@ export function ProfileScreen() {
               body={`${s.authName ?? 'Signed in'} · ${s.authEmail}`}
               onPress={() => {
                 void signOutUser().catch((error) => {
-                  track('write_failed', { error_code: analyticsErrorCode(error) });
-                  s.set('writeError', errorMessage(error));
-                });
-              }}
-            />
-            {/* Required in-app by both stores wherever accounts can be created.
-                Two taps: deletion cannot be undone. */}
-            <GroupRow
-              icon="trash-2"
-              title={confirmDelete ? 'Tap again to delete permanently' : 'Delete account'}
-              body={
-                confirmDelete
-                  ? 'Your profile and personal data are removed and you cannot sign in again.'
-                  : 'Permanently removes your profile and personal data'
-              }
-              onPress={() => {
-                if (!confirmDelete) { setConfirmDelete(true); return; }
-                if (deleting) return;
-                setDeleting(true);
-                setConfirmDelete(false);
-                void deleteAccount().finally(() => setDeleting(false)).catch((error) => {
                   track('write_failed', { error_code: analyticsErrorCode(error) });
                   s.set('writeError', errorMessage(error));
                 });

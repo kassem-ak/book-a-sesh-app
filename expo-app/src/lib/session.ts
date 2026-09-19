@@ -198,6 +198,26 @@ export async function signInWithProvider(provider: SsoProvider) {
   return true;
 }
 
+/** The word someone types to confirm deleting their account.
+ *
+ *  A second tap is something a thumb does by accident on a list where the row
+ *  above it is Sign out. Typing a word is not -- it is the smallest gesture
+ *  that cannot happen without having read the sentence above it.
+ */
+export const DELETE_WORD = 'delete';
+
+/** Whether what was typed confirms deletion.
+ *
+ *  Case and surrounding space are forgiven: someone who typed "Delete" on a
+ *  phone keyboard that capitalises the first letter meant it, and refusing them
+ *  would only teach them to distrust the field. Anything else is not a
+ *  confirmation, including the empty string -- which is what the field holds
+ *  before anyone has decided.
+ */
+export function confirmsDeletion(typed: string): boolean {
+  return typed.trim().toLowerCase() === DELETE_WORD;
+}
+
 /**
  * Delete the signed-in account.
  *
