@@ -88,12 +88,23 @@ export function PersonOverlay() {
           {p.isCoach ? (
             <VoltButton label={`Book a session · $${p.price}`} onPress={s.openBooking} />
           ) : (
-            <VoltButton
-              label="Message to train together"
-              busy={messaging}
-              busyLabel="Opening..."
-              onPress={message}
-            />
+            <View style={{ gap: 10 }}>
+              <VoltButton
+                label="Ask to train together"
+                onPress={() => s.set('overlay', 'partnerSession')}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Message ${p.name}`}
+                accessibilityState={{ busy: messaging }}
+                onPress={messaging ? undefined : message}
+                style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={[t.label, { color: c.accent }]}>
+                  {messaging ? 'Opening…' : 'Or send a message first'}
+                </Text>
+              </Pressable>
+            </View>
           )}
         </View>
       }
