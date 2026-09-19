@@ -27,7 +27,11 @@ function load(file, deps, globals = {}) {
   return exports;
 }
 
-const availability = () => load('lib/availability.ts', {});
+// dateKey is re-exported from calendarGrid, so it has to be the real one --
+// the catch-all stub below would otherwise return null and hide the bug this
+// very test exists to catch.
+const calendarGrid = () => load('lib/calendarGrid.ts', {});
+const availability = () => load('lib/availability.ts', { './calendarGrid': calendarGrid() });
 
 const booking = () => load('overlays/BookingOverlay.tsx', {
   '../state/store': {
@@ -104,4 +108,124 @@ test('a coach with no schedule is still bookable, minus their days off', () => {
   const closed = bookableDays(null, MONDAY, ['2026-09-23']);
   assert.ok(open.length > 0);
   assert.equal(open.length - closed.length, 1);
+});
+
+// ---- working hours as ranges ----------------------------------------------
+//
+// The editor works in ranges; coach_availability stores half-hour slots. This
+// conversion is the whole feature: get it wrong and a coach offers hours they
+// did not agree to, or loses hours they did.
+
+test('a range becomes the start times inside it, end exclusive', () => {
+  const { slotsInPeriod } = availability();
+  // 9:00 to 11:00 offers 9:00, 9:30, 10:00, 10:30 -- not 11:00, which is when
+  // the last session ends.
+  assert.equal(
+    slotsInPeriod({ startsAt: 9 * 60, endsAt: 11 * 60 }).join(','),
+    '9:00 AM,9:30 AM,10:00 AM,10:30 AM',
+  );
+});
+
+test('an hour is two slots, and the shortest possible period is one', () => {
+  const { slotsInPeriod } = availability();
+  assert.equal(slotsInPeriod({ startsAt: 9 * 60, endsAt: 10 * 60 }).length, 2);
+  assert.equal(slotsInPeriod({ startsAt: 9 * 60, endsAt: 9 * 60 + 30 }).join(','), '9:00 AM');
+});
+
+test('labels round-trip through minutes, including noon and midnight', () => {
+  const { minutesFromLabel, labelFromMinutes } = availability();
+  for (const label of ['5:00 AM', '9:30 AM', '11:59 AM', '12:00 PM', '12:30 PM', '1:00 PM', '10:30 PM']) {
+    assert.equal(labelFromMinutes(minutesFromLabel(label)), label, label);
+  }
+  // 12 AM and 12 PM are the two that catch a naive %12.
+  assert.equal(minutesFromLabel('12:00 AM'), 0);
+  assert.equal(minutesFromLabel('12:00 PM'), 720);
+});
+
+test('a label that is not a time is rejected rather than becoming midnight', () => {
+  const { minutesFromLabel } = availability();
+  assert.equal(minutesFromLabel('lunchtime'), null);
+  assert.equal(minutesFromLabel('9:00'), null);
+  assert.equal(minutesFromLabel('9:70 AM'), null);
+  assert.equal(minutesFromLabel(''), null);
+});
+
+test('stored slots read back as the range they came from', () => {
+  const { periodsFromSlots, periodLabel } = availability();
+  const periods = periodsFromSlots(['9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM']);
+  assert.equal(periods.length, 1);
+  assert.equal(periodLabel(periods[0]), '9:00 AM – 11:00 AM');
+});
+
+test('a gap in the slots is what makes two periods', () => {
+  const { periodsFromSlots, periodLabel } = availability();
+  // A morning and an evening, which is the whole reason two periods exist.
+  const periods = periodsFromSlots([
+    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+    '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM', '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM',
+  ]);
+  assert.equal(periods.length, 2);
+  assert.equal(periodLabel(periods[0]), '9:00 AM – 12:00 PM');
+  assert.equal(periodLabel(periods[1]), '4:00 PM – 8:00 PM');
+});
+
+test('slots out of order, duplicated, or unparseable still read correctly', () => {
+  const { periodsFromSlots, periodLabel } = availability();
+  const periods = periodsFromSlots(['10:00 AM', '9:00 AM', '9:30 AM', '9:30 AM', 'whenever']);
+  assert.equal(periods.length, 1);
+  assert.equal(periodLabel(periods[0]), '9:00 AM – 10:30 AM');
+});
+
+test('a schedule with more than two runs keeps them all', () => {
+  const { periodsFromSlots } = availability();
+  // Set before this editor existed. Showing a coach fewer hours than they
+  // actually offer would be worse than showing a third period the editor
+  // cannot add.
+  assert.equal(periodsFromSlots(['6:00 AM', '9:00 AM', '1:00 PM']).length, 3);
+});
+
+test('ranges and slots round-trip', () => {
+  const { periodsFromSlots, slotsForPeriods } = availability();
+  const original = [
+    { startsAt: 9 * 60, endsAt: 12 * 60 },
+    { startsAt: 16 * 60, endsAt: 20 * 60 },
+  ];
+  const back = periodsFromSlots(slotsForPeriods(original));
+  assert.equal(JSON.stringify(back), JSON.stringify(original));
+});
+
+test('two periods that touch collapse into one, because they are one', () => {
+  const { periodsFromSlots, slotsForPeriods, periodLabel } = availability();
+  const touching = [
+    { startsAt: 9 * 60, endsAt: 12 * 60 },
+    { startsAt: 12 * 60, endsAt: 14 * 60 },
+  ];
+  const back = periodsFromSlots(slotsForPeriods(touching));
+  assert.equal(back.length, 1);
+  assert.equal(periodLabel(back[0]), '9:00 AM – 2:00 PM');
+});
+
+test('overlapping periods do not double up the slots', () => {
+  const { slotsForPeriods } = availability();
+  const slots = slotsForPeriods([
+    { startsAt: 9 * 60, endsAt: 11 * 60 },
+    { startsAt: 10 * 60, endsAt: 12 * 60 },
+  ]);
+  assert.equal(new Set(slots).size, slots.length, 'no duplicate rows may be written');
+  assert.equal(slots.length, 6);
+});
+
+test('a suggested period is one hour, and the second starts after the first', () => {
+  const { suggestedPeriod } = availability();
+  const first = suggestedPeriod([]);
+  assert.equal(first.endsAt - first.startsAt, 60);
+  const second = suggestedPeriod([first]);
+  assert.ok(second.startsAt >= first.endsAt, 'the second period must not start inside the first');
+  assert.equal(second.endsAt - second.startsAt, 60);
+});
+
+test('a suggested period never runs past the end of the day', () => {
+  const { suggestedPeriod, DAY_ENDS_AT } = availability();
+  const late = suggestedPeriod([{ startsAt: 21 * 60, endsAt: 23 * 60 }]);
+  assert.ok(late.endsAt <= DAY_ENDS_AT, `${late.endsAt} must not exceed ${DAY_ENDS_AT}`);
 });
