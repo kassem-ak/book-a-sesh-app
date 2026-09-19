@@ -4,6 +4,8 @@ import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { SportsPicker } from '../components/SportsPicker';
 import { Avatar, Field, Row, SectionHeading, VoltButton } from '../components/ui';
 import { pickAvatar, PickedAvatar, uploadAvatar } from '../lib/avatars';
+import { analyticsErrorCode, track } from '../lib/analytics';
+import { confirmsDeletion, deleteAccount, DELETE_WORD } from '../lib/session';
 import { fetchMyProfile, Profile, saveMyProfile, setMyArea, setMyShareLevel, ShareLevel, shareMyLocation, stopSharingMyLocation } from '../lib/profiles';
 import { describePoint, refreshDevicePoint } from '../lib/geo';
 import { initials } from '../state/models';
@@ -21,6 +23,12 @@ export function EditProfileOverlay() {
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // Deleting an account cannot be undone, so it asks for the word rather than a
+  // second tap. A tap is something a thumb does by accident; typing a word is
+  // not. See DELETE_WORD below.
+  const [deleteWord, setDeleteWord] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const confirmed = confirmsDeletion(deleteWord);
   useEffect(() => {
     let active = true;
     setError(null);
@@ -94,6 +102,21 @@ export function EditProfileOverlay() {
       setProfile((current) => (current ? { ...current, sharesLocation: false } : current));
     } catch (e) { setError(errorMessage(e)); }
     finally { setLocating(false); }
+  };
+
+  const removeAccount = async () => {
+    if (deleting || busy || picking) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteAccount();
+      // Nothing to close: the session is gone, so Root swaps the whole app back
+      // to the landing gate on its own.
+    } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
+      setError(errorMessage(e));
+      setDeleting(false);
+    }
   };
 
   const save = async () => {
@@ -196,6 +219,32 @@ export function EditProfileOverlay() {
           <SectionHeading>{profile.role === 'coach' ? 'Profession · primary sport or hobby' : 'Interests'}</SectionHeading>
           <SportsPicker selected={profile.sportIds} onChange={(sportIds) => setProfile({ ...profile, sportIds })} coach={profile.role === 'coach'} />
           <Text style={[t.caption, { color: c.txt3 }]}>You can return to Profile → Edit profile at any time.</Text>
+
+          {/* Required in-app by both stores wherever accounts can be created.
+              It lives here, at the bottom of the screen that owns your profile,
+              rather than beside Sign out -- the two sat next to each other and
+              one of them is permanent. */}
+          <View style={{ height: 8 }} />
+          <SectionHeading>Delete account</SectionHeading>
+          <Text style={[t.bodySm, { color: c.txt2 }]}>
+            Your profile, photo and personal data are removed and you will not be able to sign in again. Sessions you have already had stay on the other person's record, because they are their history too.
+          </Text>
+          <Text style={[t.caption, { color: c.txt3 }]}>
+            This cannot be undone. Type <Text style={{ color: c.danger }}>{DELETE_WORD}</Text> below to confirm.
+          </Text>
+          <Field value={deleteWord} onChange={setDeleteWord} label={`Type ${DELETE_WORD} to confirm`}
+            placeholder={DELETE_WORD} />
+          <Pressable accessibilityRole="button"
+            accessibilityLabel="Delete my account permanently"
+            accessibilityState={{ disabled: !confirmed || deleting, busy: deleting }}
+            onPress={() => void removeAccount()} disabled={!confirmed || deleting}
+            style={{ minHeight: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+              borderColor: confirmed ? c.danger : c.line,
+              backgroundColor: confirmed ? alpha(c.danger, 0.12) : 'transparent' }}>
+            <Text style={[t.label, { color: confirmed ? c.danger : c.txt3 }]}>
+              {deleting ? 'Deleting…' : 'Delete my account'}
+            </Text>
+          </Pressable>
         </View>}
       </View>
     </OverlayScaffold>
