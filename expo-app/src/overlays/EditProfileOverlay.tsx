@@ -167,6 +167,16 @@ export function EditProfileOverlay() {
           <Text style={[t.caption, { color: c.txt3 }]}>JPEG, PNG, WebP or HEIC · maximum 2 MiB. Your profile photo is public.</Text>
           <SectionHeading>Display name</SectionHeading>
           <Field value={profile.name} onChange={(name) => setProfile({ ...profile, name })} placeholder="Your name" label="Display name" />
+
+          <SectionHeading>Bio</SectionHeading>
+          <TextInput value={profile.bio} onChangeText={(bio) => setProfile({ ...profile, bio })} multiline accessibilityLabel="Bio"
+            placeholder="Tell people about yourself" placeholderTextColor={c.txt3} textAlignVertical="top"
+            style={[t.body, { color: c.txt, minHeight: 100, borderWidth: 1, borderColor: c.line, borderRadius: 16, backgroundColor: c.surface, padding: 14 }]} />
+
+          {/* Group two: where you are. The area box and the map switch describe
+              one thing between them, and the area is filled in from the very
+              permission granted below it -- they were three screens apart. */}
+          <GroupRule label="Where you train" />
           <SectionHeading>Area</SectionHeading>
           <Field value={profile.city} onChange={(city) => setProfile({ ...profile, city })}
             placeholder="Where you train" label="Your area" />
@@ -210,18 +220,14 @@ export function EditProfileOverlay() {
             </Pressable>
           )}
 
-          <SectionHeading>Bio</SectionHeading>
-          <TextInput value={profile.bio} onChangeText={(bio) => setProfile({ ...profile, bio })} multiline accessibilityLabel="Bio"
-            placeholder="Tell people about yourself" placeholderTextColor={c.txt3} textAlignVertical="top"
-            style={[t.body, { color: c.txt, minHeight: 100, borderWidth: 1, borderColor: c.line, borderRadius: 16, backgroundColor: c.surface, padding: 14 }]} />
-          {profile.role === 'coach' && <>
-            <SectionHeading>Headline</SectionHeading>
-            <Field value={profile.headline} onChange={(headline) => setProfile({ ...profile, headline })} placeholder="What you teach" label="Coach headline" />
-            <SectionHeading>Level</SectionHeading>
-            <Field value={profile.level} onChange={(level) => setProfile({ ...profile, level })} placeholder="Describe your coaching level" label="Coach level" />
-          </>}
-          <SectionHeading>{profile.role === 'coach' ? 'Profession · primary sport or hobby' : 'Interests'}</SectionHeading>
-          <SportsPicker selected={profile.sportIds} onChange={(sportIds) => setProfile({ ...profile, sportIds })} coach={profile.role === 'coach'} />
+          <GroupRule label="What you do" />
+          <SectionHeading>Sports and hobbies</SectionHeading>
+          <Text style={[t.bodySm, { color: c.txt2 }]}>
+            {profile.role === 'coach'
+              ? 'What you do yourself — not what you teach. Your coaching subjects live in Coaching settings.'
+              : 'What you play, train for or want to try.'}
+          </Text>
+          <SportsPicker selected={profile.sportIds} onChange={(sportIds) => setProfile({ ...profile, sportIds })} />
 
           {/* Certificates are part of what a coach shows about themselves, so
               they belong here rather than under their prices. They save
@@ -235,7 +241,7 @@ export function EditProfileOverlay() {
               It lives here, at the bottom of the screen that owns your profile,
               rather than beside Sign out -- the two sat next to each other and
               one of them is permanent. */}
-          <View style={{ height: 8 }} />
+          <GroupRule label="Account" />
           <SectionHeading>Delete account</SectionHeading>
           <Text style={[t.bodySm, { color: c.txt2 }]}>
             Your profile, photo and personal data are removed and you will not be able to sign in again.
@@ -283,5 +289,20 @@ export function EditProfileOverlay() {
         </View>}
       </View>
     </OverlayScaffold>
+  );
+}
+
+// A labelled line between groups of fields.
+//
+// The editor had eight headings in one flat column and no way to tell that the
+// area box and the map switch were about the same thing. A heading says what a
+// field is; this says which part of yourself you are editing.
+function GroupRule({ label }: { label: string }) {
+  const { c, t } = useTheme();
+  return (
+    <Row gap={12} style={{ alignItems: 'center', marginTop: 10 }}>
+      <Text style={[t.caption, { color: c.txt3, letterSpacing: 1.1, textTransform: 'uppercase' }]}>{label}</Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
+    </Row>
   );
 }

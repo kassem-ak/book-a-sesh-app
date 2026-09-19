@@ -12,6 +12,8 @@ export type Profile = {
   bio: string;
   headline: string;
   level: string;
+  /** Sports and hobbies this person does themselves. Everyone has these,
+   *  coaches included -- a swimming coach who plays chess plays chess. */
   sportIds: string[];
   /** The area the user typed. Free text, shown to other members. */
   city: string;
@@ -156,6 +158,16 @@ async function applySignup(authUid: string): Promise<boolean> {
       onConflict: 'user_id,tag', ignoreDuplicates: true,
     });
     if (tags.error) throw tags.error;
+    // A coach was asked at sign-up what they TEACH, so that is what these are.
+    // They land in profile_tags as well, because someone almost certainly does
+    // the sport they teach -- and either list is editable afterwards.
+    if (draft.role === 'coach') {
+      const teaching = await supabase.from('coach_sports').upsert(
+        selected.map((sport, position) => ({ coach_id: appId, sport_id: sport.id, position })),
+        { onConflict: 'coach_id,sport_id', ignoreDuplicates: true },
+      );
+      if (teaching.error) throw teaching.error;
+    }
   }
   if (metadata.signup_role) {
     const result = await supabase.auth.updateUser({ data: { signup_role: null, signup_sports: null } });
@@ -185,7 +197,10 @@ export async function fetchMyProfile(): Promise<Profile> {
     id: appId, name: account.data!.name, avatarUrl: account.data!.avatar_url,
     role: coach.data ? 'coach' : 'member', bio: row?.bio ?? '',
     headline: coach.data?.headline ?? '', level: coach.data?.level ?? '',
-    sportIds: [...new Set([...(row?.sport_id ? [row.sport_id] : []), ...selected])],
+    // No longer seeded with the profile's sport_id: that column is now the
+    // coach's primary SPECIALTY, kept in step with coach_sports by a trigger.
+    // Folding it in here put what someone teaches into what they do.
+    sportIds: [...new Set(selected)],
     city: account.data!.city ?? '',
     // A failed lookup means unknown, and unknown must not read as "sharing":
     // claiming to hold a position we may not hold is the worse error. The RPC
@@ -219,8 +234,14 @@ export async function saveMyProfile(profile: Profile) {
   // Sign-up was unaffected because applySignup upserts with ignoreDuplicates,
   // which compiles to ON CONFLICT DO NOTHING and never updates.
   const table = profile.role === 'coach' ? 'coach_profiles' : 'partner_profiles';
+  // sport_id is absent for a coach: `sync_coach_primary_sport` writes it from
+  // whatever sits at position 0 in coach_sports, so sending it here would be a
+  // second writer for one value.
+  // A coach's headline, level and specialties belong to Coaching settings and
+  // are written there. Sending them from here as well would mean two screens
+  // owning one value, and whichever saved last would win.
   const fields = profile.role === 'coach'
-    ? { bio: profile.bio.trim(), sport_id: profile.sportIds[0] ?? null, headline: profile.headline.trim(), level: profile.level.trim() }
+    ? { bio: profile.bio.trim() }
     : { bio: profile.bio.trim(), sport_id: profile.sportIds[0] ?? null };
   const updated = await supabase.from(table).update(fields).eq('user_id', appId).select('user_id');
   if (updated.error) throw updated.error;

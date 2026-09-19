@@ -112,6 +112,58 @@ export async function isCoach(): Promise<boolean> {
  *  subscription server-side, and `refreshRole()` then reports COACH. There is
  *  no client-side role switch, and there should not be -- the role is derived
  *  from what the account owns. */
+/** What a coach teaches, and how experienced they are at it.
+ *
+ *  Lives with the rest of the coaching settings rather than in Edit profile:
+ *  Edit profile is who you are, this is what you sell. `sport_id` is not
+ *  written here -- `sync_coach_primary_sport` derives it from whatever sits
+ *  first in coach_sports, so sending it too would be a second writer for one
+ *  value.
+ */
+export type CoachBasics = { headline: string; level: string; teachingIds: string[] };
+
+export async function fetchCoachBasics(): Promise<CoachBasics> {
+  const { appId } = await realProfileIdentity();
+  const [profile, teaching] = await Promise.all([
+    supabase.from('coach_profiles').select('headline, level').eq('user_id', appId).maybeSingle(),
+    supabase.from('coach_sports').select('sport_id, position').eq('coach_id', appId).order('position'),
+  ]);
+  if (profile.error) throw profile.error;
+  if (teaching.error) throw teaching.error;
+  return {
+    headline: profile.data?.headline ?? '',
+    level: profile.data?.level ?? '',
+    teachingIds: ((teaching.data ?? []) as { sport_id: string }[]).map((row) => row.sport_id),
+  };
+}
+
+export async function saveCoachBasics(basics: CoachBasics): Promise<void> {
+  const { appId } = await realProfileIdentity();
+  const written = await supabase.from('coach_profiles')
+    .update({ headline: basics.headline.trim(), level: basics.level.trim() })
+    .eq('user_id', appId);
+  if (written.error) throw written.error;
+
+  // A diff, not delete-then-insert: a wholesale delete would briefly leave the
+  // coach teaching nothing, and the trigger would null their primary sport and
+  // drop them out of Discover mid-save.
+  const current = await supabase.from('coach_sports').select('sport_id').eq('coach_id', appId);
+  if (current.error) throw current.error;
+  const gone = ((current.data ?? []) as { sport_id: string }[])
+    .map((row) => row.sport_id)
+    .filter((id) => !basics.teachingIds.includes(id));
+  if (gone.length) {
+    const removed = await supabase.from('coach_sports').delete().eq('coach_id', appId).in('sport_id', gone);
+    if (removed.error) throw removed.error;
+  }
+  if (!basics.teachingIds.length) return;
+  // The upsert carries position too: order IS the meaning, so a reorder with no
+  // additions still has to be written.
+  const rows = basics.teachingIds.map((sport_id, position) => ({ coach_id: appId, sport_id, position }));
+  const saved = await supabase.from('coach_sports').upsert(rows, { onConflict: 'coach_id,sport_id' });
+  if (saved.error) throw saved.error;
+}
+
 export async function becomeCoach(headline: string): Promise<void> {
   const { appId } = await realProfileIdentity();
   const { error } = await supabase.from('coach_profiles').insert({

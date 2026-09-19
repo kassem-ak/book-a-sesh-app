@@ -58,6 +58,7 @@ type RemoteCoach = {
   level?: string | null;
   price_cents?: number | null;
   reply_time?: string | null;
+  coach_sports?: { position?: number | null; sport?: { name?: string | null } | { name?: string | null }[] | null }[] | null;
   sessions_count?: number | null;
   rating_avg?: number | string | null;
   reviews_count?: number | null;
@@ -87,6 +88,10 @@ function fromRemoteCoach(row: RemoteCoach): GeoPerson {
     .filter((pkg) => pkg.id && pkg.price >= 0)
     .sort((a, b) => a.sessions - b.sessions);
   const headline = row.headline ?? row.level ?? 'Coach';
+  const teaches = [...(row.coach_sports ?? [])]
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .map((entry) => firstRelated(entry.sport)?.name)
+    .filter((name): name is string => Boolean(name));
   const coordinates = parseGeoPoint(row.location ?? row);
   return {
     id: row.user_id,
@@ -102,7 +107,15 @@ function fromRemoteCoach(row: RemoteCoach): GeoPerson {
     sessions: String(row.sessions_count ?? 0),
     reply: row.reply_time ?? '',
     bio: row.bio ?? row.headline ?? '',
-    tags: [...new Set([...(firstRelated(row.user)?.profile_tags ?? []).map((tag) => tag.tag), headline, sport].filter(Boolean))],
+    // What they teach and what they do are now two lists. `tags` keeps its old
+    // meaning of "everything about this person" for search and the card, and
+    // the profile screen reads the two below so it can label them honestly --
+    // a swimming coach who plays chess no longer advertises chess coaching.
+    teaches,
+    plays: (firstRelated(row.user)?.profile_tags ?? [])
+      .map((tag) => tag.tag)
+      .filter((tag) => !teaches.includes(tag)),
+    tags: [...new Set([...(firstRelated(row.user)?.profile_tags ?? []).map((tag) => tag.tag), ...teaches, headline, sport].filter(Boolean))],
     isCoach: true,
     packages,
     coordinates,
@@ -125,7 +138,7 @@ export async function fetchCoaches(sort: DiscoverSort = 'rating') {
       : { column: 'rating_avg', ascending: false };
   const { data, error } = await supabase
     .from('coach_profiles')
-    .select('user_id, headline, bio, level, price_cents, reply_time, sessions_count, rating_avg, reviews_count, boosted, user:users(name, avatar_url, profile_tags(tag)), sport:sports(name)')
+    .select('user_id, headline, bio, level, price_cents, reply_time, sessions_count, rating_avg, reviews_count, boosted, user:users(name, avatar_url, profile_tags(tag)), sport:sports(name), coach_sports(position, sport:sports(name))')
     .order(order.column, { ascending: order.ascending });
   if (error) throw error;
 

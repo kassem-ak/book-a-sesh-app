@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Field, Icon, Row, SectionHeading, Toggle, VoltButton } from '../components/ui';
-import { becomeCoach, isCoach } from '../lib/coaching';
+import { becomeCoach, CoachBasics, fetchCoachBasics, isCoach, saveCoachBasics } from '../lib/coaching';
+import { SportsPicker } from '../components/SportsPicker';
 import {
   addPromo, CoachPricing, fetchMyPricing, money, parseMoney, Promo, removePackage,
   removePromo, savePackage, SessionPackage, setPackageActive, setPromoActive, setSessionRate,
@@ -32,6 +33,7 @@ export function CoachingOverlay() {
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
+  const [basics, setBasics] = useState<CoachBasics | null>(null);
   const [pricing, setPricing] = useState<CoachPricing | null>(null);
   const [rate, setRate] = useState('');
   const [pkgSessions, setPkgSessions] = useState('');
@@ -49,9 +51,10 @@ export function CoachingOverlay() {
       if (!active) return;
       setCoach(mine);
       if (mine) {
-        const current = await fetchMyPricing();
+        const [current, coachBasics] = await Promise.all([fetchMyPricing(), fetchCoachBasics()]);
         if (!active) return;
         setPricing(current);
+        setBasics(coachBasics);
         setRate(current.rateCents ? money(current.rateCents) : '');
       }
     })().catch((e) => { if (active) setError(errorMessage(e)); });
@@ -93,6 +96,20 @@ export function CoachingOverlay() {
     } finally { setBusy(false); }
   };
 
+  // Subject and experience save together: they are one answer to "what do you
+  // coach, and how well", and a screen with two Save buttons a centimetre apart
+  // invites pressing the wrong one.
+  const saveBasics = () => {
+    if (!basics) return;
+    void priced(async () => {
+      await saveCoachBasics(basics);
+      track('coach_basics_saved');
+      // Discover reads the primary specialty and the headline, so the cached
+      // people list is stale the moment either changes.
+      s.set('profileRevision', s.profileRevision + 1);
+    });
+  };
+
   const saveRate = () => {
     const cents = parseMoney(rate);
     if (cents === null) { setError('Enter a rate like 45 or 45.50.'); return; }
@@ -127,8 +144,8 @@ export function CoachingOverlay() {
   };
 
   return (
-    <OverlayScaffold header={<OverlayHeader title="Coaching" onBack={s.closeOverlay}
-      subtitle={coach ? 'Your prices' : 'Free for coaches and members'} />}>
+    <OverlayScaffold header={<OverlayHeader title={coach ? 'Coaching settings' : 'Coaching'} onBack={s.closeOverlay}
+      subtitle={coach ? 'What you teach, and what it costs' : 'Free for coaches and members'} />}>
       <View style={{ paddingHorizontal: 18, gap: 16 }}>
         {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
         {coach === null && !error && (
@@ -153,6 +170,29 @@ export function CoachingOverlay() {
 
         {coach === true && (
           <>
+            <SectionHeading>What you teach</SectionHeading>
+            <Text style={[t.bodySm, { color: c.txt2 }]}>
+              Your coaching subjects. The first is the one you lead with — it is what people see in Discover and what they filter by.
+            </Text>
+            <Text style={[t.caption, { color: c.txt3 }]}>
+              This is separate from your own sports and hobbies, which live in Edit profile. You can teach one thing and play another.
+            </Text>
+            {basics && (
+              <SportsPicker
+                selected={basics.teachingIds}
+                onChange={(teachingIds) => setBasics({ ...basics, teachingIds })}
+                coach
+              />
+            )}
+
+            <SectionHeading>Your experience</SectionHeading>
+            <Field value={basics?.headline ?? ''} onChange={(headline) => basics && setBasics({ ...basics, headline })}
+              label="Coach headline" placeholder="Strength coach, 6 years" />
+            <Field value={basics?.level ?? ''} onChange={(level) => basics && setBasics({ ...basics, level })}
+              label="Your coaching level" placeholder="Level 3 certified · national squad" />
+            <VoltButton label="Save subject and experience" busy={busy} busyLabel="Saving…"
+              enabled={Boolean(basics) && !busy} onPress={saveBasics} />
+
             <SectionHeading>Your rate</SectionHeading>
             <Text style={[t.bodySm, { color: c.txt2 }]}>
               What one session with you costs. This is the price people see in Discover and on the Book button.

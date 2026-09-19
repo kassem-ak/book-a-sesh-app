@@ -93,18 +93,29 @@ test('a missing profile row falls back to INSERT, which may carry user_id', asyn
   assert.equal(row.user_id, APP_ID, 'user_id IS allowed on insert');
 });
 
-test('a coach saves headline and level, a member does not', async () => {
+test('a coach profile save touches only the bio -- not what they sell', async () => {
   const coach = harness({ profileRowExists: true });
   await coach.save({ ...PROFILE, role: 'coach', headline: 'Boxing coach', level: 'Pro' });
-  const coachBody = profileWrites(coach.calls).find((c) => c.method === 'PATCH').body;
-  assert.equal(coachBody.headline, 'Boxing coach');
-  assert.equal(coachBody.level, 'Pro');
+  const body = profileWrites(coach.calls).find((c) => c.method === 'PATCH').body;
+  assert.equal(body.bio, PROFILE.bio.trim());
+  // Headline, level and specialties belong to Coaching settings and are written
+  // there. Two screens owning one value means whichever saved last wins, and
+  // editing your bio would quietly revert your coaching subject.
+  assert.ok(!('headline' in body), 'headline belongs to Coaching settings');
+  assert.ok(!('level' in body), 'level belongs to Coaching settings');
+  // sport_id is derived by sync_coach_primary_sport from coach_sports; sending
+  // it here would be a second writer for one value.
+  assert.ok(!('sport_id' in body), 'the primary specialty is derived server-side');
+});
 
+test('a member still stores their primary interest as sport_id', async () => {
   const member = harness({ profileRowExists: true });
   await member.save(PROFILE);
-  const memberBody = profileWrites(member.calls).find((c) => c.method === 'PATCH').body;
-  assert.ok(!('headline' in memberBody), 'partner_profiles has no headline column');
-  assert.ok(!('level' in memberBody) || memberBody.level === undefined);
+  const body = profileWrites(member.calls).find((c) => c.method === 'PATCH').body;
+  // Members have no coach_sports row and no trigger, so partner_profiles keeps
+  // carrying the first interest itself.
+  assert.ok('sport_id' in body);
+  assert.ok(!('headline' in body), 'partner_profiles has no headline column');
 });
 
 test('the display name still reaches users', async () => {
