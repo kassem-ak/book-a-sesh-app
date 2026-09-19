@@ -134,7 +134,7 @@ export function ProfileScreen() {
         <RowDivider />
         <GroupRow
           icon="award"
-          title={role === 'COACH' ? 'Coaching sessions' : 'Become a coach'}
+          title={role === 'COACH' ? 'Coaching settings' : 'Become a coach'}
           body={role === 'COACH'
             ? 'What you teach, when you work, your rate and packages'
             : 'Free. Adds a coach profile so people can book you'}

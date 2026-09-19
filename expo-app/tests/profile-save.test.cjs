@@ -98,11 +98,11 @@ test('a coach profile save touches only the bio -- not what they sell', async ()
   await coach.save({ ...PROFILE, role: 'coach', headline: 'Boxing coach', level: 'Pro' });
   const body = profileWrites(coach.calls).find((c) => c.method === 'PATCH').body;
   assert.equal(body.bio, PROFILE.bio.trim());
-  // Headline, level and specialties belong to Coaching sessions and are written
+  // Headline, level and specialties belong to Coaching settings and are written
   // there. Two screens owning one value means whichever saved last wins, and
   // editing your bio would quietly revert your coaching subject.
-  assert.ok(!('headline' in body), 'headline belongs to Coaching sessions');
-  assert.ok(!('level' in body), 'level belongs to Coaching sessions');
+  assert.ok(!('headline' in body), 'headline belongs to Coaching settings');
+  assert.ok(!('level' in body), 'level belongs to Coaching settings');
   // sport_id is derived by sync_coach_primary_sport from coach_sports; sending
   // it here would be a second writer for one value.
   assert.ok(!('sport_id' in body), 'the primary specialty is derived server-side');
