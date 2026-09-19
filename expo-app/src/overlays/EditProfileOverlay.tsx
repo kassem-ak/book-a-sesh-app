@@ -224,7 +224,7 @@ export function EditProfileOverlay() {
           <SectionHeading>Sports and hobbies</SectionHeading>
           <Text style={[t.bodySm, { color: c.txt2 }]}>
             {profile.role === 'coach'
-              ? 'What you do yourself — not what you teach. Your coaching subjects live in Coaching settings.'
+              ? 'What you do yourself — not what you teach. Your coaching subjects live in Coaching sessions.'
               : 'What you play, train for or want to try.'}
           </Text>
           <SportsPicker selected={profile.sportIds} onChange={(sportIds) => setProfile({ ...profile, sportIds })} />

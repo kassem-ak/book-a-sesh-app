@@ -145,7 +145,7 @@ export function CoachingOverlay() {
   };
 
   return (
-    <OverlayScaffold header={<OverlayHeader title={coach ? 'Coaching settings' : 'Coaching'} onBack={s.closeOverlay}
+    <OverlayScaffold header={<OverlayHeader title={coach ? 'Coaching sessions' : 'Coaching'} onBack={s.closeOverlay}
       subtitle={coach ? 'What you teach, when, and what it costs' : 'Free for coaches and members'} />}>
       <View style={{ paddingHorizontal: 18, gap: 16 }}>
         {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
