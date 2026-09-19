@@ -136,7 +136,7 @@ export function ProfileScreen() {
           icon="award"
           title={role === 'COACH' ? 'Pricing and promotions' : 'Become a coach'}
           body={role === 'COACH'
-            ? 'Your rate, session packages, discount codes and certificates'
+            ? 'Your rate, session packages and discount codes'
             : 'Free. Adds a coach profile so people can book you'}
           onPress={() => s.set('overlay', 'coaching')}
         />

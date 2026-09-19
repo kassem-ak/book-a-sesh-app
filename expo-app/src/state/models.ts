@@ -210,8 +210,22 @@ export const coachPackageOptions = (p: Person): BookingPackageOption[] => {
       packageId: pkg.id,
       sessions: pkg.sessions,
     }));
-  if (realPackages.length > 0) return realPackages;
-  // Was `p.price ?? 30`, which quoted a price the coach never set. 0 means
-  // "no price on file"; the booking screen says so rather than printing $0.
-  return [{ name: 'Single session', price: p.price ?? 0, note: '1 session', packageId: null, sessions: 1 }];
+
+  // A coach who had defined any package lost the single session entirely:
+  // the packages replaced the fallback rather than joining it, so the only way
+  // to train with them once was to buy ten. Their per-session rate exists
+  // precisely to price one session, so it is always offered alongside.
+  const alreadyHasSingle = realPackages.some((pkg) => pkg.sessions === 1);
+  const rate = p.price ?? 0;
+  // Offered when the coach has actually set a rate. A 0 with packages present
+  // would be quoting a price nobody chose; with no packages at all it is the
+  // long-standing fallback, and the booking screen says "no price on file"
+  // rather than printing $0.
+  const offerSingle = !alreadyHasSingle && (rate > 0 || realPackages.length === 0);
+  if (!offerSingle) return realPackages;
+
+  return [
+    { name: 'Single session', price: rate, note: '1 session', packageId: null, sessions: 1 },
+    ...realPackages,
+  ];
 };
