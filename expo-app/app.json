@@ -69,7 +69,14 @@
           }
         }
       ],
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "color": "#0D0E11",
+          "defaultChannel": "default"
+        }
+      ]
     ],
     "experiments": {
       "baseUrl": "/"

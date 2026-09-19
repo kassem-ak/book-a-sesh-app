@@ -67,6 +67,9 @@ Deno.serve(async (req: Request) => {
     //    calendar_integrations holds OAuth tokens and must not linger.
     const personal: Array<[string, string]> = [
       ["calendar_integrations", "user_id"],
+      // A routing address for notifications. Left behind, a deleted account's
+      // phone keeps buzzing.
+      ["push_tokens", "user_id"],
       ["notification_prefs", "user_id"],
       ["profile_tags", "user_id"],
       ["user_goals", "user_id"],

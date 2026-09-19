@@ -15,3 +15,8 @@ supabase/.temp/
 
 # Build artifacts. The APK is ~165MB and is rebuilt from source; never commit it.
 /dist/
+
+# Local tooling output, not part of the app
+.serena/
+graphify-out/
+artifacts/
