@@ -30,6 +30,8 @@ export type AnalyticsEvent =
   | 'reported'
   | 'blocked'
   | 'unblocked'
+  | 'followed'
+  | 'unfollowed'
   | 'account_deleted'
   | 'render_crash'
   | 'write_failed';

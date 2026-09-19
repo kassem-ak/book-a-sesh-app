@@ -63,6 +63,8 @@ async function main() {
     } },
     '../lib/queries': queries, './models': {}, '../lib/courts': {},
     '../lib/moderation': {}, './courtsData': {}, './sampleData': load('state/sampleData.ts'),
+    // Following is not what this check exercises; stub it so the store loads.
+    '../lib/social': { fetchFollowedIds: async () => [], followPerson: async () => {}, unfollowPerson: async () => {} },
     // Analytics is a fire-and-forget seam; this check is about data flow, so a
     // no-op stub keeps it out of the way while still proving nothing calls it
     // with a signature it does not have.

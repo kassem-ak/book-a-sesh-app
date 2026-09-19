@@ -51,6 +51,7 @@ export function Root() {
         state.set('authUserId', null);
         state.set('role', 'USER');
         state.set('blockedIds', []);
+        state.set('followedIds', []);
         state.set('overlay', null);
         state.set('sheet', null);
         // Everything below is per-account. Leaving it behind showed the new
@@ -95,7 +96,7 @@ export function Root() {
       state.set('authLoc', profile.city);
       if (applied) state.set('mode', profile.role === 'coach' ? 'partners' : 'coaches');
       identify(profile.id);
-      await Promise.all([state.refreshRole(), state.refreshBlocked()]);
+      await Promise.all([state.refreshRole(), state.refreshBlocked(), state.refreshCircle()]);
     })().catch((error) => { if (active) setProfileError(errorMessage(error)); });
     return () => { active = false; };
   }, [authUid, profileAttempt]);

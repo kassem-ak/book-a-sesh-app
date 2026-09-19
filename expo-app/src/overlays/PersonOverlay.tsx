@@ -29,6 +29,7 @@ export function PersonOverlay() {
     }
   };
   const blocked = s.blockedIds.includes(p.id);
+  const following = s.followedIds.includes(p.id);
   const packageOptions = coachPackageOptions(p);
   const metrics = (p.isCoach
     ? [[Number(p.sessions) > 0 ? p.sessions : '', 'Sessions'], [p.reply === 'Not provided' ? '' : p.reply, 'Replies']]
@@ -37,14 +38,29 @@ export function PersonOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title={p.isCoach ? 'Coach' : 'Training partner'} onBack={s.closeOverlay} trailing={
-        <Pressable
-          onPress={messaging ? undefined : message}
-          accessibilityRole="button"
-          accessibilityLabel="Message this person"
-          accessibilityState={{ busy: messaging }}
-        >
-          <Icon name="message-square" size={22} color={c.txt2} />
-        </Pressable>
+        <Row gap={14} style={{ alignItems: 'center' }}>
+          {/* Blocking someone removes the follow server-side, so offering to
+              follow them here would be offering something the database
+              refuses. */}
+          {!blocked && (
+            <Pressable
+              onPress={() => void s.toggleFollow(p.id)}
+              accessibilityRole="button"
+              accessibilityLabel={following ? `Stop following ${p.name}` : `Follow ${p.name}`}
+              accessibilityState={{ selected: following, busy: s.writeBusy === 'follow' }}
+            >
+              <Icon name={following ? 'user-check' : 'user-plus'} size={22} color={following ? c.accent : c.txt2} />
+            </Pressable>
+          )}
+          <Pressable
+            onPress={messaging ? undefined : message}
+            accessibilityRole="button"
+            accessibilityLabel="Message this person"
+            accessibilityState={{ busy: messaging }}
+          >
+            <Icon name="message-square" size={22} color={c.txt2} />
+          </Pressable>
+        </Row>
       } />}
       bottomBar={
         <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
