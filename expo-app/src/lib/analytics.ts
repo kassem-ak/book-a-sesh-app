@@ -33,6 +33,8 @@ export type AnalyticsEvent =
   | 'followed'
   | 'unfollowed'
   | 'became_coach'
+  | 'partner_session_proposed'
+  | 'partner_session_answered'
   | 'certificate_added'
   | 'account_deleted'
   | 'render_crash'
