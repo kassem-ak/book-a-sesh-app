@@ -149,6 +149,12 @@ one.
 supabase functions deploy send-push --no-verify-jwt
 ```
 
+The function is already deployed, but with JWT verification **on** — the
+dashboard API has no flag for it. Until it is turned off, the trigger's call is
+rejected at the gateway before the function runs. Either run the command above
+(`supabase/config.toml` already pins `verify_jwt = false` for it), or switch it
+off in Dashboard → Edge Functions → `send-push` → Details.
+
 Generate one secret and give the same value to both sides:
 
 ```sql
