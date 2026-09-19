@@ -10,8 +10,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { analyticsErrorCode, track } from '../lib/analytics';
+import { CalendarItem, calendarWhen, fetchCalendar } from '../lib/calendar';
+import { decidePartnerSession } from '../lib/partners';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Card, Icon, Row, VoltButton } from '../components/ui';
+import { Card, Icon, MicroBadge, Row, SectionHeading, VoltButton } from '../components/ui';
 import {
   fetchCounterpart,
   fetchMessages,
@@ -301,6 +303,34 @@ export function NotificationsOverlay() {
   const [items, setItems] = React.useState<AppNotification[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [reloads, setReloads] = React.useState(0);
+  // The schedule sits above the inbox because it is what someone is usually
+  // here to check: what is happening, before what happened.
+  const [schedule, setSchedule] = React.useState<CalendarItem[] | null>(null);
+  const [answering, setAnswering] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    // A failed calendar read hides the section rather than taking the inbox
+    // down with it: they are two independent reads of two different things.
+    fetchCalendar()
+      .then((rows) => { if (alive) setSchedule(rows); })
+      .catch(() => { if (alive) setSchedule([]); });
+    return () => { alive = false; };
+  }, [reloads, s.authUid]);
+
+  async function answer(item: CalendarItem, status: 'accepted' | 'declined') {
+    setAnswering(item.id);
+    try {
+      await decidePartnerSession(item.id, status);
+      track('partner_session_answered');
+      setReloads((n) => n + 1);
+    } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
+      s.set('writeError', message(e, 'Could not answer that invitation.'));
+    } finally {
+      setAnswering(null);
+    }
+  }
 
   React.useEffect(() => {
     let alive = true;
@@ -371,6 +401,62 @@ export function NotificationsOverlay() {
       }
     >
       <View style={{ paddingHorizontal: 18, gap: 11 }}>
+        {schedule && schedule.length > 0 && (
+          <View style={{ gap: 8, marginBottom: 6 }}>
+            <SectionHeading>Your schedule</SectionHeading>
+            {schedule.map((item) => (
+              <Card key={`${item.kind}-${item.id}`} style={{ padding: 14, gap: 8 }}>
+                <Row gap={10} style={{ alignItems: 'center' }}>
+                  <Icon
+                    name={item.kind === 'event' ? 'calendar' : item.kind === 'partner' ? 'users' : 'award'}
+                    size={18}
+                    color={item.needsAnswer ? c.accent : c.txt3}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={1} style={[t.name, { color: c.txt }]}>{item.title}</Text>
+                    <Text style={[t.bodySm, { color: c.txt2 }]}>
+                      {calendarWhen(item.startsAt)}{item.detail ? ` · ${item.detail}` : ''}
+                    </Text>
+                  </View>
+                  {/* 'proposed' is the only status worth saying out loud: the
+                      rest are either the normal case or already filtered out
+                      server-side. */}
+                  {item.status === 'proposed' && !item.needsAnswer && (
+                    <MicroBadge label="Awaiting reply" bg={c.surface2} fg={c.txt2} />
+                  )}
+                </Row>
+                {item.needsAnswer && (
+                  <Row gap={10}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Accept ${item.title}`}
+                      accessibilityState={{ busy: answering === item.id }}
+                      disabled={answering !== null}
+                      onPress={() => void answer(item, 'accepted')}
+                      style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center',
+                        borderRadius: 12, backgroundColor: c.volt }}
+                    >
+                      <Text style={[t.labelSm, { color: c.ink }]}>Accept</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Decline ${item.title}`}
+                      accessibilityState={{ busy: answering === item.id }}
+                      disabled={answering !== null}
+                      onPress={() => void answer(item, 'declined')}
+                      style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center',
+                        borderRadius: 12, borderWidth: 1, borderColor: c.line }}
+                    >
+                      <Text style={[t.labelSm, { color: c.txt2 }]}>Decline</Text>
+                    </Pressable>
+                  </Row>
+                )}
+              </Card>
+            ))}
+            <SectionHeading>Activity</SectionHeading>
+          </View>
+        )}
+
         {items === null ? (
           <LoadingCard label="Loading notifications…" />
         ) : error ? (
@@ -380,7 +466,8 @@ export function NotificationsOverlay() {
             onRetry={() => { setItems(null); setReloads((n) => n + 1); }}
           />
         ) : items.length === 0 ? (
-          <EmptyCard icon="bell" title="You’re all caught up" detail="Booking updates land here." />
+          <EmptyCard icon="bell" title="You’re all caught up"
+            detail="Bookings, co-training invitations and anything new from the people you follow land here." />
         ) : (
           items.map((n) => <NotifCard key={n.id} notification={n} onPress={() => openOne(n)} />)
         )}
