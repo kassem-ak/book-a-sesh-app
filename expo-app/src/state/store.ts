@@ -48,6 +48,7 @@ import {
   reserveCourt,
 } from '../lib/courts';
 import { blockUser, fetchBlockedUsers, unblockUser } from '../lib/moderation';
+import { fetchFollowedIds, followPerson, unfollowPerson } from '../lib/social';
 import { RsvpRef, rsvpSubject } from './courtsData';
 import * as D from './sampleData';
 
@@ -471,6 +472,10 @@ export interface SpotterState {
   blockedIds: string[];
   refreshBlocked(): Promise<void>;
   toggleBlock(userId: string): Promise<void>;
+  /** People this account follows. Drives the Follow button and the feed. */
+  followedIds: string[];
+  refreshCircle(): Promise<void>;
+  toggleFollow(userId: string): Promise<void>;
   loadVenues(): Promise<void>;
   refreshCourtReservations(): Promise<void>;
   rsvpTotal(): number;
@@ -542,6 +547,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   modules: [],
   role: 'USER',
   blockedIds: [],
+  followedIds: [],
   signupIntent: null,
   signupSports: [],
   isDark: true,
@@ -1010,6 +1016,30 @@ export const useStore = create<SpotterState>((set, get) => ({
       /* offline or unauthenticated - keep whatever we already had */
     }
   },
+  refreshCircle: async () => {
+    const uid = get().authUid;
+    try {
+      const followedIds = await fetchFollowedIds();
+      // The account can change while this is in flight; writing the previous
+      // account's circle over the new one would show the wrong Follow states.
+      if (get().authUid === uid) set({ followedIds });
+    } catch {
+      /* offline or unauthenticated - keep whatever we already had */
+    }
+  },
+  toggleFollow: async (userId) => {
+    const following = get().followedIds.includes(userId);
+    set({ writeBusy: 'follow', writeError: null });
+    try {
+      if (following) await unfollowPerson(userId);
+      else await followPerson(userId);
+      track(following ? 'unfollowed' : 'followed');
+      await get().refreshCircle();
+      set({ writeBusy: null });
+    } catch (error) {
+      set(errorState(error));
+    }
+  },
   toggleBlock: async (userId) => {
     const blocked = get().blockedIds.includes(userId);
     set({ writeBusy: 'block', writeError: null });
@@ -1017,7 +1047,10 @@ export const useStore = create<SpotterState>((set, get) => ({
       if (blocked) await unblockUser(userId);
       else await blockUser(userId);
       track(blocked ? 'unblocked' : 'blocked');
-      await get().refreshBlocked();
+      // A block drops the follow in both directions (trg_drop_follows_on_block),
+      // so the local copy has to be re-read or the button keeps saying
+      // "Following" for someone who is no longer followed.
+      await Promise.all([get().refreshBlocked(), get().refreshCircle()]);
       set({ writeBusy: null });
     } catch (error) {
       set(errorState(error));

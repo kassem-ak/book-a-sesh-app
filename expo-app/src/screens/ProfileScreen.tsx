@@ -138,6 +138,14 @@ export function ProfileScreen() {
         />
         <RowDivider />
         <GroupRow
+          icon="user-check"
+          title="Your circle"
+          body="Coaches and partners you follow"
+          badge={s.followedIds.length > 0 ? String(s.followedIds.length) : undefined}
+          onPress={() => s.set('overlay', 'circle')}
+        />
+        <RowDivider />
+        <GroupRow
           icon="bell"
           title="Notifications"
           body="Booking updates"
