@@ -50,6 +50,23 @@ export async function shareMyLocation(point: GeoPoint, level: ShareLevel): Promi
   if (error) throw error;
 }
 
+/** Write the area on its own.
+ *
+ *  Narrow on purpose. The area is derived from a position the person just
+ *  agreed to share, and that position is already written immediately -- so the
+ *  name of the place has to be written immediately too, or the profile would
+ *  claim one area while the map showed another until the next Save. Saving the
+ *  whole draft here would instead commit the half-typed bio sitting next to it.
+ */
+export async function setMyArea(city: string): Promise<void> {
+  const { appId } = await realProfileIdentity();
+  const trimmed = city.trim();
+  const { error } = await supabase.from('users')
+    .update({ city: trimmed || null })
+    .eq('id', appId);
+  if (error) throw error;
+}
+
 /** Change how precisely an already-shared position is shown. */
 export async function setMyShareLevel(level: ShareLevel): Promise<void> {
   const { appId } = await realProfileIdentity();
