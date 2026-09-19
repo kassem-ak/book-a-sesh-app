@@ -6,6 +6,7 @@ import { coachPackageOptions } from '../state/models';
 import { fetchCoachAvailability, fetchPackageUsage, PackageUsage } from '../lib/queries';
 import { track } from '../lib/analytics';
 import * as D from '../state/sampleData';
+import { fetchBlackouts } from '../lib/availability';
 import { bookingDayLabel, SCHED_TIMES, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -37,8 +38,17 @@ export type BookableDay = { date: string; day: string; dow: string; slots: strin
  *  every day at suggested times rather than hiding the coach.
  *
  *  Today keeps only slots still ahead: the server accepts today, but offering
- *  a 6:30 AM session at 8 PM is offering something that cannot happen. */
-export function bookableDays(week: Record<number, string[]> | null, now: Date = new Date()): BookableDay[] {
+ *  a 6:30 AM session at 8 PM is offering something that cannot happen.
+ *
+ *  `closed` is the coach's days off, which beat the weekly schedule. The RPC
+ *  refuses them too -- this is so the client does not offer a day that would be
+ *  refused, not the thing that makes the refusal true. */
+export function bookableDays(
+  week: Record<number, string[]> | null,
+  now: Date = new Date(),
+  closed: string[] = [],
+): BookableDay[] {
+  const off = new Set(closed);
   const out: BookableDay[] = [];
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
@@ -46,12 +56,14 @@ export function bookableDays(week: Record<number, string[]> | null, now: Date = 
   for (let i = 0; i < DAYS_AHEAD; i += 1) {
     const date = new Date(start);
     date.setDate(start.getDate() + i);
+    const key = localDay(date);
+    if (off.has(key)) continue;
     const weekday = (date.getDay() + 6) % 7;
     let slots = byTime(week ? week[weekday] ?? [] : D.slotDefs);
     if (i === 0) slots = slots.filter((slot) => minutesInto(slot) > elapsed);
     if (!slots.length) continue;
     out.push({
-      date: localDay(date),
+      date: key,
       day: String(date.getDate()),
       dow: date.toLocaleDateString(undefined, { weekday: 'short' }),
       slots,
@@ -78,6 +90,7 @@ export function BookingOverlay() {
   // undefined while the coach's schedule is still loading, null once we know
   // they have not set one.
   const [week, setWeek] = React.useState<Record<number, string[]> | null | undefined>(undefined);
+  const [closed, setClosed] = React.useState<string[]>([]);
   const [bookingQuote, setBookingQuote] = React.useState<{ redeeming: boolean; dueNow: number } | null>(null);
   const personId = p?.id;
   React.useEffect(() => {
@@ -98,10 +111,20 @@ export function BookingOverlay() {
       (rows) => { if (live) setWeek(rows); },
       () => { if (live) setWeek(null); },
     );
+    // Days off are a second, independent read. A failure here must not hide the
+    // coach: the RPC refuses a closed date anyway, so the worst case is an
+    // offered day that comes back with a clear message.
+    fetchBlackouts(personId).then(
+      (dates) => { if (live) setClosed(dates); },
+      () => { if (live) setClosed([]); },
+    );
     return () => { live = false; };
   }, [personId]);
 
-  const days = React.useMemo(() => (week === undefined ? [] : bookableDays(week)), [week]);
+  const days = React.useMemo(
+    () => (week === undefined ? [] : bookableDays(week, new Date(), closed)),
+    [week, closed],
+  );
   const bookDate = useStore((state) => state.bookDate);
   const bookSlot = useStore((state) => state.bookSlot);
   const chosen = days.find((entry) => entry.date === bookDate) ?? null;

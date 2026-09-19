@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Field, Icon, Row, SectionHeading, Toggle, VoltButton } from '../components/ui';
 import { becomeCoach, CoachBasics, fetchCoachBasics, isCoach, saveCoachBasics } from '../lib/coaching';
+import { CoachAvailability } from '../components/CoachAvailability';
 import { SportsPicker } from '../components/SportsPicker';
 import {
   addPromo, CoachPricing, fetchMyPricing, money, parseMoney, Promo, removePackage,
@@ -145,7 +146,7 @@ export function CoachingOverlay() {
 
   return (
     <OverlayScaffold header={<OverlayHeader title={coach ? 'Coaching settings' : 'Coaching'} onBack={s.closeOverlay}
-      subtitle={coach ? 'What you teach, and what it costs' : 'Free for coaches and members'} />}>
+      subtitle={coach ? 'What you teach, when, and what it costs' : 'Free for coaches and members'} />}>
       <View style={{ paddingHorizontal: 18, gap: 16 }}>
         {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
         {coach === null && !error && (
@@ -192,6 +193,8 @@ export function CoachingOverlay() {
               label="Your coaching level" placeholder="Level 3 certified · national squad" />
             <VoltButton label="Save subject and experience" busy={busy} busyLabel="Saving…"
               enabled={Boolean(basics) && !busy} onPress={saveBasics} />
+
+            <CoachAvailability />
 
             <SectionHeading>Your rate</SectionHeading>
             <Text style={[t.bodySm, { color: c.txt2 }]}>
