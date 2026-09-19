@@ -138,7 +138,7 @@ export async function fetchCoaches(sort: DiscoverSort = 'rating') {
       : { column: 'rating_avg', ascending: false };
   const { data, error } = await supabase
     .from('coach_profiles')
-    .select('user_id, headline, bio, level, price_cents, reply_time, sessions_count, rating_avg, reviews_count, boosted, user:users(name, avatar_url, profile_tags(tag)), sport:sports(name), coach_sports(position, sport:sports(name))')
+    .select('user_id, headline, bio, level, price_cents, reply_time, sessions_count, rating_avg, reviews_count, boosted, user:users(name, avatar_url, profile_tags(tag)), sport:sports!coach_profiles_sport_id_fkey(name), coach_sports(position, sport:sports(name))')
     .order(order.column, { ascending: order.ascending });
   if (error) throw error;
 
