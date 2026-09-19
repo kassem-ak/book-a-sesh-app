@@ -51,6 +51,9 @@ export function Root() {
         state.set('authAvatarUrl', null);
         state.set('authUserId', null);
         state.set('role', 'USER');
+        // Per-account, like the role beside it: the previous account's coaching
+        // screens must not be on offer to the next one.
+        state.set('isCoach', false);
         state.set('blockedIds', []);
         state.set('followedIds', []);
         state.set('overlay', null);

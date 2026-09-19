@@ -465,18 +465,34 @@ export async function addCoupon(shopId: string, code: string, pct: number) {
 // coach tools. Legacy subscription dates must not gate the free base model.
 export type AccountRole = 'USER' | 'COACH' | 'ADMIN';
 
-export async function fetchAccountRole(): Promise<AccountRole> {
+/** What this account is on the platform, and whether it coaches.
+ *
+ *  Two separate facts. They used to be one value, and 'ADMIN' returned before
+ *  the coach lookup ran -- so an admin who is also a coach was never 'COACH',
+ *  and their own profile offered to make them one. Being trusted to moderate
+ *  the platform says nothing about whether you teach on it.
+ */
+export type AccountStanding = { role: AccountRole; isCoach: boolean };
+
+export async function fetchAccountStanding(): Promise<AccountStanding> {
   await ensureAppSession();
   // Read through the RPC, not the table: the client has no SELECT on
   // public.users (it holds emails and is_admin), and must not get one.
   const role = await callRpc<string>('my_account_role');
-  if (role === 'ADMIN') return 'ADMIN';
+  const admin = role === 'ADMIN';
+
   const { data: session } = await supabase.auth.getSession();
-  if (!session.session?.user || session.session.user.is_anonymous) return 'USER';
+  if (!session.session?.user || session.session.user.is_anonymous) {
+    return { role: admin ? 'ADMIN' : 'USER', isCoach: false };
+  }
+
   const me = await currentAppUserId();
   const { data: coach, error } = await supabase.from('coach_profiles').select('user_id').eq('user_id', me).maybeSingle();
   if (error) throw error;
-  return coach ? 'COACH' : 'USER';
+  const isCoach = Boolean(coach);
+  // 'COACH' is kept for anyone reading the single value, but it is the weaker
+  // of the two: admin wins the badge, and `isCoach` is what coaching UI asks.
+  return { role: admin ? 'ADMIN' : isCoach ? 'COACH' : 'USER', isCoach };
 }
 
 export type PackageUsage = Record<string, { used: number; total: number }>;

@@ -12,6 +12,8 @@ export function ProfileScreen() {
   const { c, t } = useTheme();
   const s = useStore();
   const role = s.role;
+  // Coaching UI asks `isCoach`, never `role`: an admin who coaches is 'ADMIN'.
+  const isCoach = s.isCoach;
   const joinedCount = s.joinedCommunities.length;
   // Identity is whatever the signed-in account says it is, never a sample
   // person's. An account that has not set a name yet renders neutrally.
@@ -78,7 +80,7 @@ export function ProfileScreen() {
             <Row gap={7} style={{ marginTop: 8 }}>
               {role === 'ADMIN' ? (
                 <MicroBadge label="Admin" bg={alpha(c.danger, 0.14)} fg={c.danger} />
-              ) : role === 'COACH' ? (
+              ) : isCoach ? (
                 <MicroBadge label="Coach" bg={alpha(c.volt, 0.14)} fg={c.accent} />
               ) : (
                 <MicroBadge label="Member" bg={alpha(c.volt, 0.12)} fg={c.accent} />
@@ -94,7 +96,7 @@ export function ProfileScreen() {
       </Card>}
 
       {/* coach tools — free for every coach */}
-      {role === 'COACH' && (
+      {isCoach && (
         <>
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Coach tools</SectionHeading>
           <Card>
@@ -134,8 +136,8 @@ export function ProfileScreen() {
         <RowDivider />
         <GroupRow
           icon="award"
-          title={role === 'COACH' ? 'Coaching settings' : 'Become a coach'}
-          body={role === 'COACH'
+          title={isCoach ? 'Coaching settings' : 'Become a coach'}
+          body={isCoach
             ? 'What you teach, when you work, your rate and packages'
             : 'Free. Adds a coach profile so people can book you'}
           onPress={() => s.set('overlay', 'coaching')}
@@ -176,7 +178,7 @@ export function ProfileScreen() {
           reachable from this build. */}
       <Card style={{ marginTop: 10, paddingHorizontal: 15 }}>
         {/* My day view — coaches only */}
-        {role === 'COACH' && (
+        {isCoach && (
           <>
             <GroupRow
               icon="sun"

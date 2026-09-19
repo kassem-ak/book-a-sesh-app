@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import {
   approveSuggestion as approveSuggestionRemote,
-  fetchAccountRole,
+  fetchAccountStanding,
   checkoutShopOrder as checkoutShopOrderRemote,
   createBooking as createBookingRemote,
   createCommunity as createCommunityRemote,
@@ -221,6 +221,12 @@ export interface SpotterState {
    */
   modules: string[];
   role: Role;
+  /** Whether this account has a coach profile.
+   *
+   *  Separate from `role` on purpose: an admin who also coaches is 'ADMIN',
+   *  and coaching UI must not disappear because somebody was made a moderator.
+   */
+  isCoach: boolean;
   /** What the user said they were at signup. Intent only, never a grant. */
   signupIntent: 'coach' | 'trainee' | null;
   signupSports: string[];
@@ -546,6 +552,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   tab: 'discover',
   modules: [],
   role: 'USER',
+  isCoach: false,
   blockedIds: [],
   followedIds: [],
   signupIntent: null,
@@ -1001,8 +1008,8 @@ export const useStore = create<SpotterState>((set, get) => ({
   refreshRole: async () => {
     const uid = get().authUid;
     try {
-      const role = await fetchAccountRole();
-      if (get().authUid === uid) set({ role });
+      const { role, isCoach } = await fetchAccountStanding();
+      if (get().authUid === uid) set({ role, isCoach });
     } catch {
       /* offline or unauthenticated - keep whatever we already had */
     }
