@@ -32,6 +32,8 @@ export type AnalyticsEvent =
   | 'unblocked'
   | 'followed'
   | 'unfollowed'
+  | 'became_coach'
+  | 'certificate_added'
   | 'account_deleted'
   | 'render_crash'
   | 'write_failed';

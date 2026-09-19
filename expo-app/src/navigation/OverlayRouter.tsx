@@ -1,6 +1,7 @@
 import React from 'react';
 import { useStore } from '../state/store';
 import { CircleOverlay } from '../overlays/CircleOverlay';
+import { CoachingOverlay } from '../overlays/CoachingOverlay';
 import { EditProfileOverlay } from '../overlays/EditProfileOverlay';
 import { MyCommunitiesOverlay } from '../overlays/MyCommunitiesOverlay';
 import { CommunityProfileOverlay } from '../overlays/CommunityProfileOverlay';
@@ -35,6 +36,8 @@ export function OverlayRouter({ id }: { id: string }) {
       return <EditProfileOverlay />;
     case 'communityProfile':
       return <CommunityProfileOverlay />;
+    case 'coaching':
+      return <CoachingOverlay />;
     case 'circle':
       return <CircleOverlay />;
     case 'myCommunities':

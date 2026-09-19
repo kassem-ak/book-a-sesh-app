@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Image, Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, Icon, Row, SectionHeading, Stars, VoltButton } from '../components/ui';
+import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Stars, VoltButton } from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
+import { Certification, fetchCertifications } from '../lib/coaching';
 import { startConversation } from '../lib/chat';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { useStore } from '../state/store';
@@ -13,6 +14,26 @@ export function PersonOverlay() {
   const s = useStore();
   const [messaging, setMessaging] = useState(false);
   const p = s.personById(s.openId);
+
+  // EVERY hook runs before the missing-person return below. Root replaces the
+  // people list on refresh, so `p` can go from defined to undefined while this
+  // overlay is open; a hook after the early return changes the hook count
+  // between renders and React throws, dropping the whole app to the error
+  // screen. BookingOverlay was fixed for exactly this and carries the same note.
+  //
+  // Credentials are extra detail, not the profile itself: a failed read leaves
+  // the section absent rather than taking the whole profile down.
+  const [certs, setCerts] = useState<Certification[]>([]);
+  const coachId = p?.isCoach ? p.id : null;
+  useEffect(() => {
+    if (!coachId) { setCerts([]); return; }
+    let active = true;
+    fetchCertifications(coachId)
+      .then((rows) => { if (active) setCerts(rows); })
+      .catch(() => { if (active) setCerts([]); });
+    return () => { active = false; };
+  }, [coachId]);
+
   if (!p) return <MissingSubject title="Profile" message="This profile is no longer available." onBack={s.closeOverlay} />;
 
   // start_conversation reuses an existing thread, so tapping twice is safe.
@@ -114,6 +135,39 @@ export function PersonOverlay() {
               </View>
             ))}
           </Row>
+        </>}
+
+        {p.isCoach && certs.length > 0 && <>
+          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Certificates</SectionHeading>
+          <View style={{ gap: 10 }}>
+            {certs.map((cert) => (
+              <Card key={cert.id} style={{ padding: 0, overflow: 'hidden' }}>
+                {cert.fileUrl && (
+                  <Image source={{ uri: cert.fileUrl }} accessibilityIgnoresInvertColors
+                    accessibilityLabel={`${cert.name} certificate`}
+                    style={{ width: '100%', height: 150, backgroundColor: c.surface }} resizeMode="cover" />
+                )}
+                <Row gap={10} style={{ alignItems: 'center', padding: 14 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[t.name, { color: c.txt }]}>{cert.name}</Text>
+                    {(cert.issuer || cert.year) && (
+                      <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>
+                        {[cert.issuer, cert.year].filter(Boolean).join(' · ')}
+                      </Text>
+                    )}
+                  </View>
+                  {/* Only an admin-approved certificate is called verified. An
+                      unreviewed one still shows -- hiding it would lose a real
+                      credential -- but it says what it is. */}
+                  <MicroBadge
+                    label={cert.status === 'approved' ? 'Verified' : 'Not yet reviewed'}
+                    bg={cert.status === 'approved' ? c.volt : c.surface2}
+                    fg={cert.status === 'approved' ? c.ink : c.txt2}
+                  />
+                </Row>
+              </Card>
+            ))}
+          </View>
         </>}
 
         {p.isCoach && (

@@ -138,6 +138,15 @@ export function ProfileScreen() {
         />
         <RowDivider />
         <GroupRow
+          icon="award"
+          title={role === 'COACH' ? 'Coaching and certificates' : 'Become a coach'}
+          body={role === 'COACH'
+            ? 'Your credentials, shown on your public profile'
+            : 'Free. Adds a coach profile so people can book you'}
+          onPress={() => s.set('overlay', 'coaching')}
+        />
+        <RowDivider />
+        <GroupRow
           icon="user-check"
           title="Your circle"
           body="Coaches and partners you follow"
