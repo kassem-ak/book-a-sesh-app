@@ -40,7 +40,7 @@ export async function fetchCircle(): Promise<CirclePerson[]> {
   // client has no view for; the lists are a person's own circle, so they are
   // short by nature.
   const [coaches, partners] = await Promise.all([
-    supabase.from('coach_profiles').select('user_id, sport:sports(name)').in('user_id', ids),
+    supabase.from('coach_profiles').select('user_id, sport:sports!coach_profiles_sport_id_fkey(name)').in('user_id', ids),
     supabase.from('partner_profiles').select('user_id, sport:sports(name)').in('user_id', ids),
   ]);
   if (coaches.error) throw coaches.error;
