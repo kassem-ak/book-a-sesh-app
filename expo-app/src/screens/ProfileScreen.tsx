@@ -134,9 +134,9 @@ export function ProfileScreen() {
         <RowDivider />
         <GroupRow
           icon="award"
-          title={role === 'COACH' ? 'Pricing and promotions' : 'Become a coach'}
+          title={role === 'COACH' ? 'Coaching settings' : 'Become a coach'}
           body={role === 'COACH'
-            ? 'Your rate, session packages and discount codes'
+            ? 'What you teach, your experience, rate and packages'
             : 'Free. Adds a coach profile so people can book you'}
           onPress={() => s.set('overlay', 'coaching')}
         />

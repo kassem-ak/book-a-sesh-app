@@ -12,7 +12,13 @@ export interface Person {
   sessions: string;
   reply: string;
   bio: string;
+  /** Everything about this person, for search and the card. */
   tags: string[];
+  /** A coach's subjects, in the order they lead with. Empty for members. */
+  teaches?: string[];
+  /** Sports and hobbies they do themselves, minus anything they teach --
+   *  repeating a subject under both headings says nothing. */
+  plays?: string[];
   goal?: string;
   isCoach: boolean;
   packages?: CoachPkg[];

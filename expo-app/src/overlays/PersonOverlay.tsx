@@ -7,7 +7,7 @@ import { Certification, fetchCertifications } from '../lib/coaching';
 import { startConversation } from '../lib/chat';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { useStore } from '../state/store';
-import { useTheme } from '../theme';
+import { alpha, useTheme } from '../theme';
 
 export function PersonOverlay() {
   const { c, t } = useTheme();
@@ -137,16 +137,15 @@ export function PersonOverlay() {
           <Text style={[t.bodyLg, { color: c.soft, lineHeight: 22 }]}>{p.bio}</Text>
         </>}
 
-        {p.tags.length > 0 && <>
-          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>{p.isCoach ? 'Specialties' : 'Looking for'}</SectionHeading>
-          <Row style={{ flexWrap: 'wrap' }} gap={8}>
-            {p.tags.map((tag) => (
-              <View key={tag} style={{ borderRadius: 999, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 8 }}>
-                <Text style={[t.labelSm, { color: c.strong }]}>{tag}</Text>
-              </View>
-            ))}
-          </Row>
-        </>}
+        {/* Two lists, two headings. They used to be one, so a swimming coach
+            who plays chess advertised chess coaching. The first pill is the
+            subject they lead with, which is also what Discover filters on. */}
+        {p.isCoach && (p.teaches?.length ?? 0) > 0 && (
+          <TagRow heading="Teaches" tags={p.teaches ?? []} accent />
+        )}
+        {p.isCoach
+          ? (p.plays?.length ?? 0) > 0 && <TagRow heading="Also plays" tags={p.plays ?? []} />
+          : p.tags.length > 0 && <TagRow heading="Looking for" tags={p.tags} />}
 
         {p.isCoach && certs.length > 0 && <>
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Certificates</SectionHeading>
@@ -235,5 +234,29 @@ export function PersonOverlay() {
 
       </View>
     </OverlayScaffold>
+  );
+}
+
+// A heading and its pills.
+//
+// `accent` marks the list that is a claim rather than a fact about someone:
+// what a coach teaches is what you would book them for, so it should not look
+// the same as what they happen to play at weekends.
+function TagRow({ heading, tags, accent = false }: { heading: string; tags: string[]; accent?: boolean }) {
+  const { c, t } = useTheme();
+  return (
+    <>
+      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>{heading}</SectionHeading>
+      <Row style={{ flexWrap: 'wrap' }} gap={8}>
+        {tags.map((tag) => (
+          <View key={tag} style={{ borderRadius: 999,
+            backgroundColor: accent ? alpha(c.volt, 0.12) : c.surface,
+            borderColor: accent ? alpha(c.volt, 0.45) : c.line,
+            borderWidth: 1, paddingHorizontal: 13, paddingVertical: 8 }}>
+            <Text style={[t.labelSm, { color: accent ? c.accent : c.strong }]}>{tag}</Text>
+          </View>
+        ))}
+      </Row>
+    </>
   );
 }
