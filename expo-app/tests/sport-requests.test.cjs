@@ -26,6 +26,9 @@ function harness(responses) {
   const dependencies = {
     './supabase': { supabase },
     './session': { ensureAppSession: async () => { sessions++; return 'auth-user-id'; } },
+    // bookings.ts now merges free partner sessions into the same list; sport
+    // requests do not touch them.
+    './partners': { fetchPartnerSessions: async () => [], decidePartnerSession: async () => {} },
     './geo': {},
   };
   function load(name) {

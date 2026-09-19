@@ -77,6 +77,26 @@ export async function ensureAppSession() {
   }
 }
 
+/** The signed-in account's public.users id.
+ *
+ *  Lives here rather than in bookings.ts, where it used to. Half the app asks
+ *  for it, including partners.ts -- and once bookings.ts needed partner
+ *  sessions in the same list, the two files imported each other. Metro does not
+ *  guarantee which side of a cycle resolves first, and the failure looks like a
+ *  function that is undefined only sometimes.
+ *
+ *  `ensureAppSession()` returns an AUTH id, which is not what these tables key
+ *  on. Ask the server which app user we are rather than guessing.
+ */
+export async function currentAppUserId(): Promise<string> {
+  await ensureAppSession();
+  const { data, error } = await supabase.rpc('current_app_user');
+  if (error) throw error;
+  const id = typeof data === 'string' ? data : null;
+  if (!id) throw new Error('This account has no profile yet.');
+  return id;
+}
+
 // ---- real auth (email/password) -------------------------------------------
 
 export async function signInEmail(email: string, password: string) {

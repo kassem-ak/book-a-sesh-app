@@ -1,16 +1,18 @@
-import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, MicroBadge, Row, SectionHeading } from '../components/ui';
+import { Avatar, Card, MicroBadge, Row, SectionHeading, Segmented } from '../components/ui';
 import {
   BookingStatus,
   MyBooking,
   MyBookings,
   PackageBalance,
+  SessionKind,
+  acceptSession,
   bookingStatusLabel,
   canCancel,
-  cancelBooking,
+  cancelSession,
   fetchMyBookings,
   fetchMyPackageBalances,
   formatCents,
@@ -35,6 +37,7 @@ export function BookingsOverlay() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'calendar'>('list');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,11 +61,25 @@ export function BookingsOverlay() {
     void load();
   }, [load]);
 
+  const onAccept = async (booking: MyBooking) => {
+    setCancellingId(booking.id);
+    setActionError(null);
+    try {
+      await acceptSession(booking);
+      await load();
+    } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
+      setActionError(e instanceof Error ? e.message : 'Could not accept that session.');
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const onCancel = async (booking: MyBooking) => {
     setCancellingId(booking.id);
     setActionError(null);
     try {
-      await cancelBooking(booking.id);
+      await cancelSession(booking);
       setConfirmingId(null);
       await load();
     } catch (e) {
@@ -82,7 +99,24 @@ export function BookingsOverlay() {
 
         {!loading && error && <ErrorNote message={error} onRetry={load} />}
 
-        {!loading && !error && (
+        {!loading && !error && hasSessions && (
+          <View style={{ marginBottom: 16 }}>
+            <Segmented
+              options={[{ key: 'list', label: 'List' }, { key: 'calendar', label: 'Calendar' }]}
+              selected={view}
+              onSelect={(k) => setView(k === 'calendar' ? 'calendar' : 'list')}
+            />
+          </View>
+        )}
+
+        {!loading && !error && view === 'calendar' && (
+          <MonthCalendar
+            sessions={[...bookings.upcoming, ...bookings.past]}
+            onCancel={(b) => { setActionError(null); setConfirmingId(b.id); }}
+          />
+        )}
+
+        {!loading && !error && view === 'list' && (
           <>
             {packages.length > 0 && (
               <>
@@ -117,6 +151,7 @@ export function BookingsOverlay() {
                     }}
                     onKeep={() => setConfirmingId(null)}
                     onConfirmCancel={() => onCancel(b)}
+                    onAccept={() => onAccept(b)}
                   />
                 ))
               )}
@@ -137,6 +172,145 @@ export function BookingsOverlay() {
       </View>
     </OverlayScaffold>
   );
+}
+
+// A month at a time.
+//
+// Hand-rolled rather than a calendar dependency: the whole of it is "which
+// weekday does the 1st fall on, and how many days are in the month", and both
+// come free from the Date constructor. A library would be a bigger download
+// than the feature.
+//
+// Local dates throughout. `toISOString()` would bucket a 9pm session into the
+// next day for anyone east of UTC, which is exactly the sort of off-by-one a
+// calendar must not have.
+export function dayKey(value: string | Date): string {
+  const at = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(at.getTime())) return '';
+  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+}
+
+/** Sessions grouped by the local day they start on. */
+export function byDay(sessions: MyBooking[]): Map<string, MyBooking[]> {
+  const days = new Map<string, MyBooking[]>();
+  for (const session of sessions) {
+    const key = dayKey(session.scheduledFor);
+    if (!key) continue;
+    const existing = days.get(key);
+    if (existing) existing.push(session);
+    else days.set(key, [session]);
+  }
+  return days;
+}
+
+/** The cells of a month grid: leading blanks so the 1st lands on its weekday,
+ *  then every day of the month. Trailing blanks are not needed -- the grid
+ *  simply ends. */
+export function monthCells(year: number, month: number): (number | null)[] {
+  const firstWeekday = new Date(year, month, 1).getDay();
+  // Day 0 of the next month is the last day of this one.
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = Array.from({ length: firstWeekday }, () => null);
+  for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+  return cells;
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+function MonthCalendar({ sessions, onCancel }: { sessions: MyBooking[]; onCancel: (b: MyBooking) => void }) {
+  const { c, t } = useTheme();
+  const today = new Date();
+  const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selected, setSelected] = useState<string>(() => dayKey(today));
+
+  const days = useMemo(() => byDay(sessions), [sessions]);
+  const cells = useMemo(() => monthCells(cursor.getFullYear(), cursor.getMonth()), [cursor]);
+  const chosen = days.get(selected) ?? [];
+  const step = (months: number) =>
+    setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + months, 1));
+
+  return (
+    <View>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <TextAction label="‹ Prev" color={c.txt2} accessibilityLabel="Previous month" onPress={() => step(-1)} />
+        <Text style={[t.labelSm, { color: c.txt }]}>
+          {MONTHS[cursor.getMonth()]} {cursor.getFullYear()}
+        </Text>
+        <TextAction label="Next ›" color={c.txt2} accessibilityLabel="Next month" onPress={() => step(1)} />
+      </Row>
+
+      <Row style={{ marginBottom: 6 }}>
+        {DOW.map((letter, index) => (
+          <View key={`${letter}-${index}`} style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={[t.caption, { color: c.txt3 }]}>{letter}</Text>
+          </View>
+        ))}
+      </Row>
+
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        {cells.map((day, index) => {
+          if (day === null) return <View key={`blank-${index}`} style={{ width: `${100 / 7}%`, height: 46 }} />;
+          const key = dayKey(new Date(cursor.getFullYear(), cursor.getMonth(), day));
+          const onThisDay = days.get(key) ?? [];
+          const isSelected = key === selected;
+          const isToday = key === dayKey(today);
+          return (
+            <Pressable key={key} onPress={() => setSelected(key)} accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={`${day} ${MONTHS[cursor.getMonth()]}, ${onThisDay.length} ${onThisDay.length === 1 ? 'session' : 'sessions'}`}
+              style={{ width: `${100 / 7}%`, height: 46, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+                backgroundColor: isSelected ? c.volt : 'transparent',
+                borderWidth: isToday && !isSelected ? 1 : 0, borderColor: c.line }}>
+                <Text style={[t.bodySm, { color: isSelected ? c.ink : c.txt }]}>{day}</Text>
+              </View>
+              {/* One dot per session, capped at three -- past that the count
+                  stops being readable and the day is simply "busy". */}
+              <Row gap={3} style={{ height: 5, marginTop: 1 }}>
+                {onThisDay.slice(0, 3).map((session) => (
+                  <View key={session.id} style={{ width: 4, height: 4, borderRadius: 2,
+                    backgroundColor: kindTint(session.kind, c).rail }} />
+                ))}
+              </Row>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Row gap={14} style={{ marginTop: 12, marginBottom: 4 }}>
+        {(['coach', 'partner'] as SessionKind[]).map((kind) => {
+          const tint = kindTint(kind, c);
+          return (
+            <Row key={kind} gap={6} style={{ alignItems: 'center' }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tint.rail }} />
+              <Text style={[t.caption, { color: c.txt2 }]}>{tint.label}</Text>
+            </Row>
+          );
+        })}
+      </Row>
+
+      <SectionHeading style={{ marginTop: 14, marginBottom: 11 }}>{selectedLabel(selected)}</SectionHeading>
+      <View style={{ gap: 10 }}>
+        {chosen.length === 0
+          ? <Note>Nothing on this day.</Note>
+          : chosen
+            .slice()
+            .sort((a, b) => Date.parse(a.scheduledFor) - Date.parse(b.scheduledFor))
+            .map((session) => (
+              <SessionCard key={session.id} booking={session}
+                onAskCancel={canCancel(session.status) ? () => onCancel(session) : undefined} />
+            ))}
+      </View>
+    </View>
+  );
+}
+
+function selectedLabel(key: string) {
+  const [year, month, day] = key.split('-').map(Number);
+  if (!year || !month || !day) return 'Selected day';
+  return `${day} ${MONTHS[month - 1]} ${year}`;
 }
 
 function PackageCard({ pack }: { pack: PackageBalance }) {
@@ -173,6 +347,7 @@ function SessionCard({
   onAskCancel,
   onKeep,
   onConfirmCancel,
+  onAccept,
 }: {
   booking: MyBooking;
   confirming?: boolean;
@@ -180,21 +355,42 @@ function SessionCard({
   onAskCancel?: () => void;
   onKeep?: () => void;
   onConfirmCancel?: () => void;
+  onAccept?: () => void;
 }) {
   const { c, t } = useTheme();
   const badge = statusTint(booking.status, c);
+  const kind = kindTint(booking.kind, c);
   const when = formatSessionWhen(booking);
   const cancellable = Boolean(onAskCancel) && canCancel(booking.status);
   return (
-    <Card style={{ padding: 14 }}>
+    <Card style={{ padding: 14, borderLeftWidth: 3, borderLeftColor: kind.rail }}>
       <Row gap={11}>
-        <Avatar initials={initials(booking.coachName)} size={40} radius={12} fontSize={14} />
+        <Avatar initials={initials(booking.withName)} size={40} radius={12} fontSize={14} />
         <View style={{ flex: 1 }}>
-          <Text style={[t.name, { color: c.txt }]}>{booking.coachName}</Text>
+          <Text style={[t.name, { color: c.txt }]}>{booking.withName}</Text>
           <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{when}</Text>
         </View>
-        <MicroBadge label={bookingStatusLabel(booking.status)} bg={badge.bg} fg={badge.fg} />
+        <Row gap={6}>
+          <MicroBadge label={kind.label} bg={kind.bg} fg={kind.fg} />
+          <MicroBadge label={bookingStatusLabel(booking.status)} bg={badge.bg} fg={badge.fg} />
+        </Row>
       </Row>
+
+      {booking.needsAnswer && onAccept && (
+        <Row style={{ marginTop: 10, justifyContent: 'space-between' }} gap={10}>
+          <Text style={[t.caption, { color: c.txt2, flex: 1 }]}>
+            {booking.withName.split(' ')[0]} asked you to train.
+          </Text>
+          <Row gap={14}>
+            <TextAction label={busy ? 'Saving…' : 'Accept'} color={c.accent} busy={busy}
+              accessibilityLabel={`Accept training with ${booking.withName} on ${when}`}
+              onPress={busy ? undefined : onAccept} />
+            <TextAction label="Decline" color={c.txt2}
+              accessibilityLabel={`Decline training with ${booking.withName} on ${when}`}
+              onPress={busy ? undefined : onAskCancel} />
+          </Row>
+        </Row>
+      )}
 
       {cancellable && confirming ? (
         <Row style={{ marginTop: 10, justifyContent: 'space-between' }} gap={10}>
@@ -203,27 +399,31 @@ function SessionCard({
             <TextAction
               label="Keep"
               color={c.txt2}
-              accessibilityLabel={`Keep your session with ${booking.coachName} on ${when}`}
+              accessibilityLabel={`Keep your session with ${booking.withName} on ${when}`}
               onPress={busy ? undefined : onKeep}
             />
             <TextAction
               label={busy ? 'Cancelling…' : 'Yes, cancel'}
               color={c.danger}
               busy={busy}
-              accessibilityLabel={`Confirm cancelling your session with ${booking.coachName} on ${when}`}
+              accessibilityLabel={`Confirm cancelling your session with ${booking.withName} on ${when}`}
               onPress={busy ? undefined : onConfirmCancel}
             />
           </Row>
         </Row>
       ) : (
         <Row style={{ marginTop: 10 }} gap={8}>
-          <Text style={[t.caption, { color: c.txt3 }]}>{formatCents(booking.totalCents)}</Text>
+          {/* "Free" rather than "$0" -- a zero price reads like one somebody
+              forgot to set, and a partner session has no price by design. */}
+          <Text style={[t.caption, { color: c.txt3 }]}>
+            {booking.kind === 'partner' ? 'Free' : formatCents(booking.totalCents)}
+          </Text>
           <View style={{ flex: 1 }} />
           {cancellable && (
             <TextAction
               label="Cancel"
               color={c.txt2}
-              accessibilityLabel={`Cancel your session with ${booking.coachName} on ${when}`}
+              accessibilityLabel={`Cancel your session with ${booking.withName} on ${when}`}
               onPress={onAskCancel}
             />
           )}
@@ -281,6 +481,20 @@ function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void 
       </Row>
     </Card>
   );
+}
+
+// What kind of session it is, in colour AND in words.
+//
+// Volt for a coach, cyan for a partner -- both are existing theme tokens that
+// already work in the light and dark palettes, so neither needed inventing.
+//
+// The word is not decoration. Colour alone excludes anyone who cannot tell
+// these two apart, and this is the only thing distinguishing a session you pay
+// for from one you do not.
+export function kindTint(kind: SessionKind, c: ReturnType<typeof useTheme>['c']) {
+  return kind === 'partner'
+    ? { rail: c.cyan, label: 'Partner', bg: alpha(c.cyan, 0.14), fg: c.cyan }
+    : { rail: c.volt, label: 'Coach', bg: alpha(c.volt, 0.14), fg: c.accent };
 }
 
 // Status colours come straight from the theme tokens the rest of the app uses:
