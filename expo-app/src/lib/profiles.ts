@@ -237,7 +237,7 @@ export async function saveMyProfile(profile: Profile) {
   // sport_id is absent for a coach: `sync_coach_primary_sport` writes it from
   // whatever sits at position 0 in coach_sports, so sending it here would be a
   // second writer for one value.
-  // A coach's headline, level and specialties belong to Coaching settings and
+  // A coach's headline, level and specialties belong to Coaching sessions and
   // are written there. Sending them from here as well would mean two screens
   // owning one value, and whichever saved last would win.
   const fields = profile.role === 'coach'
