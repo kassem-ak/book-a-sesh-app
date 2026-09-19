@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
+import { Certificates } from '../components/Certificates';
 import { SportsPicker } from '../components/SportsPicker';
 import { Avatar, Field, Row, SectionHeading, VoltButton } from '../components/ui';
 import { pickAvatar, PickedAvatar, uploadAvatar } from '../lib/avatars';
@@ -218,6 +219,13 @@ export function EditProfileOverlay() {
           </>}
           <SectionHeading>{profile.role === 'coach' ? 'Profession · primary sport or hobby' : 'Interests'}</SectionHeading>
           <SportsPicker selected={profile.sportIds} onChange={(sportIds) => setProfile({ ...profile, sportIds })} coach={profile.role === 'coach'} />
+
+          {/* Certificates are part of what a coach shows about themselves, so
+              they belong here rather than under their prices. They save
+              themselves as they are added -- uploading a file and then losing
+              it to an unsaved form is the worse failure. */}
+          {profile.role === 'coach' && <Certificates coachId={profile.id} />}
+
           <Text style={[t.caption, { color: c.txt3 }]}>You can return to Profile → Edit profile at any time.</Text>
 
           {/* Required in-app by both stores wherever accounts can be created.
