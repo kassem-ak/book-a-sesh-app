@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
-import { Field, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
+import { Field, FormSheet, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
 import { PickedAvatar } from '../lib/avatars';
 import {
   addCertification, Certification, fetchCertifications, pickCertificateImage, removeCertification,
@@ -32,6 +32,7 @@ export function Certificates({ coachId }: { coachId: string }) {
   const [year, setYear] = useState('');
   const [image, setImage] = useState<PickedAvatar | null>(null);
   const [picking, setPicking] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -60,6 +61,7 @@ export function Certificates({ coachId }: { coachId: string }) {
       await addCertification({ name, issuer, year, image });
       track('certificate_added');
       setName(''); setIssuer(''); setYear(''); setImage(null);
+      setAdding(false);
       setAttempt(attempt + 1);
     } catch (e) {
       track('write_failed', { error_code: analyticsErrorCode(e) });
@@ -123,26 +125,40 @@ export function Certificates({ coachId }: { coachId: string }) {
         </View>
       ))}
 
-      <SectionHeading>Add a certificate</SectionHeading>
-      <Field value={name} onChange={setName} label="Certificate name" placeholder="Level 3 Personal Trainer" />
-      <Field value={issuer} onChange={setIssuer} label="Issued by" placeholder="Issuing body" />
-      <Field value={year} onChange={setYear} label="Year" placeholder="2024" keyboardType="decimal-pad" />
-      <Row gap={14} style={{ alignItems: 'center' }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Choose a photo of the certificate"
-          accessibilityState={{ busy: picking }} onPress={() => void choose()} disabled={picking || busy}
-          style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={[t.label, { color: c.accent }]}>
-            {picking ? 'Opening photos…' : image ? 'Change photo' : 'Add a photo'}
-          </Text>
-        </Pressable>
-        {image && (
-          <Image source={{ uri: image.uri }} accessibilityIgnoresInvertColors
-            accessibilityLabel="Selected certificate photo"
-            style={{ width: 56, height: 40, borderRadius: 8, backgroundColor: c.surface }} />
-        )}
-      </Row>
-      <VoltButton label="Add certificate" busy={busy} busyLabel="Saving…"
-        enabled={name.trim().length > 1 && !busy && !picking} onPress={() => void add()} />
+      {/* The form is a detour, not part of the page. Inline, four fields and a
+          photo picker sat under the list whether or not anyone was adding
+          anything, pushing everything below them down. */}
+      <VoltButton label="Add a certificate" enabled={!busy} onPress={() => { setError(null); setAdding(true); }} />
+
+      <FormSheet
+        visible={adding}
+        title="Add a certificate"
+        subtitle="It appears on your public profile once an admin has checked it."
+        onClose={() => { if (!busy && !picking) setAdding(false); }}
+        footer={
+          <VoltButton label="Add certificate" busy={busy} busyLabel="Saving…"
+            enabled={name.trim().length > 1 && !busy && !picking} onPress={() => void add()} />
+        }
+      >
+        {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
+        <Field value={name} onChange={setName} label="Certificate name" placeholder="Level 3 Personal Trainer" />
+        <Field value={issuer} onChange={setIssuer} label="Issued by" placeholder="Issuing body" />
+        <Field value={year} onChange={setYear} label="Year" placeholder="2024" keyboardType="decimal-pad" />
+        <Row gap={14} style={{ alignItems: 'center' }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Choose a photo of the certificate"
+            accessibilityState={{ busy: picking }} onPress={() => void choose()} disabled={picking || busy}
+            style={{ minHeight: 44, justifyContent: 'center' }}>
+            <Text style={[t.label, { color: c.accent }]}>
+              {picking ? 'Opening photos…' : image ? 'Change photo' : 'Add a photo'}
+            </Text>
+          </Pressable>
+          {image && (
+            <Image source={{ uri: image.uri }} accessibilityIgnoresInvertColors
+              accessibilityLabel="Selected certificate photo"
+              style={{ width: 56, height: 40, borderRadius: 8, backgroundColor: c.surface }} />
+          )}
+        </Row>
+      </FormSheet>
     </View>
   );
 }

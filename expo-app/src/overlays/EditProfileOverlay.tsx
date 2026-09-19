@@ -3,7 +3,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Certificates } from '../components/Certificates';
 import { SportsPicker } from '../components/SportsPicker';
-import { Avatar, Field, Row, SectionHeading, VoltButton } from '../components/ui';
+import { Avatar, Field, FormSheet, Row, SectionHeading, VoltButton } from '../components/ui';
 import { pickAvatar, PickedAvatar, uploadAvatar } from '../lib/avatars';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { confirmsDeletion, deleteAccount, DELETE_WORD } from '../lib/session';
@@ -29,6 +29,7 @@ export function EditProfileOverlay() {
   // not. See DELETE_WORD below.
   const [deleteWord, setDeleteWord] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const confirmed = confirmsDeletion(deleteWord);
   useEffect(() => {
     let active = true;
@@ -117,6 +118,8 @@ export function EditProfileOverlay() {
       track('write_failed', { error_code: analyticsErrorCode(e) });
       setError(errorMessage(e));
       setDeleting(false);
+      // The sheet stays open: the error is in it, and closing would hide the
+      // only explanation of what went wrong.
     }
   };
 
@@ -235,24 +238,48 @@ export function EditProfileOverlay() {
           <View style={{ height: 8 }} />
           <SectionHeading>Delete account</SectionHeading>
           <Text style={[t.bodySm, { color: c.txt2 }]}>
-            Your profile, photo and personal data are removed and you will not be able to sign in again. Sessions you have already had stay on the other person's record, because they are their history too.
+            Your profile, photo and personal data are removed and you will not be able to sign in again.
           </Text>
-          <Text style={[t.caption, { color: c.txt3 }]}>
-            This cannot be undone. Type <Text style={{ color: c.danger }}>{DELETE_WORD}</Text> below to confirm.
-          </Text>
-          <Field value={deleteWord} onChange={setDeleteWord} label={`Type ${DELETE_WORD} to confirm`}
-            placeholder={DELETE_WORD} />
-          <Pressable accessibilityRole="button"
-            accessibilityLabel="Delete my account permanently"
-            accessibilityState={{ disabled: !confirmed || deleting, busy: deleting }}
-            onPress={() => void removeAccount()} disabled={!confirmed || deleting}
+          {/* The page carries the plain button; the sheet carries the warning
+              and the word. A form asking you to type "delete" sitting open on a
+              screen you came to edit your bio reads like a threat. */}
+          <Pressable accessibilityRole="button" accessibilityLabel="Delete account"
+            onPress={() => { setDeleteWord(''); setError(null); setConfirmingDelete(true); }}
+            disabled={busy || picking}
             style={{ minHeight: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-              borderColor: confirmed ? c.danger : c.line,
-              backgroundColor: confirmed ? alpha(c.danger, 0.12) : 'transparent' }}>
-            <Text style={[t.label, { color: confirmed ? c.danger : c.txt3 }]}>
-              {deleting ? 'Deleting…' : 'Delete my account'}
-            </Text>
+              borderColor: c.line }}>
+            <Text style={[t.label, { color: c.danger }]}>Delete account</Text>
           </Pressable>
+
+          <FormSheet
+            visible={confirmingDelete}
+            title="Delete your account?"
+            subtitle="This cannot be undone."
+            onClose={() => { if (!deleting) setConfirmingDelete(false); }}
+            footer={
+              <Pressable accessibilityRole="button"
+                accessibilityLabel="Delete my account permanently"
+                accessibilityState={{ disabled: !confirmed || deleting, busy: deleting }}
+                onPress={() => void removeAccount()} disabled={!confirmed || deleting}
+                style={{ minHeight: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+                  borderColor: confirmed ? c.danger : c.line,
+                  backgroundColor: confirmed ? alpha(c.danger, 0.12) : 'transparent' }}>
+                <Text style={[t.label, { color: confirmed ? c.danger : c.txt3 }]}>
+                  {deleting ? 'Deleting…' : 'Delete my account'}
+                </Text>
+              </Pressable>
+            }
+          >
+            {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
+            <Text style={[t.bodySm, { color: c.txt2 }]}>
+              Your profile, photo and personal data are removed and you will not be able to sign in again. Sessions you have already had stay on the other person's record, because they are their history too.
+            </Text>
+            <Text style={[t.caption, { color: c.txt3 }]}>
+              Type <Text style={{ color: c.danger }}>{DELETE_WORD}</Text> to confirm.
+            </Text>
+            <Field value={deleteWord} onChange={setDeleteWord} label={`Type ${DELETE_WORD} to confirm`}
+              placeholder={DELETE_WORD} />
+          </FormSheet>
         </View>}
       </View>
     </OverlayScaffold>
