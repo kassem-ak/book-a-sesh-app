@@ -100,7 +100,7 @@ export function ProfileScreen() {
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
               <ToolRow title="Appointment requests" body="Review requests · record decisions" onPress={() => s.set('overlay', 'coachRequests')} />
-              <ToolRow title="My schedule" body="Edit weekly timetable" onPress={() => s.set('overlay', 'coachSchedule')} />
+
               <ToolRow title="Today's sessions" body="Day view - mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
               <ToolRow title="Packages, pricing & promos" body="Set prices · record codes, not yet redeemable" onPress={() => s.set('overlay', 'coachPackages')} />
             </View>
@@ -136,7 +136,7 @@ export function ProfileScreen() {
           icon="award"
           title={role === 'COACH' ? 'Coaching settings' : 'Become a coach'}
           body={role === 'COACH'
-            ? 'What you teach, your experience, rate and packages'
+            ? 'What you teach, when you work, your rate and packages'
             : 'Free. Adds a coach profile so people can book you'}
           onPress={() => s.set('overlay', 'coaching')}
         />
