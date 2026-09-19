@@ -33,16 +33,18 @@ const catalogue = [
 
 test('the menu is two groups, sports before hobbies', () => {
   const { groupSports } = load();
-  assert.deepEqual(groupSports(catalogue, ''), [
-    { label: 'Sports', names: ['Padel', 'Tennis'] },
-    { label: 'Hobbies', names: ['Chess'] },
+  assert.deepEqual(groupSports(catalogue, '').map((group) => [group.label, group.items.map((s) => s.name)]), [
+    ['Sports', ['Padel', 'Tennis']],
+    ['Hobbies', ['Chess']],
   ]);
 });
 
 test('a group with nothing matching is dropped, not left as an empty heading', () => {
   const { groupSports } = load();
-  assert.deepEqual(groupSports(catalogue, 'chess'), [{ label: 'Hobbies', names: ['Chess'] }]);
-  assert.deepEqual(groupSports(catalogue, 'pad'), [{ label: 'Sports', names: ['Padel'] }]);
+  assert.deepEqual(groupSports(catalogue, 'chess').map((group) => [group.label, group.items.map((s) => s.name)]),
+    [['Hobbies', ['Chess']]]);
+  assert.deepEqual(groupSports(catalogue, 'pad').map((group) => [group.label, group.items.map((s) => s.name)]),
+    [['Sports', ['Padel']]]);
   assert.deepEqual(groupSports(catalogue, 'nothing here'), []);
 });
 
