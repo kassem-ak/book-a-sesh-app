@@ -111,6 +111,70 @@ to `www.app-bookd.com` or it can be used on any site, at your expense.
 Attribution is a licence condition for every provider, so set it to match
 whichever you choose.
 
+## Push notifications (native builds)
+
+Push ships **off**. The app writes every notification to the in-app inbox
+regardless; the three steps below are what turns those rows into a buzz on a
+phone. Nothing breaks while they are outstanding.
+
+Native only — Expo's push service delivers through APNs and FCM, so the web
+build keeps the inbox and nothing else.
+
+### 1. Link the EAS project
+
+```
+eas init
+```
+
+This writes `extra.eas.projectId` into `app.json`. Without it the client cannot
+ask Expo for a token, and `registerPushToken()` returns `false` instead of
+throwing.
+
+### 2. Credentials with the stores
+
+- **Android**: upload a Firebase **FCM v1** service-account JSON to EAS
+  (`eas credentials` → Android → *Push Notifications*).
+- **iOS**: an APNs key, same menu under iOS. `eas build` offers to create one.
+
+Expo rejects sends for a platform whose credentials are missing, which the Edge
+Function reports as `Expo replied 400` rather than silently dropping them.
+
+### 3. Connect the database to the Edge Function
+
+The trigger `trg_push_notification` calls the `send-push` function over HTTP.
+The caller is Postgres, which has no user JWT, so a shared secret stands in for
+one.
+
+```
+supabase functions deploy send-push --no-verify-jwt
+```
+
+Generate one secret and give the same value to both sides:
+
+```sql
+select encode(gen_random_bytes(32), 'hex');   -- copy this value
+select vault.create_secret('<value>', 'push_hook_secret');
+select vault.create_secret(
+  'https://<project-ref>.supabase.co/functions/v1/send-push', 'push_hook_url');
+```
+
+Then set `PUSH_HOOK_SECRET` to the same value in the project's Edge Function
+secrets (Dashboard → Edge Functions → Secrets, or `supabase secrets set`).
+
+Until both vault rows exist, `push_notification()` returns without making a
+request — which is the state `main` is in today.
+
+### Checking it
+
+```sql
+-- queued requests and what the function replied
+select id, url, created from net.http_request_queue order by id desc limit 5;
+select id, status_code, content from net._http_response order by id desc limit 5;
+```
+
+A `503 Push is not configured` means the Edge Function has no
+`PUSH_HOOK_SECRET`; a `401` means the two values disagree.
+
 ## Option B — EAS Hosting (Expo-native, free tier, needs Expo login)
 
 ```bash

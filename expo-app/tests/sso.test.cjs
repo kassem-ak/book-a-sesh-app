@@ -27,6 +27,9 @@ test('Microsoft requests email on web and native, preserving every provider call
       'react-native': { Platform: { OS: platform } },
       './analytics': { track() {} },
       './signup': {},
+      // Sign-out releases this device's push token before dropping the
+      // session; SSO does not touch it.
+      './push': { unregisterPushToken: async () => {} },
       './supabase': {
         assertSupabaseConfigured() {},
         supabaseUrl: 'https://example.supabase.co',

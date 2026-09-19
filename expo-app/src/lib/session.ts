@@ -3,6 +3,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import { identify, track } from './analytics';
 import { supabase, assertSupabaseConfigured, supabaseUrl } from './supabase';
+import { unregisterPushToken } from './push';
 import { bindSignupEmail, readSignupDraft } from './signup';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -105,6 +106,11 @@ export async function signUpEmail(name: string, email: string, password: string)
 }
 
 export async function signOutUser() {
+  // Before the sign-out, not after: deleting the row is gated by
+  // `user_id = current_app_user()`, so once the session is gone the token
+  // cannot be removed -- and the next account on this phone would keep
+  // receiving the previous one's notifications.
+  await unregisterPushToken();
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 }
@@ -209,6 +215,7 @@ export async function deleteAccount(): Promise<void> {
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) throw new Error('Sign in first.');
 
+  await unregisterPushToken();
   const { data, error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
   if (error) throw error;
   if (data && typeof data === 'object' && 'error' in data) {

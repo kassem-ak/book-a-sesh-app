@@ -7,6 +7,7 @@ import { fetchCoaches, fetchPartners } from '../lib/queries';
 import { fetchVisibleModules } from '../lib/modules';
 import { fetchGeoStatus } from '../lib/geolock';
 import { applySignupProfile, fetchMyProfile } from '../lib/profiles';
+import { registerPushToken } from '../lib/push';
 import { assertSupabaseConfigured, supabase } from '../lib/supabase';
 import { errorMessage, useStore } from '../state/store';
 import { useTheme } from '../theme';
@@ -97,6 +98,10 @@ export function Root() {
       if (applied) state.set('mode', profile.role === 'coach' ? 'partners' : 'coaches');
       identify(profile.id);
       await Promise.all([state.refreshRole(), state.refreshBlocked(), state.refreshCircle()]);
+      // After the profile, because the token row points at the app user id.
+      // Never awaited into the error path above: a declined permission prompt
+      // is a choice, not a failure of the profile load.
+      void registerPushToken(profile.id);
     })().catch((error) => { if (active) setProfileError(errorMessage(error)); });
     return () => { active = false; };
   }, [authUid, profileAttempt]);
