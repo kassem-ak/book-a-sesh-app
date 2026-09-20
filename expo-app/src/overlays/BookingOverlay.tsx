@@ -5,10 +5,11 @@ import { Card, FormSheet, Icon, Row, SectionHeading, VoltButton } from '../compo
 import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { coachPackageOptions } from '../state/models';
 import { fetchCoachAvailability, fetchPackageUsage, PackageUsage } from '../lib/queries';
-import { track } from '../lib/analytics';
+import { analyticsErrorCode, track } from '../lib/analytics';
 import * as D from '../state/sampleData';
 import { fetchBlackouts } from '../lib/availability';
-import { bookingDayLabel, SCHED_TIMES, useStore } from '../state/store';
+import { bookPackageSessions, SessionSlot } from '../lib/packages';
+import { bookingDayLabel, errorMessage, SCHED_TIMES, scheduledFor, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 // The calendar is Monday-first, like every other calendar in the app and
@@ -106,6 +107,12 @@ export function BookingOverlay() {
   // The time sheet opens on tapping a day, so a day tap is one decision
   // rather than two separate lists to hunt through.
   const [pickingTime, setPickingTime] = React.useState(false);
+  // Sessions chosen from a multi-session pack, keyed by day so a second tap
+  // on the same day replaces the time rather than spending another session
+  // of the pack on the same afternoon.
+  const [chosenSlots, setChosenSlots] = React.useState<Record<string, string>>({});
+  const [bookingError, setBookingError] = React.useState<string | null>(null);
+  const [bookingMany, setBookingMany] = React.useState(false);
   const [month, setMonth] = React.useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -183,14 +190,48 @@ export function BookingOverlay() {
 
   if (!p) return <MissingSubject title="Book a session" message="This coach is no longer available." onBack={s.backToPerson} />;
 
+  // Every chosen session in one call. A loop of single bookings would leave
+  // somebody with four of the five they picked and no way to tell which one
+  // failed; the server takes the whole list or none of it.
+  const bookChosen = async () => {
+    if (!selectedPkg?.packageId) return;
+    setBookingMany(true);
+    setBookingError(null);
+    try {
+      const slots: SessionSlot[] = picked.map(([date, slot]) => ({
+        at: scheduledFor(date, slot),
+        label: slot,
+      }));
+      const count = await bookPackageSessions(p.id, selectedPkg.packageId, slots);
+      track('booking_confirmed', { booking_type: 'package', sessions: count });
+      setBookingQuote({ redeeming, dueNow });
+      setChosenSlots({});
+      useStore.getState().set('booked', true);
+    } catch (error) {
+      track('booking_failed', { error_code: analyticsErrorCode(error) });
+      setBookingError(errorMessage(error));
+    } finally {
+      setBookingMany(false);
+    }
+  };
+
   const pkgs = coachPackageOptions(p);
   const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
+
+  // A pack of two or more is booked several sessions at a time. A single
+  // session has nothing to choose between, so it keeps the old one-tap path.
+  const multi = Boolean(selectedPkg?.packageId) && (selectedPkg?.sessions ?? 1) > 1;
+  const picked = Object.entries(chosenSlots)
+    .sort(([a], [b]) => (a < b ? -1 : 1));
 
   const usageKnown = !selectedPkg?.packageId || usage !== null;
   const balance = selectedPkg?.packageId ? usage?.[selectedPkg.packageId] : undefined;
   const total = balance?.total ?? selectedPkg?.sessions ?? 0;
   const remaining = total - (balance?.used ?? 0);
   const redeeming = Boolean(balance) && remaining > 0;
+  // What is still unspent, so the picker can stop at it. Without a balance
+  // row nothing has been booked yet and the whole pack is available.
+  const allowance = balance ? Math.max(remaining, 0) : selectedPkg?.sessions ?? 1;
   const exhausted = Boolean(balance) && remaining <= 0;
   const dueNow = redeeming ? 0 : selectedPkg?.price ?? 0;
   const priceLabel = !usageKnown
@@ -251,10 +292,27 @@ export function BookingOverlay() {
                     ? "Payable to the coach at your session — BOOK'D does not take payment."
                     : "This coach has not set a price. Agree it with them directly — BOOK'D does not take payment."}
           </Text>
+          {bookingError && (
+            <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger, marginBottom: 10 }]}>
+              {bookingError}
+            </Text>
+          )}
           <VoltButton
-            label={exhausted ? 'Pack already used' : 'Confirm booking'}
-            enabled={!exhausted && Boolean(bookDate && bookSlot)}
+            label={exhausted
+              ? 'Pack already used'
+              : multi
+                ? picked.length > 1
+                  ? `Book ${picked.length} sessions`
+                  : 'Book this session'
+                : 'Confirm booking'}
+            enabled={!exhausted && (multi ? picked.length > 0 : Boolean(bookDate && bookSlot))}
+            busy={multi ? bookingMany : s.writeBusy === 'booking'}
+            busyLabel="Booking..."
             onPress={() => {
+              if (multi) {
+                void bookChosen();
+                return;
+              }
               // A late balance read may include this booking's redemption.
               // Only the quote known before submission can describe it.
               const quote = usageKnown ? { redeeming, dueNow } : null;
@@ -269,8 +327,6 @@ export function BookingOverlay() {
                   : {});
               });
             }}
-            busy={s.writeBusy === 'booking'}
-            busyLabel="Booking..."
           />
         </View>
       }
@@ -343,10 +399,11 @@ export function BookingOverlay() {
                 const key = dateKey(new Date(month.getFullYear(), month.getMonth(), day));
                 const entry = byDate.get(key);
                 const open = Boolean(entry);
-                const sel = bookDate === key;
+                const sel = multi ? key in chosenSlots : bookDate === key;
                 return (
                   <Pressable key={key} disabled={!open}
                     onPress={() => {
+                      setBookingError(null);
                       s.set('bookDate', key);
                       // The slot held from the previous day may not exist on
                       // this one -- a coach who works mornings on Monday and
@@ -391,7 +448,47 @@ export function BookingOverlay() {
               </Row>
             </Row>
 
-            {bookDate && bookSlot && (
+            {multi ? (
+              <View style={{ marginTop: 14, gap: 10 }}>
+                <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={[t.labelSm, { color: c.txt }]}>
+                    {picked.length} of {allowance} chosen
+                  </Text>
+                  {picked.length > 0 && (
+                    <Pressable accessibilityRole="button" accessibilityLabel="Clear the sessions you picked"
+                      onPress={() => { setChosenSlots({}); setBookingError(null); }}
+                      style={{ minHeight: 44, justifyContent: 'center' }}>
+                      <Text style={[t.label, { color: c.txt2 }]}>Clear</Text>
+                    </Pressable>
+                  )}
+                </Row>
+                {/* Every session the pack still has, so nobody has to count
+                    the pack down themselves. They do not have to book them
+                    all now -- what is left stays on the pack. */}
+                <Text style={[t.caption, { color: c.txt3 }]}>
+                  Book as many as you like now. Whatever you leave stays on the pack for later.
+                </Text>
+                {picked.map(([date, slot]) => (
+                  <Row key={date} gap={10}
+                    style={{ alignItems: 'center', borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[t.name, { color: c.txt }]}>{bookingDayLabel(date)}</Text>
+                      <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{slot}</Text>
+                    </View>
+                    <Pressable accessibilityRole="button"
+                      accessibilityLabel={'Remove ' + bookingDayLabel(date) + ' ' + slot}
+                      onPress={() => setChosenSlots((current) => {
+                        const next = { ...current };
+                        delete next[date];
+                        return next;
+                      })}
+                      style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
+                      <Icon name="x" size={17} color={c.txt3} />
+                    </Pressable>
+                  </Row>
+                ))}
+              </View>
+            ) : bookDate && bookSlot ? (
               <Pressable accessibilityRole="button" accessibilityLabel="Change the time"
                 onPress={() => setPickingTime(true)} style={{ marginTop: 14 }}>
                 <Card background={alpha(c.volt, 0.1)} borderColor={c.volt} style={{ padding: 14 }}>
@@ -404,7 +501,7 @@ export function BookingOverlay() {
                   </Row>
                 </Card>
               </Pressable>
-            )}
+            ) : null}
 
             {/* An open coach is a coach who never set their hours. The server
                 accepts any time for them, so say these are suggestions rather
@@ -425,11 +522,26 @@ export function BookingOverlay() {
         >
           <Row style={{ flexWrap: 'wrap' }} gap={9}>
             {(chosen ? chosen.slots : []).map((slot) => {
-              const sel = bookSlot === slot;
+              const sel = multi && chosen ? chosenSlots[chosen.date] === slot : bookSlot === slot;
               return (
                 <Pressable key={slot} accessibilityRole="button" accessibilityState={{ selected: sel }}
                   accessibilityLabel={slot}
-                  onPress={() => { s.set('bookSlot', slot); setPickingTime(false); }}
+                  onPress={() => {
+                    if (multi && chosen) {
+                      const already = chosen.date in chosenSlots;
+                      // Refuse quietly rather than silently dropping one: the
+                      // pack has a size, and spending past it is what the
+                      // server refuses anyway.
+                      if (!already && picked.length >= allowance) {
+                        setBookingError('That is every session this pack has left.');
+                        setPickingTime(false);
+                        return;
+                      }
+                      setChosenSlots((current) => ({ ...current, [chosen.date]: slot }));
+                    }
+                    s.set('bookSlot', slot);
+                    setPickingTime(false);
+                  }}
                   style={{ borderRadius: 12, backgroundColor: sel ? c.volt : c.surface,
                     borderColor: sel ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 11 }}>
                   <Text style={[t.labelSm, { color: sel ? c.ink : c.txt }]}>{slot}</Text>

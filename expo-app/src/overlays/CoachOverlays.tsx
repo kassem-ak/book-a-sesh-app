@@ -8,6 +8,7 @@ import {
   addPromo, CoachPricing, fetchMyPricing, money, parseMoney, removePackage, removePromo,
   savePackage, SessionPackage, setSessionRate,
 } from '../lib/pricing';
+import { fetchClientPackages, PackageProgress, progressSummary } from '../lib/packages';
 import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
 import { initials } from '../state/models';
@@ -738,6 +739,9 @@ export function CoachPackagesOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const [pricing, setPricing] = useState<CoachPricing | null>(null);
+  // What each client has left of a pack they bought. The same view the client
+  // reads, from the other side -- so the two cannot show different numbers.
+  const [clients, setClients] = useState<PackageProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -757,12 +761,14 @@ export function CoachPackagesOverlay() {
     setLoading(true);
     setError(null);
     try {
-      const current = await fetchMyPricing();
+      const [current, sold] = await Promise.all([fetchMyPricing(), fetchClientPackages()]);
       setPricing(current);
+      setClients(sold);
       setRate(current.rateCents ? money(current.rateCents) : '');
       setDrafts({});
     } catch (e) {
       setPricing(null);
+      setClients([]);
       setError(errorText(e, 'Could not load your packages.'));
     } finally {
       setLoading(false);
@@ -968,6 +974,30 @@ export function CoachPackagesOverlay() {
               Packages are live on your public profile — clients book from exactly this list. A package is two or more
               sessions; a single session uses your rate above.
             </Text>
+
+            <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Packs your clients are on</SectionHeading>
+            <Text style={[t.bodySm, { color: c.txt3, marginBottom: 11 }]}>
+              What each client has booked, is waiting on, has already had, and still has left. They see the same numbers.
+            </Text>
+            <View style={{ gap: 10 }}>
+              {clients.length === 0 ? (
+                <Note>Nobody is part-way through a pack right now.</Note>
+              ) : (
+                clients.map((pack) => (
+                  <Card key={pack.clientId + pack.packageId} style={{ padding: 14 }}>
+                    <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[t.name, { color: c.txt }]}>{pack.withName}</Text>
+                        <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
+                          {pack.total}-session pack · {progressSummary(pack)}
+                        </Text>
+                      </View>
+                      <Text style={[t.priceSm, { color: c.accent }]}>{pack.remaining} left</Text>
+                    </Row>
+                  </Card>
+                ))
+              )}
+            </View>
 
             <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Promo codes</SectionHeading>
             {/* Promo codes persist, but no booking flow redeems them yet. */}
