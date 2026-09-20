@@ -195,7 +195,12 @@ const suggestionFromRemote = (row: any, fallbackCommunity?: string): EventSugges
 // `date` is a local calendar day as yyyy-mm-dd, `slot` a label out of
 // coach_availability ("8:00 AM"). Both are what the picker actually offered,
 // so the instant sent to the server is the one the user saw.
-const scheduledFor = (date: string, slot: string) => {
+/** A local yyyy-mm-dd plus a slot label becomes the instant the person picked.
+ *
+ *  Exported because three screens book a session and each had, or was about to
+ *  have, its own copy of this conversion. Three copies of a date calculation is
+ *  three chances to disagree about what "6:30 PM on the 4th" means. */
+export const scheduledFor = (date: string, slot: string) => {
   const match = slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   let hour = match ? Number(match[1]) : 12;
   const minute = match ? Number(match[2]) : 0;

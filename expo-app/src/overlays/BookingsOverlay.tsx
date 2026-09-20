@@ -20,6 +20,7 @@ import {
   formatSessionWhen,
 } from '../lib/bookings';
 import { dateKey as dayKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
+import { fetchMyPackages, PackageProgress, progressSummary } from '../lib/packages';
 import { initials } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -31,6 +32,9 @@ export function BookingsOverlay() {
   const s = useStore();
   const [bookings, setBookings] = useState<MyBookings>(EMPTY);
   const [packages, setPackages] = useState<PackageBalance[]>([]);
+  // Counted from the bookings rather than a stored counter, so a cancelled
+  // session comes back to the pack instead of being lost.
+  const [progress, setProgress] = useState<PackageProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Cancelling is destructive and RN Web has no Alert, so the card asks for a
@@ -44,12 +48,16 @@ export function BookingsOverlay() {
     setLoading(true);
     setError(null);
     try {
-      const [mine, balances] = await Promise.all([fetchMyBookings(), fetchMyPackageBalances()]);
+      const [mine, balances, packs] = await Promise.all([
+        fetchMyBookings(), fetchMyPackageBalances(), fetchMyPackages(),
+      ]);
       setBookings(mine);
       setPackages(balances);
+      setProgress(packs);
     } catch (e) {
       setBookings(EMPTY);
       setPackages([]);
+      setProgress([]);
       setError(e instanceof Error ? e.message : 'Could not load your bookings.');
     } finally {
       setLoading(false);
@@ -119,7 +127,16 @@ export function BookingsOverlay() {
 
         {!loading && !error && view === 'list' && (
           <>
-            {packages.length > 0 && (
+            {progress.length > 0 ? (
+              <>
+                <SectionHeading style={{ marginBottom: 11 }}>Packages</SectionHeading>
+                <View style={{ gap: 10 }}>
+                  {progress.map((pack) => (
+                    <ProgressCard key={pack.packageId} pack={pack} withLabel={`with ${pack.withName}`} />
+                  ))}
+                </View>
+              </>
+            ) : packages.length > 0 && (
               <>
                 <SectionHeading style={{ marginBottom: 11 }}>Packages</SectionHeading>
                 <View style={{ gap: 10 }}>
@@ -130,7 +147,7 @@ export function BookingsOverlay() {
               </>
             )}
 
-            <SectionHeading style={{ marginTop: packages.length > 0 ? 22 : 0, marginBottom: 11 }}>
+            <SectionHeading style={{ marginTop: progress.length > 0 || packages.length > 0 ? 22 : 0, marginBottom: 11 }}>
               Upcoming
             </SectionHeading>
             {actionError && (
@@ -288,6 +305,35 @@ function selectedLabel(key: string) {
   const [year, month, day] = key.split('-').map(Number);
   if (!year || !month || !day) return 'Selected day';
   return `${day} ${MONTH_NAMES[month - 1]} ${year}`;
+}
+
+// What is left of a package, from the bookings themselves.
+//
+// Four numbers rather than one bar: "3 of 10 used" cannot tell somebody whether
+// the other seven are bookable now or already spoken for, and that is the only
+// question a person opening this card is asking.
+export function ProgressCard({ pack, withLabel }: { pack: PackageProgress; withLabel: string }) {
+  const { c, t } = useTheme();
+  const spent = pack.taken + pack.booked + pack.pending;
+  const filled = pack.total > 0 ? Math.min(Math.max(spent / pack.total, 0), 1) : 0;
+  return (
+    <Card style={{ padding: 14 }}>
+      <Row style={{ justifyContent: 'space-between', marginBottom: 10 }}>
+        <Row gap={11}>
+          <Avatar initials={initials(pack.withName)} size={38} radius={11} fontSize={13} />
+          <View>
+            <Text style={[t.labelSm, { color: c.txt }]}>{pack.total}-session pack</Text>
+            <Text style={[t.caption, { color: c.txt2, marginTop: 1 }]}>{withLabel}</Text>
+          </View>
+        </Row>
+        <Text style={[t.priceSm, { color: c.accent }]}>{pack.remaining} left</Text>
+      </Row>
+      <View style={{ height: 6, borderRadius: 999, backgroundColor: c.surface2, overflow: 'hidden' }}>
+        <View style={{ width: `${filled * 100}%`, height: 6, borderRadius: 999, backgroundColor: c.volt }} />
+      </View>
+      <Text style={[t.caption, { color: c.txt2, marginTop: 8 }]}>{progressSummary(pack)}</Text>
+    </Card>
+  );
 }
 
 function PackageCard({ pack }: { pack: PackageBalance }) {

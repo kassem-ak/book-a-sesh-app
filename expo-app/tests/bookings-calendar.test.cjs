@@ -163,6 +163,7 @@ function calendarHelpers() {
       fetchMyPackageBalances: async () => [], formatCents: () => '', formatExpiry: () => null,
       formatSessionWhen: () => '',
     },
+    '../lib/packages': { fetchMyPackages: async () => [], progressSummary: () => '' },
     '../state/models': { initials: () => '' },
     '../state/store': { useStore: () => ({}) },
     '../theme': { alpha: () => '', useTheme: () => ({ c: {}, t: {} }) },

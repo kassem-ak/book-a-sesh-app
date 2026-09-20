@@ -5,7 +5,7 @@ import { Row, SectionHeading, VoltButton } from '../components/ui';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { proposePartnerSession } from '../lib/partners';
 import { bookableDays } from './BookingOverlay';
-import { bookingDayLabel, errorMessage, useStore } from '../state/store';
+import { bookingDayLabel, errorMessage, scheduledFor, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
 // Asking a peer to train. No price, no packages, no commission -- the whole
@@ -138,15 +138,3 @@ export function PartnerSessionOverlay() {
   );
 }
 
-// Same conversion the coach booking uses: a local yyyy-mm-dd plus a slot label
-// becomes the instant the person actually picked.
-function scheduledFor(date: string, slot: string) {
-  const match = slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  let hour = match ? Number(match[1]) : 12;
-  const minute = match ? Number(match[2]) : 0;
-  const meridiem = match?.[3]?.toUpperCase();
-  if (meridiem === 'PM' && hour < 12) hour += 12;
-  if (meridiem === 'AM' && hour === 12) hour = 0;
-  const [year, month, day] = date.split('-').map(Number);
-  return new Date(year, month - 1, day, hour, minute, 0, 0).toISOString();
-}
