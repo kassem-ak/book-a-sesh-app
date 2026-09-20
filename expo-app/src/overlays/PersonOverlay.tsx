@@ -4,6 +4,8 @@ import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Ov
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Stars, VoltButton } from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
 import { Certification, fetchCertifications } from '../lib/coaching';
+import { blackoutLabel, DayGroup, fetchBlackouts, groupWeek, periodLabel } from '../lib/availability';
+import { fetchCoachAvailability } from '../lib/queries';
 import { startConversation } from '../lib/chat';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { useStore } from '../state/store';
@@ -24,13 +26,26 @@ export function PersonOverlay() {
   // Credentials are extra detail, not the profile itself: a failed read leaves
   // the section absent rather than taking the whole profile down.
   const [certs, setCerts] = useState<Certification[]>([]);
+  // `null` is "not set", which the booking RPC treats as open -- so an empty
+  // array and a null week mean different things and must not be conflated.
+  const [hours, setHours] = useState<DayGroup[] | null>(null);
+  const [daysOff, setDaysOff] = useState<string[]>([]);
   const coachId = p?.isCoach ? p.id : null;
   useEffect(() => {
-    if (!coachId) { setCerts([]); return; }
+    if (!coachId) { setCerts([]); setHours(null); setDaysOff([]); return; }
     let active = true;
     fetchCertifications(coachId)
       .then((rows) => { if (active) setCerts(rows); })
       .catch(() => { if (active) setCerts([]); });
+    // Three independent reads. A schedule that fails to load must not blank the
+    // certificates, and neither must take the profile down -- the parts of a
+    // profile are not each other's preconditions.
+    fetchCoachAvailability(coachId)
+      .then((week) => { if (active) setHours(week ? groupWeek(week) : null); })
+      .catch(() => { if (active) setHours(null); });
+    fetchBlackouts(coachId)
+      .then((dates) => { if (active) setDaysOff(dates); })
+      .catch(() => { if (active) setDaysOff([]); });
     return () => { active = false; };
   }, [coachId]);
 
@@ -147,6 +162,32 @@ export function PersonOverlay() {
           ? (p.plays?.length ?? 0) > 0 && <TagRow heading="Also plays" tags={p.plays ?? []} />
           : p.tags.length > 0 && <TagRow heading="Looking for" tags={p.tags} />}
 
+        {p.isCoach && hours !== null && hours.length > 0 && <>
+          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>When they coach</SectionHeading>
+          <Card style={{ padding: 14, gap: 10 }}>
+            {hours.map((group) => (
+              <Row key={group.days.join('-')} gap={12} style={{ alignItems: 'flex-start' }}>
+                <Text style={[t.labelSm, { color: c.txt, width: 118 }]}>{dayRangeLabel(group.days)}</Text>
+                <View style={{ flex: 1 }}>
+                  {group.periods.map((period) => (
+                    <Text key={`${period.startsAt}-${period.endsAt}`} style={[t.bodySm, { color: c.accent }]}>
+                      {periodLabel(period)}
+                    </Text>
+                  ))}
+                </View>
+              </Row>
+            ))}
+            {/* The next few only. A coach with a month booked out would push
+                everything below this off the screen. */}
+            {daysOff.length > 0 && (
+              <Text style={[t.caption, { color: c.txt3, marginTop: 2 }]}>
+                Away {daysOff.slice(0, 3).map(blackoutLabel).join(', ')}
+                {daysOff.length > 3 ? ` and ${daysOff.length - 3} more` : ''}
+              </Text>
+            )}
+          </Card>
+        </>}
+
         {p.isCoach && certs.length > 0 && <>
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Certificates</SectionHeading>
           <View style={{ gap: 10 }}>
@@ -259,4 +300,12 @@ function TagRow({ heading, tags, accent = false }: { heading: string; tags: stri
       </Row>
     </>
   );
+}
+
+// "Mon – Fri", short because it sits in a fixed column beside the hours.
+const SHORT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function dayRangeLabel(days: number[]): string {
+  if (days.length === 1) return SHORT_DAYS[days[0]];
+  return `${SHORT_DAYS[days[0]]} – ${SHORT_DAYS[days[days.length - 1]]}`;
 }

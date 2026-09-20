@@ -185,6 +185,38 @@ export function suggestedPeriod(existing: Period[]): Period {
   return { startsAt, endsAt: startsAt + 60 };
 }
 
+/** Consecutive weekdays that share exactly the same hours.
+ *
+ *  A coach who works nine to five Monday to Friday set one range and should see
+ *  one row. Five identical cards is the same fact copied five times, and it
+ *  pushes everything else off the screen.
+ */
+export type DayGroup = { days: number[]; periods: Period[] };
+
+const signature = (periods: Period[]) =>
+  periods.map((p) => `${p.startsAt}-${p.endsAt}`).join(',');
+
+/** Days that work, grouped into runs, Monday first.
+ *
+ *  Deliberately does NOT wrap Sunday into Monday. The list reads top to bottom
+ *  starting at Monday, and a row labelled "Saturday – Monday" sitting above
+ *  Tuesday would be harder to read than the two rows it replaced. A coach who
+ *  set a wrapping range still gets what they asked for; it is only shown in the
+ *  order the week runs.
+ */
+export function groupWeek(week: Week): DayGroup[] {
+  const groups: DayGroup[] = [];
+  for (let day = 0; day < 7; day += 1) {
+    const periods = periodsFromSlots(week[day] ?? []);
+    if (!periods.length) continue;
+    const last = groups[groups.length - 1];
+    const runs = last && last.days[last.days.length - 1] === day - 1;
+    if (runs && signature(last.periods) === signature(periods)) last.days.push(day);
+    else groups.push({ days: [day], periods });
+  }
+  return groups;
+}
+
 export type Blackout = { date: string; reason: string | null };
 
 // One implementation of "which local day is this", shared with the calendars.

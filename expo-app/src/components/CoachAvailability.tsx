@@ -4,8 +4,8 @@ import { DatePickerSheet } from './DatePickerSheet';
 import { Field, Icon, Row, SectionHeading, VoltButton } from './ui';
 import {
   addPeriod, Blackout, blackoutLabel, closeDate, daysInRange, fetchMyBlackouts,
-  fetchMyWeek, MAX_PERIODS_PER_DAY, openDate, parsePeriodInput, Period, periodLabel,
-  periodsFromSlots, saveDayPeriods, Week,
+  fetchMyWeek, groupWeek, MAX_PERIODS_PER_DAY, openDate, parsePeriodInput, Period,
+  periodLabel, periodsFromSlots, saveDayPeriods, Week,
 } from '../lib/availability';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, useStore } from '../state/store';
@@ -97,10 +97,23 @@ export function CoachAvailability() {
     });
   };
 
-  const dropPeriod = (weekday: number, index: number) =>
-    void run(() => saveDayPeriods(weekday, periodsOn(weekday).filter((_, i) => i !== index)));
+  // Removing from a group removes from every day in it. The hours were added
+  // across those days in one go, and taking them back one day at a time would
+  // be a different gesture than the one that made them.
+  const dropPeriod = (days: number[], period: Period) =>
+    void run(async () => {
+      for (const day of days) {
+        await saveDayPeriods(day, periodsOn(day).filter(
+          (p) => p.startsAt !== period.startsAt || p.endsAt !== period.endsAt,
+        ));
+      }
+    });
 
-  const worked = week ? [0, 1, 2, 3, 4, 5, 6].filter((day) => periodsOn(day).length > 0) : [];
+  const groups = week ? groupWeek(week) : [];
+  const groupLabel = (days: number[]) =>
+    days.length === 1
+      ? DAY_NAMES[days[0]]
+      : `${DAY_NAMES[days[0]]} – ${DAY_NAMES[days[days.length - 1]]}`;
 
   return (
     <View style={{ gap: 16 }}>
@@ -115,21 +128,29 @@ export function CoachAvailability() {
       )}
 
       {week !== null && <>
-        {worked.length === 0 && (
+        {groups.length === 0 && (
           <Text style={[t.bodySm, { color: c.txt3 }]}>
             You have no hours set, so nobody can book you yet.
           </Text>
         )}
 
-        {worked.map((day) => (
-          <View key={day} style={{ borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 12, gap: 8 }}>
-            <Text style={[t.labelSm, { color: c.txt }]}>{DAY_NAMES[day]}</Text>
-            {periodsOn(day).map((period, index) => (
+        {groups.map((group) => (
+          <View key={group.days.join('-')}
+            style={{ borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 12, gap: 8 }}>
+            <Row gap={8} style={{ alignItems: 'center' }}>
+              <Text style={[t.labelSm, { color: c.txt }]}>{groupLabel(group.days)}</Text>
+              {group.days.length > 1 && (
+                <Text style={[t.caption, { color: c.txt3 }]}>
+                  {group.days.length} days, same hours
+                </Text>
+              )}
+            </Row>
+            {group.periods.map((period) => (
               <Row key={`${period.startsAt}-${period.endsAt}`} gap={10} style={{ alignItems: 'center' }}>
                 <Text style={[t.body, { color: c.accent, flex: 1 }]}>{periodLabel(period)}</Text>
                 <Pressable accessibilityRole="button" disabled={busy}
-                  accessibilityLabel={`Remove ${periodLabel(period)} on ${DAY_NAMES[day]}`}
-                  onPress={() => dropPeriod(day, index)}
+                  accessibilityLabel={`Remove ${periodLabel(period)} on ${groupLabel(group.days)}`}
+                  onPress={() => dropPeriod(group.days, period)}
                   style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
                   <Icon name="trash-2" size={17} color={c.txt3} />
                 </Pressable>
