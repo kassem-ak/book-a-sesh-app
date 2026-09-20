@@ -96,6 +96,85 @@ export function periodLabel(period: Period): string {
   return `${labelFromMinutes(period.startsAt)} – ${labelFromMinutes(period.endsAt)}`;
 }
 
+/** Read a time somebody typed.
+ *
+ *  Accepts what people actually write: "9", "9:30", "9:30am", "9:30 AM",
+ *  "17:30", "5 pm". Returns the minutes, or a reason the input cannot be used
+ *  -- a reason rather than null, because "that is not a time" and "we only book
+ *  on the half hour" are different problems and the person can only fix the one
+ *  they are told about.
+ */
+export type TimeParse = { minutes: number } | { error: string };
+
+export function parseTimeInput(text: string): TimeParse {
+  const trimmed = text.trim().toLowerCase();
+  if (!trimmed) return { error: 'Enter a time, like 9:00 AM.' };
+
+  const match = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (!match) return { error: `"${text.trim()}" is not a time. Try 9:00 AM or 17:30.` };
+
+  let hour = Number(match[1]);
+  const minute = match[2] === undefined ? 0 : Number(match[2]);
+  const meridiem = match[3];
+
+  if (minute > 59) return { error: 'Minutes go up to 59.' };
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return { error: 'With AM or PM the hour is 1 to 12.' };
+    hour = hour % 12 + (meridiem === 'pm' ? 12 : 0);
+  } else if (hour > 23) {
+    return { error: 'Hours go up to 23.' };
+  }
+
+  const minutes = hour * 60 + minute;
+  // The schedule is stored as half-hour slots and the booking picker offers
+  // them, so a time between two of them cannot be honoured. Saying so beats
+  // rounding it into something the coach did not ask for.
+  if (minutes % SLOT_MINUTES !== 0) {
+    return { error: 'Times are on the hour or half hour, like 9:00 or 9:30.' };
+  }
+  if (minutes < DAY_STARTS_AT || minutes > DAY_ENDS_AT) {
+    return {
+      error: `Bookable hours run from ${labelFromMinutes(DAY_STARTS_AT)} to ${labelFromMinutes(DAY_ENDS_AT)}.`,
+    };
+  }
+  return { minutes };
+}
+
+/** Read a typed pair as a period, or say why it is not one. */
+export function parsePeriodInput(startText: string, endText: string): { period: Period } | { error: string } {
+  const start = parseTimeInput(startText);
+  if ('error' in start) return { error: start.error };
+  const end = parseTimeInput(endText);
+  if ('error' in end) return { error: end.error };
+  if (end.minutes <= start.minutes) {
+    return { error: 'The finish has to be after the start.' };
+  }
+  return { period: { startsAt: start.minutes, endsAt: end.minutes } };
+}
+
+/** The weekdays a range covers, inclusive, 0=Mon..6=Sun.
+ *
+ *  Wraps: "Saturday to Monday" is a weekend that runs into the week, which is a
+ *  real shift pattern and not an error to refuse. */
+export function daysInRange(from: number, to: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < 7; i += 1) {
+    const day = (from + i) % 7;
+    out.push(day);
+    if (day === to) break;
+  }
+  return out;
+}
+
+/** Add a period to a day's existing ones.
+ *
+ *  Overlapping or touching periods merge rather than sitting side by side: the
+ *  stored slots cannot tell them apart anyway, so two entries claiming the same
+ *  hour would be one entry the moment it was saved and read back. */
+export function addPeriod(existing: Period[], period: Period): Period[] {
+  return periodsFromSlots(slotsForPeriods([...existing, period]));
+}
+
 /** The period a coach gets when they add one: an hour, mid-morning, or the
  *  first free hour after an existing period. One hour rather than a whole day
  *  because it is easier to stretch a range than to notice you have accidentally

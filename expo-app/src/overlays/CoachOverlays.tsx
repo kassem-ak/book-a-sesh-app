@@ -1,9 +1,13 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { analyticsErrorCode, track } from '../lib/analytics';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, VoltButton } from '../components/ui';
 import { currentAppUserId, formatCents, formatExpiry } from '../lib/bookings';
+import {
+  addPromo, CoachPricing, fetchMyPricing, money, parseMoney, removePackage, removePromo,
+  savePackage, SessionPackage, setSessionRate,
+} from '../lib/pricing';
 import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
 import { initials } from '../state/models';
@@ -216,85 +220,11 @@ async function removeAvailability(weekday: number, slots: string[]) {
   if (error) throw error;
 }
 
-// `packages` is exactly what discovery reads back (lib/queries.ts embeds active
-// packages on every coach card), so edits here really do change what a client
-// can buy. Only active rows are listed; a delete is a soft retire.
-async function fetchMyPackages(): Promise<CoachPackage[]> {
-  const coachId = await currentAppUserId();
-  const { data, error } = await supabase
-    .from('packages')
-    .select('id, sessions, price_cents')
-    .eq('coach_id', coachId)
-    .eq('active', true)
-    .order('sessions', { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as any[]).map((row) => ({ id: row.id, sessions: row.sessions, priceCents: row.price_cents }));
-}
-
-async function savePackage(id: string, sessions: number, priceCents: number) {
-  await ensureAppSession();
-  const { error } = await supabase
-    .from('packages')
-    .update({ sessions, price_cents: priceCents })
-    .eq('id', id)
-    .select('id, sessions, price_cents')
-    .single();
-  if (error) throw error;
-}
-
-async function createPackage(sessions: number, priceCents: number) {
-  const coachId = await currentAppUserId();
-  const { error } = await supabase
-    .from('packages')
-    .insert({ coach_id: coachId, sessions, price_cents: priceCents })
-    .select('id')
-    .single();
-  if (error) throw error;
-}
-
-// Retiring, not deleting: a past booking references packages(id), so a hard
-// delete would either fail or orphan history.
-async function retirePackage(id: string) {
-  await ensureAppSession();
-  const { error } = await supabase.from('packages').update({ active: false }).eq('id', id).select('id').single();
-  if (error) throw error;
-}
-
-async function fetchMyPromos(): Promise<CoachPromo[]> {
-  const coachId = await currentAppUserId();
-  const { data, error } = await supabase
-    .from('coach_promos')
-    .select('id, code, pct, created_at')
-    .eq('coach_id', coachId)
-    .eq('active', true)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return ((data ?? []) as any[]).map((row) => ({ id: row.id, code: row.code, pct: row.pct, createdAt: row.created_at }));
-}
-
 // ponytail: random suffix, uniqueness enforced by the (coach_id, code) index —
 // a collision surfaces as a save error, which is honest. Server-side generation
 // if codes ever need to be guess-proof.
 function promoSuffix() {
   return Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 4).toUpperCase().padEnd(4, 'X');
-}
-
-async function createCoachPromo(pct: number): Promise<CoachPromo> {
-  const coachId = await currentAppUserId();
-  const { data, error } = await supabase
-    .from('coach_promos')
-    .insert({ coach_id: coachId, code: `${pct}OFF-${promoSuffix()}`, pct })
-    .select('id, code, pct, created_at')
-    .single();
-  if (error) throw error;
-  const row = data as any;
-  return { id: row.id, code: row.code, pct: row.pct, createdAt: row.created_at };
-}
-
-async function retireCoachPromo(id: string) {
-  await ensureAppSession();
-  const { error } = await supabase.from('coach_promos').update({ active: false }).eq('id', id).select('id').single();
-  if (error) throw error;
 }
 
 const errorText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
@@ -807,42 +737,49 @@ export function CoachScheduleOverlay() {
 export function CoachPackagesOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
-  const [packages, setPackages] = useState<CoachPackage[]>([]);
-  const [promos, setPromos] = useState<CoachPromo[]>([]);
+  const [pricing, setPricing] = useState<CoachPricing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [newSessions, setNewSessions] = useState<number | null>(null);
-  const [newPriceCents, setNewPriceCents] = useState<number | null>(null);
-  const [promoPct, setPromoPct] = useState(15);
+
+  // Everything is typed. Steppers could only reach a price by tapping towards
+  // it, which is fine for 5 sessions and absurd for $400 -- and they could not
+  // express "$37.50" at all.
+  const [rate, setRate] = useState('');
+  const [drafts, setDrafts] = useState<Record<string, { sessions: string; price: string }>>({});
+  const [newSessions, setNewSessions] = useState('');
+  const [newPrice, setNewPrice] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoPct, setPromoPct] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [pkgs, codes] = await Promise.all([fetchMyPackages(), fetchMyPromos()]);
-      setPackages(pkgs);
-      setPromos(codes);
+      const current = await fetchMyPricing();
+      setPricing(current);
+      setRate(current.rateCents ? money(current.rateCents) : '');
+      setDrafts({});
     } catch (e) {
-      setPackages([]);
-      setPromos([]);
+      setPricing(null);
       setError(errorText(e, 'Could not load your packages.'));
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
+  // Every write re-reads. A price list showing a figure the server refused is
+  // the one thing it must never do.
   const run = async (write: () => Promise<void>, fallback: string) => {
     setBusy(true);
     setActionError(null);
     try {
       await write();
       await load();
+      s.set('profileRevision', s.profileRevision + 1);
     } catch (e) {
       track('write_failed', { error_code: analyticsErrorCode(e) });
       setActionError(errorText(e, fallback));
@@ -851,192 +788,219 @@ export function CoachPackagesOverlay() {
     }
   };
 
-  // ponytail: each stepper tap writes immediately and reloads — last write
-  // wins if someone hammers it. A dirty-then-save button if that ever bites.
-  const bumpPackage = (p: CoachPackage, dSessions: number, dPriceCents: number) => {
-    const sessions = Math.max(1, p.sessions + dSessions);
-    const priceCents = Math.max(0, p.priceCents + dPriceCents);
-    if (sessions === p.sessions && priceCents === p.priceCents) return;
-    void run(() => savePackage(p.id, sessions, priceCents), 'Could not save that package.');
+  const draftFor = (pkg: SessionPackage) =>
+    drafts[pkg.id] ?? { sessions: String(pkg.sessions), price: money(pkg.priceCents) };
+  const setDraft = (id: string, change: Partial<{ sessions: string; price: string }>) =>
+    setDrafts((current) => ({
+      ...current,
+      [id]: { ...(current[id] ?? { sessions: '', price: '' }), ...change } as { sessions: string; price: string },
+    }));
+
+  const saveRate = () => {
+    const cents = parseMoney(rate);
+    if (cents === null) { setActionError('Enter a rate like 45 or 45.50.'); return; }
+    void run(async () => {
+      await setSessionRate(cents);
+      track('coach_rate_set');
+    }, 'Could not save your rate.');
+  };
+
+  const savePkg = (pkg: SessionPackage) => {
+    const draft = draftFor(pkg);
+    const sessions = Number(draft.sessions.replace(/[^0-9]/g, ''));
+    const cents = parseMoney(draft.price);
+    if (cents === null) { setActionError('Enter a package price like 400 or 399.99.'); return; }
+    void run(() => savePackage({ id: pkg.id, sessions, priceCents: cents, active: pkg.active }),
+      'Could not save that package.');
+  };
+
+  const addPackage = () => {
+    const sessions = Number(newSessions.replace(/[^0-9]/g, ''));
+    const cents = parseMoney(newPrice);
+    if (cents === null) { setActionError('Enter a package price like 400 or 399.99.'); return; }
+    void run(async () => {
+      await savePackage({ sessions, priceCents: cents });
+      track('coach_package_added');
+      setNewSessions(''); setNewPrice('');
+    }, 'Could not add that package.');
+  };
+
+  const addCode = () => {
+    const pct = Number(promoPct.replace(/[^0-9]/g, ''));
+    void run(async () => {
+      await addPromo(promoCode, pct);
+      track('coach_promo_added');
+      setPromoCode(''); setPromoPct('');
+    }, 'Could not create that promo code.');
+  };
+
+  // What a new package works out at per session, shown while it is being typed
+  // -- the reason to sell a block is that it is cheaper, and the coach should
+  // see that before they save rather than after.
+  const perSession = (sessionsText: string, priceText: string) => {
+    const sessions = Number(sessionsText.replace(/[^0-9]/g, ''));
+    const cents = parseMoney(priceText);
+    if (!sessions || cents === null) return null;
+    return money(Math.round(cents / sessions));
   };
 
   return (
-    <OverlayScaffold header={<OverlayHeader title="Packages & promos" onBack={s.closeOverlay} />}>
+    <OverlayScaffold header={<OverlayHeader title="Packages, pricing & promos" onBack={s.closeOverlay} />}>
       <View style={{ paddingHorizontal: 18 }}>
         {loading && <Note>Loading your packages…</Note>}
         {!loading && error && <ErrorNote message={error} onRetry={load} />}
 
-        {!loading && !error && (
+        {!loading && !error && pricing && (
           <>
-            <SectionHeading style={{ marginBottom: 11 }}>Your packages</SectionHeading>
             {actionError && <Text style={[t.bodySm, { color: c.danger, marginBottom: 10 }]}>{actionError}</Text>}
+
+            <SectionHeading style={{ marginBottom: 11 }}>Your rate</SectionHeading>
+            <Text style={[t.bodySm, { color: c.txt2, marginBottom: 11 }]}>
+              What one session with you costs. This is the price people see in Discover and on the Book button.
+            </Text>
+            <Row gap={10} style={{ alignItems: 'center' }}>
+              <Text style={[t.price, { color: c.accent }]}>$</Text>
+              <View style={{ flex: 1 }}>
+                <MoneyField value={rate} onChange={setRate} label="Price per session" placeholder="45" />
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel="Save your rate per session"
+                onPress={saveRate} disabled={busy}
+                style={{ minHeight: 44, paddingHorizontal: 6, justifyContent: 'center' }}>
+                <Text style={[t.label, { color: c.accent }]}>Save</Text>
+              </Pressable>
+            </Row>
+            <Text style={[t.bodySm, { color: c.txt3, marginTop: 8 }]}>
+              Leave it at 0 and BOOK’D quotes nothing rather than guessing a figure for you.
+            </Text>
+
+            <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Your packages</SectionHeading>
             <View style={{ gap: 11 }}>
-              {packages.length === 0 ? (
+              {pricing.packages.length === 0 ? (
                 <Note>You have no packages on sale yet. Add one below.</Note>
               ) : (
-                packages.map((p) => (
-                  <Card key={p.id} style={{ padding: 15 }}>
-                    <Row style={{ alignItems: 'flex-start' }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[t.name, { color: c.txt }]}>
-                          {p.sessions === 1 ? 'Single session' : `${p.sessions}-session pack`}
-                        </Text>
-                        <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
-                          {formatCents(Math.round(p.priceCents / p.sessions))} per session
-                        </Text>
-                      </View>
-                      <Pressable
-                        onPress={() => run(() => retirePackage(p.id), 'Could not remove that package.')}
-                        disabled={busy}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Stop selling the ${p.sessions}-session package`}
-                        accessibilityState={{ disabled: busy }}
-                        style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: 13,
-                          backgroundColor: c.surface2,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <Icon name="x" size={12} color={c.txt2} />
-                      </Pressable>
-                    </Row>
-                    <Row style={{ marginTop: 13 }} gap={10}>
-                      <PkgStepper
-                        value={`${p.sessions}`}
-                        unit="sessions"
-                        name={`the ${p.sessions}-session package`}
-                        disabled={busy}
-                        onMinus={() => bumpPackage(p, -1, 0)}
-                        onPlus={() => bumpPackage(p, 1, 0)}
-                      />
-                      <PkgStepper
-                        value={formatCents(p.priceCents)}
-                        unit="total price"
-                        name={`the price of the ${p.sessions}-session package`}
-                        accent
-                        disabled={busy}
-                        onMinus={() => bumpPackage(p, 0, -500)}
-                        onPlus={() => bumpPackage(p, 0, 500)}
-                      />
-                    </Row>
-                  </Card>
-                ))
+                pricing.packages.map((pkg) => {
+                  const draft = draftFor(pkg);
+                  const dirty = draft.sessions !== String(pkg.sessions) || draft.price !== money(pkg.priceCents);
+                  const each = perSession(draft.sessions, draft.price);
+                  return (
+                    <Card key={pkg.id} style={{ padding: 15, gap: 10 }}>
+                      <Row style={{ alignItems: 'center' }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[t.name, { color: c.txt }]}>
+                            {pkg.sessions === 1 ? 'Single session' : `${pkg.sessions}-session pack`}
+                          </Text>
+                          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
+                            {each ? `$${each} per session` : 'Enter a number of sessions and a price'}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => run(() => removePackage(pkg.id), 'Could not remove that package.')}
+                          disabled={busy} accessibilityRole="button"
+                          accessibilityLabel={`Remove the ${pkg.sessions}-session package`}
+                          accessibilityState={{ disabled: busy }}
+                          style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: c.surface2,
+                            alignItems: 'center', justifyContent: 'center' }}>
+                          <Icon name="x" size={14} color={c.txt2} />
+                        </Pressable>
+                      </Row>
+                      <Row gap={10} style={{ alignItems: 'center' }}>
+                        <View style={{ width: 96 }}>
+                          <MoneyField value={draft.sessions} onChange={(sessions) => setDraft(pkg.id, { sessions })}
+                            label={`Sessions in the ${pkg.sessions}-session package`} placeholder="10" />
+                        </View>
+                        <Text style={[t.bodySm, { color: c.txt3 }]}>sessions</Text>
+                        <View style={{ flex: 1 }} />
+                        <Text style={[t.price, { color: c.accent }]}>$</Text>
+                        <View style={{ width: 110 }}>
+                          <MoneyField value={draft.price} onChange={(price) => setDraft(pkg.id, { price })}
+                            label={`Total price of the ${pkg.sessions}-session package`} placeholder="400" />
+                        </View>
+                      </Row>
+                      {dirty && (
+                        <Row gap={12}>
+                          <View style={{ flex: 1 }}>
+                            <VoltButton label="Save package" busy={busy} busyLabel="Saving…"
+                              enabled={!busy} onPress={() => savePkg(pkg)} />
+                          </View>
+                          <Pressable accessibilityRole="button" accessibilityLabel="Discard these changes"
+                            onPress={() => setDrafts((current) => {
+                              const next = { ...current };
+                              delete next[pkg.id];
+                              return next;
+                            })}
+                            disabled={busy}
+                            style={{ minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' }}>
+                            <Text style={[t.label, { color: c.txt2 }]}>Undo</Text>
+                          </Pressable>
+                        </Row>
+                      )}
+                    </Card>
+                  );
+                })
               )}
-            </View>
 
-            <View
-              style={{
-                marginTop: 18,
-                borderRadius: 16,
-                borderColor: c.line,
-                borderWidth: 1.5,
-                borderStyle: 'dashed',
-                padding: 15,
-              }}
-            >
-              <Text style={[t.labelSm, { color: c.txt2 }]}>
-                New package{newSessions === null ? '' : ` — ${newSessions === 1 ? 'Single session' : `${newSessions}-session pack`}`}
-              </Text>
-              <Row style={{ marginTop: 12 }} gap={10}>
-                <PkgStepper
-                  value={newSessions === null ? '—' : `${newSessions}`}
-                  unit="sessions"
-                  name="the new package"
-                  disabled={busy}
-                  onMinus={() => setNewSessions((n) => Math.max(1, (n ?? 0) - 1))}
-                  onPlus={() => setNewSessions((n) => (n ?? 0) + 1)}
-                />
-                <PkgStepper
-                  value={newPriceCents === null ? '—' : formatCents(newPriceCents)}
-                  unit="total price"
-                  name="the price of the new package"
-                  accent
-                  disabled={busy}
-                  onMinus={() => setNewPriceCents((v) => Math.max(500, (v ?? 0) - 500))}
-                  onPlus={() => setNewPriceCents((v) => (v ?? 0) + 500)}
-                />
-              </Row>
-              <View style={{ marginTop: 12 }}>
-                <VoltButton
-                  label="Add package"
-                  height={44}
-                  enabled={!busy && newSessions !== null && newPriceCents !== null}
-                  busy={busy}
-                  busyLabel="Saving…"
-                  onPress={() => {
-                    if (newSessions === null || newPriceCents === null) {
-                      setActionError('Choose the session count and total price before adding a package.');
-                      return;
-                    }
-                    void run(async () => {
-                      await createPackage(newSessions, newPriceCents);
-                      setNewSessions(null);
-                      setNewPriceCents(null);
-                    }, 'Could not add that package.');
-                  }}
-                />
-              </View>
+              <Card style={{ padding: 15, gap: 10, borderStyle: 'dashed' }}>
+                <Text style={[t.labelSm, { color: c.txt2 }]}>New package</Text>
+                <Row gap={10} style={{ alignItems: 'center' }}>
+                  <View style={{ width: 96 }}>
+                    <MoneyField value={newSessions} onChange={setNewSessions}
+                      label="Sessions in the new package" placeholder="10" />
+                  </View>
+                  <Text style={[t.bodySm, { color: c.txt3 }]}>sessions</Text>
+                  <View style={{ flex: 1 }} />
+                  <Text style={[t.price, { color: c.accent }]}>$</Text>
+                  <View style={{ width: 110 }}>
+                    <MoneyField value={newPrice} onChange={setNewPrice}
+                      label="Total price of the new package" placeholder="400" />
+                  </View>
+                </Row>
+                {perSession(newSessions, newPrice) && (
+                  <Text style={[t.bodySm, { color: c.txt2 }]}>
+                    ${perSession(newSessions, newPrice)} per session
+                  </Text>
+                )}
+                <VoltButton label="Add package" busy={busy} busyLabel="Saving…"
+                  enabled={newSessions.trim() !== '' && newPrice.trim() !== '' && !busy}
+                  onPress={addPackage} />
+              </Card>
             </View>
             <Text style={[t.bodySm, { color: c.txt3, marginTop: 12 }]}>
-              Packages are live on your public profile — clients book from exactly this list.
+              Packages are live on your public profile — clients book from exactly this list. A package is two or more
+              sessions; a single session uses your rate above.
             </Text>
 
-            <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Record a promo code</SectionHeading>
-            {/* Promo codes persist, but no booking flow redeems them. */}
+            <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Promo codes</SectionHeading>
+            {/* Promo codes persist, but no booking flow redeems them yet. */}
             <Text style={[t.bodySm, { color: c.txt3, marginBottom: 11 }]}>
-              Codes are recorded in your promo list. They are not yet redeemable in the app and do not change booking prices.
+              Write your own code and the discount it carries. Codes are recorded in your promo list; they are not yet
+              redeemable in the app and do not change booking prices.
             </Text>
-            <Row gap={8}>
-              {[10, 15, 20, 25].map((p) => (
-                <Pressable
-                  key={p}
-                  onPress={() => setPromoPct(p)}
-                  accessibilityRole="radio"
-                  accessibilityLabel={`Record ${p} percent`}
-                  accessibilityState={{ selected: promoPct === p }}
-                  style={{
-                    flex: 1,
-                    alignItems: 'center',
-                    borderRadius: 13,
-                    backgroundColor: promoPct === p ? c.volt : c.surface,
-                    borderColor: promoPct === p ? c.volt : c.line,
-                    borderWidth: 1,
-                    paddingVertical: 12,
-                  }}
-                >
-                  <Text style={[t.price, { color: promoPct === p ? c.ink : c.txt2 }]}>{p}%</Text>
-                </Pressable>
-              ))}
+            <Row gap={10} style={{ alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <MoneyField value={promoCode} onChange={setPromoCode} label="Promo code" placeholder="SUMMER20" />
+              </View>
+              <View style={{ width: 84 }}>
+                <MoneyField value={promoPct} onChange={setPromoPct} label="Percentage off" placeholder="20" />
+              </View>
+              <Text style={[t.price, { color: c.accent }]}>%</Text>
             </Row>
             <View style={{ marginTop: 12 }}>
-              <VoltButton
-                label="Generate my promo code"
-                enabled={!busy}
-                busy={busy}
-                busyLabel="Saving…"
-                onPress={() =>
-                  run(async () => {
-                    await createCoachPromo(promoPct);
-                  }, 'Could not create that promo code.')
-                }
-              />
+              <VoltButton label="Add promo code" enabled={promoCode.trim().length > 2 && promoPct.trim() !== '' && !busy}
+                busy={busy} busyLabel="Saving…" onPress={addCode} />
             </View>
 
-            <SectionHeading style={{ marginTop: 24, marginBottom: 11 }}>Your recorded promo codes</SectionHeading>
+            <SectionHeading style={{ marginTop: 24, marginBottom: 11 }}>Your promo codes</SectionHeading>
             <View style={{ gap: 10 }}>
-              {promos.length === 0 ? (
+              {pricing.promos.length === 0 ? (
                 <Note>No promo codes to show.</Note>
               ) : (
-                promos.map((promo) => (
+                pricing.promos.map((promo) => (
                   <PromoCard
                     key={promo.id}
                     code={promo.code}
                     sub={`${promo.pct}% recorded · not redeemable in the app`}
-                    onRemove={() => run(() => retireCoachPromo(promo.id), 'Could not remove that promo.')}
-                    removeLabel={`Deactivate promo code ${promo.code}`}
+                    onRemove={() => run(() => removePromo(promo.id), 'Could not remove that promo.')}
+                    removeLabel={`Remove promo code ${promo.code}`}
                     disabled={busy}
                   />
                 ))
@@ -1052,6 +1016,30 @@ export function CoachPackagesOverlay() {
 // ---------------------------------------------------------------------------
 // Shared bits
 // ---------------------------------------------------------------------------
+
+// A plain typed field. `Field` in components/ui is the same shape; this one
+// exists because these sit inside rows that size themselves, and it keeps the
+// accessible name required without the leading-icon plumbing.
+function MoneyField({ value, onChange, label, placeholder }: {
+  value: string; onChange: (text: string) => void; label: string; placeholder: string;
+}) {
+  const { c, t } = useTheme();
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChange}
+      placeholder={placeholder}
+      placeholderTextColor={c.txt3}
+      accessibilityLabel={label}
+      // decimal-pad rather than number-pad: prices have decimal points, and a
+      // promo code needs letters, so that one falls back to the default.
+      keyboardType={placeholder === 'SUMMER20' ? 'default' : 'decimal-pad'}
+      autoCapitalize={placeholder === 'SUMMER20' ? 'characters' : 'none'}
+      style={[t.label, { color: c.txt, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1,
+        borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, minHeight: 44 }]}
+    />
+  );
+}
 
 function Stepper({ icon, label, onPress }: { icon: 'minus' | 'plus'; label: string; onPress: () => void }) {
   const { c } = useTheme();

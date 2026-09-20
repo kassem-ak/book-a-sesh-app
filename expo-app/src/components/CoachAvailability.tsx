@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { DatePickerSheet } from './DatePickerSheet';
 import { Field, Icon, Row, SectionHeading, VoltButton } from './ui';
 import {
-  Blackout, blackoutLabel, closeDate, DAY_ENDS_AT, DAY_STARTS_AT, fetchMyBlackouts,
-  fetchMyWeek, labelFromMinutes, MAX_PERIODS_PER_DAY, openDate, Period, periodsFromSlots,
-  saveDayPeriods, SLOT_MINUTES, suggestedPeriod, Week,
+  addPeriod, Blackout, blackoutLabel, closeDate, daysInRange, fetchMyBlackouts,
+  fetchMyWeek, MAX_PERIODS_PER_DAY, openDate, parsePeriodInput, Period, periodLabel,
+  periodsFromSlots, saveDayPeriods, Week,
 } from '../lib/availability';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, useStore } from '../state/store';
@@ -23,12 +23,19 @@ export function CoachAvailability() {
   const s = useStore();
   const [week, setWeek] = useState<Week | null>(null);
   const [blackouts, setBlackouts] = useState<Blackout[]>([]);
-  const [weekday, setWeekday] = useState(0);
-  // The day being edited, held apart from what is saved so a half-dragged range
-  // is never written. Null means "showing what the server has".
-  const [draft, setDraft] = useState<Period[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The form adds hours to one day or to a run of days at once. Most coaches
+  // work the same hours Monday to Friday, and setting that five times was five
+  // chances to make them disagree.
+  const [spanDays, setSpanDays] = useState(false);
+  const [fromDay, setFromDay] = useState(0);
+  const [toDay, setToDay] = useState(4);
+  const [startText, setStartText] = useState('9:00 AM');
+  const [endText, setEndText] = useState('5:00 PM');
+  const [formError, setFormError] = useState<string | null>(null);
+
   const [picking, setPicking] = useState(false);
   const [reason, setReason] = useState('');
 
@@ -38,7 +45,6 @@ export function CoachAvailability() {
       const [rows, closed] = await Promise.all([fetchMyWeek(), fetchMyBlackouts()]);
       setWeek(rows);
       setBlackouts(closed);
-      setDraft(null);
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -61,22 +67,47 @@ export function CoachAvailability() {
     } finally { setBusy(false); }
   };
 
-  const saved = React.useMemo(
-    () => periodsFromSlots(week?.[weekday] ?? []),
-    [week, weekday],
-  );
-  const periods = draft ?? saved;
-  const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(saved);
+  const periodsOn = (weekday: number) => periodsFromSlots(week?.[weekday] ?? []);
+  const targetDays = spanDays ? daysInRange(fromDay, toDay) : [fromDay];
 
-  const edit = (next: Period[]) => setDraft(next);
-  const editPeriod = (index: number, change: Partial<Period>) =>
-    edit(periods.map((p, i) => (i === index ? { ...p, ...change } : p)));
+  const addHours = () => {
+    const parsed = parsePeriodInput(startText, endText);
+    if ('error' in parsed) { setFormError(parsed.error); return; }
+
+    // Refused before any of the days are written, so a range cannot half-apply
+    // and leave the coach with hours on Monday and none on Tuesday.
+    const full = targetDays.filter((day) => {
+      const merged = addPeriod(periodsOn(day), parsed.period);
+      return merged.length > MAX_PERIODS_PER_DAY;
+    });
+    if (full.length) {
+      setFormError(
+        `${full.map((day) => DAY_NAMES[day]).join(', ')} would have more than ${MAX_PERIODS_PER_DAY} periods. `
+        + 'Remove some hours there first, or widen the ones already set.',
+      );
+      return;
+    }
+
+    setFormError(null);
+    void run(async () => {
+      for (const day of targetDays) {
+        await saveDayPeriods(day, addPeriod(periodsOn(day), parsed.period));
+      }
+      track('coach_hours_saved');
+    });
+  };
+
+  const dropPeriod = (weekday: number, index: number) =>
+    void run(() => saveDayPeriods(weekday, periodsOn(weekday).filter((_, i) => i !== index)));
+
+  const worked = week ? [0, 1, 2, 3, 4, 5, 6].filter((day) => periodsOn(day).length > 0) : [];
 
   return (
     <View style={{ gap: 16 }}>
       <SectionHeading>When you coach</SectionHeading>
       <Text style={[t.bodySm, { color: c.txt2 }]}>
-        Pick a day, then the hours you work on it. Up to two periods a day, so a morning and an evening can have a gap between them.
+        Add the hours you work — one day, or a run of days at once. Up to {MAX_PERIODS_PER_DAY} periods a day, so a
+        morning and an evening can have a gap between them.
       </Text>
       {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
       {week === null && !error && (
@@ -84,85 +115,71 @@ export function CoachAvailability() {
       )}
 
       {week !== null && <>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          {DAYS.map((label, index) => {
-            const selected = weekday === index;
-            const works = (week[index] ?? []).length > 0;
-            return (
-              <Pressable key={label}
-                onPress={() => { setWeekday(index); setDraft(null); }}
-                accessibilityRole="radio" accessibilityState={{ selected }}
-                accessibilityLabel={`${DAY_NAMES[index]}, ${works ? 'working' : 'not working'}`}
-                style={{ borderRadius: 12, paddingHorizontal: 13, paddingVertical: 9, minWidth: 56, alignItems: 'center',
-                  borderWidth: 1, borderColor: selected ? c.volt : c.line,
-                  backgroundColor: selected ? c.volt : c.surface }}>
-                <Text style={[t.caption, { color: selected ? c.ink : c.txt3 }]}>{label}</Text>
-                {/* A dot rather than a count: which days you work is the thing
-                    to see at a glance. */}
-                <View style={{ width: 5, height: 5, borderRadius: 3, marginTop: 4,
-                  backgroundColor: works ? (selected ? c.ink : c.volt) : 'transparent' }} />
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {periods.length === 0 && (
+        {worked.length === 0 && (
           <Text style={[t.bodySm, { color: c.txt3 }]}>
-            {DAY_NAMES[weekday]} is a day off. Add hours to open it.
+            You have no hours set, so nobody can book you yet.
           </Text>
         )}
 
-        {periods.map((period, index) => (
-          <View key={index} style={{ borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 12, gap: 10 }}>
-            <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={[t.labelSm, { color: c.txt2 }]}>
-                {index === 0 ? 'First period' : 'Second period'}
-              </Text>
-              <Pressable accessibilityRole="button" disabled={busy}
-                accessibilityLabel={`Remove ${index === 0 ? 'first' : 'second'} period on ${DAY_NAMES[weekday]}`}
-                onPress={() => edit(periods.filter((_, i) => i !== index))}
-                style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
-                <Icon name="trash-2" size={17} color={c.txt3} />
-              </Pressable>
-            </Row>
-            <TimeStepper label="From" value={period.startsAt}
-              min={DAY_STARTS_AT} max={period.endsAt - SLOT_MINUTES}
-              onChange={(startsAt) => editPeriod(index, { startsAt })} />
-            <TimeStepper label="To" value={period.endsAt}
-              min={period.startsAt + SLOT_MINUTES} max={DAY_ENDS_AT}
-              onChange={(endsAt) => editPeriod(index, { endsAt })} />
+        {worked.map((day) => (
+          <View key={day} style={{ borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 12, gap: 8 }}>
+            <Text style={[t.labelSm, { color: c.txt }]}>{DAY_NAMES[day]}</Text>
+            {periodsOn(day).map((period, index) => (
+              <Row key={`${period.startsAt}-${period.endsAt}`} gap={10} style={{ alignItems: 'center' }}>
+                <Text style={[t.body, { color: c.accent, flex: 1 }]}>{periodLabel(period)}</Text>
+                <Pressable accessibilityRole="button" disabled={busy}
+                  accessibilityLabel={`Remove ${periodLabel(period)} on ${DAY_NAMES[day]}`}
+                  onPress={() => dropPeriod(day, index)}
+                  style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
+                  <Icon name="trash-2" size={17} color={c.txt3} />
+                </Pressable>
+              </Row>
+            ))}
           </View>
         ))}
 
-        {periods.length < MAX_PERIODS_PER_DAY && (
-          <Pressable accessibilityRole="button" disabled={busy}
-            accessibilityLabel={`Add hours on ${DAY_NAMES[weekday]}`}
-            onPress={() => edit([...periods, suggestedPeriod(periods)])}
-            style={{ minHeight: 46, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed',
-              borderColor: c.line, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={[t.label, { color: c.accent }]}>
-              {periods.length === 0 ? '+ Add working hours' : '+ Add a second period'}
-            </Text>
-          </Pressable>
-        )}
-
-        {dirty && (
-          <Row gap={12}>
-            <View style={{ flex: 1 }}>
-              <VoltButton label={`Save ${DAY_NAMES[weekday]}`} busy={busy} busyLabel="Saving…"
-                enabled={!busy}
-                onPress={() => void run(async () => {
-                  await saveDayPeriods(weekday, periods);
-                  track('coach_hours_saved');
-                })} />
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Discard these changes"
-              onPress={() => setDraft(null)} disabled={busy}
-              style={{ minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' }}>
-              <Text style={[t.label, { color: c.txt2 }]}>Undo</Text>
-            </Pressable>
+        <View style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: c.line, borderRadius: 14, padding: 12, gap: 12 }}>
+          <Row gap={8}>
+            {[
+              { key: false, label: 'One day' },
+              { key: true, label: 'Day range' },
+            ].map((option) => {
+              const active = spanDays === option.key;
+              return (
+                <Pressable key={option.label} onPress={() => setSpanDays(option.key)}
+                  accessibilityRole="radio" accessibilityState={{ selected: active }}
+                  accessibilityLabel={option.label}
+                  style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1,
+                    borderColor: active ? c.volt : c.line,
+                    backgroundColor: active ? alpha(c.volt, 0.14) : c.surface }}>
+                  <Text style={[t.labelSm, { color: active ? c.accent : c.txt2 }]}>{option.label}</Text>
+                </Pressable>
+              );
+            })}
           </Row>
-        )}
+
+          <DayPicker label={spanDays ? 'From' : 'Day'} value={fromDay} onChange={setFromDay} />
+          {spanDays && <DayPicker label="To" value={toDay} onChange={setToDay} />}
+
+          <Row gap={10} style={{ alignItems: 'center' }}>
+            <TimeInput label="Start" value={startText} onChange={setStartText} />
+            <Text style={[t.bodySm, { color: c.txt3 }]}>to</Text>
+            <TimeInput label="Finish" value={endText} onChange={setEndText} />
+          </Row>
+
+          {formError
+            ? <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{formError}</Text>
+            : <Text style={[t.caption, { color: c.txt3 }]}>
+                On the hour or half hour. 9:00 AM, 9:30, 17:30 and 5 pm all work.
+              </Text>}
+
+          <VoltButton
+            label={spanDays
+              ? `Add hours · ${DAY_NAMES[fromDay]} to ${DAY_NAMES[toDay]}`
+              : `Add hours · ${DAY_NAMES[fromDay]}`}
+            busy={busy} busyLabel="Saving…" enabled={!busy} onPress={addHours} />
+        </View>
+
         <Text style={[t.caption, { color: c.txt3 }]}>
           Sessions already booked are not affected by a change here.
         </Text>
@@ -217,47 +234,56 @@ export function CoachAvailability() {
   );
 }
 
-// Half-hour steps rather than a free text time.
-//
-// The stored slots are on a half-hour grid, so a typed "9:17" would have to be
-// rounded into something the coach did not ask for. Stepping can only produce a
-// time the schedule can actually hold, and the bounds mean a period can never
-// end before it starts.
-function TimeStepper({ label, value, min, max, onChange }: {
-  label: string; value: number; min: number; max: number; onChange: (value: number) => void;
+function DayPicker({ label, value, onChange }: {
+  label: string; value: number; onChange: (day: number) => void;
 }) {
   const { c, t } = useTheme();
-  const canBack = value > min;
-  const canForward = value < max;
   return (
     <Row gap={10} style={{ alignItems: 'center' }}>
-      <Text style={[t.bodySm, { color: c.txt3, width: 42 }]}>{label}</Text>
-      <Row gap={8} style={{ alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
-        <Step label="−" enabled={canBack} onPress={() => onChange(value - SLOT_MINUTES)}
-          accessibilityLabel={`${label} half an hour earlier`} />
-        <View style={{ minWidth: 92, alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10,
-          borderRadius: 12, borderWidth: 1, borderColor: c.line, backgroundColor: alpha(c.volt, 0.1) }}>
-          <Text accessibilityLiveRegion="polite" style={[t.labelSm, { color: c.accent }]}>
-            {labelFromMinutes(value)}
-          </Text>
-        </View>
-        <Step label="+" enabled={canForward} onPress={() => onChange(value + SLOT_MINUTES)}
-          accessibilityLabel={`${label} half an hour later`} />
-      </Row>
+      <Text style={[t.bodySm, { color: c.txt3, width: 44 }]}>{label}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+        {DAYS.map((day, index) => {
+          const active = value === index;
+          return (
+            <Pressable key={day} onPress={() => onChange(index)}
+              accessibilityRole="radio" accessibilityState={{ selected: active }}
+              accessibilityLabel={`${label} ${DAY_NAMES[index]}`}
+              style={{ borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1,
+                borderColor: active ? c.volt : c.line,
+                backgroundColor: active ? c.volt : c.surface }}>
+              <Text style={[t.caption, { color: active ? c.ink : c.txt2 }]}>{day}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </Row>
   );
 }
 
-function Step({ label, enabled, onPress, accessibilityLabel }: {
-  label: string; enabled: boolean; onPress: () => void; accessibilityLabel: string;
+// Typed, not stepped.
+//
+// Stepping to 8:00 PM from 9:00 AM is twenty-two taps. What the input accepts
+// is deliberately wide -- "9", "9:30", "17:30", "5 pm" -- and what it refuses
+// it refuses out loud, because a time silently rounded to the nearest half hour
+// is a schedule the coach did not agree to.
+function TimeInput({ label, value, onChange }: {
+  label: string; value: string; onChange: (text: string) => void;
 }) {
   const { c, t } = useTheme();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ disabled: !enabled }} disabled={!enabled} onPress={onPress}
-      style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-        borderWidth: 1, borderColor: c.line, backgroundColor: c.surface, opacity: enabled ? 1 : 0.35 }}>
-      <Text style={[t.label, { color: c.txt }]}>{label}</Text>
-    </Pressable>
+    <View style={{ flex: 1 }}>
+      <Text style={[t.caption, { color: c.txt3, marginBottom: 4 }]}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        placeholder="9:00 AM"
+        placeholderTextColor={c.txt3}
+        accessibilityLabel={label}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        style={[t.label, { color: c.txt, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1,
+          borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, minHeight: 44 }]}
+      />
+    </View>
   );
 }
