@@ -140,6 +140,65 @@ export function parseTimeInput(text: string): TimeParse {
   return { minutes };
 }
 
+/** Shape what someone is typing into a time, as they type it.
+ *
+ *  Digits fall into H:MM left to right, so "930" reads back "9:30" and "1730"
+ *  reads back "17:30" -- the colon appears on its own and never has to be
+ *  typed. An "a" or "p" anywhere becomes the meridiem.
+ *
+ *  Where the hour ends is decided by the first digit, which is the only thing
+ *  that can decide it while the field is still half-typed. A leading 3 to 9
+ *  cannot begin a two-digit hour, so it is the whole hour. A leading 0, 1 or 2
+ *  might, so it waits for the second digit and falls back if the pair turns out
+ *  to be more than 23.
+ *
+ *  This SHAPES, it does not validate: "9:99" masks happily and is refused by
+ *  parseTimeInput. Rejecting keystrokes as they are typed makes a field feel
+ *  broken, because half of every valid time is an invalid prefix of it.
+ */
+export function maskTimeInput(raw: string): string {
+  const digits = raw.replace(/[^0-9]/g, '').slice(0, 4);
+  // Only a deliberate meridiem counts. Matching any stray "a" turned "abc"
+  // into "AM", which is a time nobody typed.
+  const letters = raw.toLowerCase().replace(/[^a-z]/g, '');
+  const meridiem = letters === 'a' || letters === 'am' ? ' AM'
+    : letters === 'p' || letters === 'pm' ? ' PM'
+    : '';
+  if (!digits) return meridiem.trim();
+
+  let hour: string;
+  let minutes: string;
+  if (digits[0] >= '3' || digits.length === 1) {
+    hour = digits.slice(0, 1);
+    minutes = digits.slice(1, 3);
+  } else {
+    hour = digits.slice(0, 2);
+    if (Number(hour) > 23) {
+      hour = digits.slice(0, 1);
+      minutes = digits.slice(1, 3);
+    } else {
+      minutes = digits.slice(2, 4);
+    }
+  }
+  return `${hour}${minutes ? `:${minutes}` : ''}${meridiem}`;
+}
+
+/** Tidy a finished time into the form the rest of the app prints.
+ *
+ *  Runs when the field loses focus, so "9" becomes "9:00 AM" and "1730" becomes
+ *  "5:30 PM" without anyone typing a colon or a meridiem. Anything that does
+ *  not parse is left exactly as typed -- rewriting someone's invalid input
+ *  while they are trying to fix it is worse than leaving it alone, and the
+ *  error message is already telling them what is wrong.
+ */
+export function normaliseTimeInput(raw: string): string {
+  // Masked first, so four bare digits settle too. The field has normally masked
+  // them already, but this must hold for anything handed to it -- a paste, or a
+  // value restored from elsewhere.
+  const parsed = parseTimeInput(maskTimeInput(raw));
+  return 'minutes' in parsed ? labelFromMinutes(parsed.minutes) : raw;
+}
+
 /** Read a typed pair as a period, or say why it is not one. */
 export function parsePeriodInput(startText: string, endText: string): { period: Period } | { error: string } {
   const start = parseTimeInput(startText);

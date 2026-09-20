@@ -453,3 +453,109 @@ test('the public profile label is short and reads as a range', () => {
   assert.equal(groups[0].days.length, 2);
   assert.equal(groups[1].days.join(','), '6');
 });
+
+// ---- the input mask --------------------------------------------------------
+//
+// Digits fall into H:MM as they are typed. The mask SHAPES rather than
+// validates: half of every valid time is an invalid prefix of it, so refusing
+// keystrokes would make the field feel broken.
+
+const mask = (text) => availability().maskTimeInput(text);
+
+test('digits fall into place one keystroke at a time', () => {
+  // What the field shows after each press of 9, 3, 0.
+  assert.equal(mask('9'), '9');
+  assert.equal(mask('93'), '9:3');
+  assert.equal(mask('930'), '9:30');
+});
+
+test('a leading 1 or 2 waits to see if the hour is two digits', () => {
+  assert.equal(mask('1'), '1');
+  assert.equal(mask('17'), '17');
+  assert.equal(mask('173'), '17:3');
+  assert.equal(mask('1730'), '17:30');
+});
+
+test('a leading 3 to 9 cannot start a two-digit hour, so it is the hour', () => {
+  // 93 is not an hour, so the 3 has to be the first digit of the minutes.
+  assert.equal(mask('93'), '9:3');
+  assert.equal(mask('530'), '5:30');
+  assert.equal(mask('300'), '3:00');
+});
+
+test('a two-digit pair over 23 falls back to a one-digit hour', () => {
+  // 25 cannot be an hour. The 5 belongs to the minutes.
+  assert.equal(mask('25'), '2:5');
+  assert.equal(mask('2530'), '2:53');
+});
+
+test('midnight and noon hours survive the fallback', () => {
+  assert.equal(mask('0000'), '00:00');
+  assert.equal(mask('1200'), '12:00');
+  assert.equal(mask('2300'), '23:00');
+});
+
+test('a or p anywhere becomes the meridiem', () => {
+  assert.equal(mask('930a'), '9:30 AM');
+  assert.equal(mask('930p'), '9:30 PM');
+  assert.equal(mask('9:30 PM'), '9:30 PM');
+  // Typed before the digits are finished, it still sticks.
+  assert.equal(mask('9p'), '9 PM');
+});
+
+test('punctuation the person types is ignored -- the mask supplies it', () => {
+  assert.equal(mask('9:30'), '9:30');
+  assert.equal(mask('9.30'), '9:30');
+  assert.equal(mask('9 30'), '9:30');
+});
+
+test('more than four digits are dropped rather than scrolling the time away', () => {
+  assert.equal(mask('123456'), '12:34');
+});
+
+test('deleting back to nothing leaves nothing', () => {
+  assert.equal(mask(''), '');
+  assert.equal(mask('abc'), '');
+  // A lone meridiem with no digits is not a time yet, but is not thrown away.
+  assert.equal(mask('p'), 'PM');
+});
+
+test('the mask never rejects a prefix of something valid', () => {
+  const { parseTimeInput } = availability();
+  for (const target of ['9:30 AM', '5:00 PM', '17:30', '11:00 PM', '5:00 AM']) {
+    // Type it one character at a time; every intermediate state must survive.
+    let typed = '';
+    for (const char of target) {
+      typed = mask(typed + char);
+      assert.equal(typeof typed, 'string');
+    }
+    const parsed = parseTimeInput(typed);
+    assert.ok('minutes' in parsed, `typing "${target}" ended at "${typed}": ${parsed.error}`);
+  }
+});
+
+// ---- settling on blur ------------------------------------------------------
+
+test('leaving the field finishes the time', () => {
+  const { normaliseTimeInput } = availability();
+  assert.equal(normaliseTimeInput('9'), '9:00 AM');
+  assert.equal(normaliseTimeInput('9:30'), '9:30 AM');
+  assert.equal(normaliseTimeInput('1730'), '5:30 PM');
+  assert.equal(normaliseTimeInput('17:30'), '5:30 PM');
+  assert.equal(normaliseTimeInput('5p'), '5:00 PM');
+});
+
+test('a time that does not parse is left exactly as typed', () => {
+  const { normaliseTimeInput } = availability();
+  // Rewriting someone's input while they are trying to fix it is worse than
+  // leaving it alone; the error message is already saying what is wrong.
+  assert.equal(normaliseTimeInput('9:17'), '9:17');
+  assert.equal(normaliseTimeInput('lunchtime'), 'lunchtime');
+  assert.equal(normaliseTimeInput(''), '');
+});
+
+test('settling is idempotent', () => {
+  const { normaliseTimeInput } = availability();
+  const once = normaliseTimeInput('1730');
+  assert.equal(normaliseTimeInput(once), once);
+});
