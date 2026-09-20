@@ -5,10 +5,6 @@ import { Field, Icon, Row, SectionHeading, Toggle, VoltButton } from '../compone
 import { becomeCoach, CoachBasics, fetchCoachBasics, isCoach, saveCoachBasics } from '../lib/coaching';
 import { CoachAvailability } from '../components/CoachAvailability';
 import { SportsPicker } from '../components/SportsPicker';
-import {
-  addPromo, CoachPricing, fetchMyPricing, money, parseMoney, Promo, removePackage,
-  removePromo, savePackage, SessionPackage, setPackageActive, setPromoActive, setSessionRate,
-} from '../lib/pricing';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, useStore } from '../state/store';
 import { useTheme } from '../theme';
@@ -35,12 +31,6 @@ export function CoachingOverlay() {
   const [attempt, setAttempt] = useState(0);
 
   const [basics, setBasics] = useState<CoachBasics | null>(null);
-  const [pricing, setPricing] = useState<CoachPricing | null>(null);
-  const [rate, setRate] = useState('');
-  const [pkgSessions, setPkgSessions] = useState('');
-  const [pkgPrice, setPkgPrice] = useState('');
-  const [promoCode, setPromoCode] = useState('');
-  const [promoPct, setPromoPct] = useState('');
 
   const [headline, setHeadline] = useState('');
 
@@ -52,11 +42,9 @@ export function CoachingOverlay() {
       if (!active) return;
       setCoach(mine);
       if (mine) {
-        const [current, coachBasics] = await Promise.all([fetchMyPricing(), fetchCoachBasics()]);
+        const coachBasics = await fetchCoachBasics();
         if (!active) return;
-        setPricing(current);
         setBasics(coachBasics);
-        setRate(current.rateCents ? money(current.rateCents) : '');
       }
     })().catch((e) => { if (active) setError(errorMessage(e)); });
     return () => { active = false; };
@@ -79,74 +67,31 @@ export function CoachingOverlay() {
     } finally { setBusy(false); }
   };
 
-  // ---- pricing ----------------------------------------------------------
-
-  // Every pricing write follows the same shape: run it, then re-read. The
-  // alternative -- patching local state optimistically -- means the screen can
-  // show a price the server refused, which is the one thing a price list must
-  // never do.
-  const priced = async (work: () => Promise<void>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await work();
-      setPricing(await fetchMyPricing());
-    } catch (e) {
-      track('write_failed', { error_code: analyticsErrorCode(e) });
-      setError(errorMessage(e));
-    } finally { setBusy(false); }
-  };
-
   // Subject and experience save together: they are one answer to "what do you
   // coach, and how well", and a screen with two Save buttons a centimetre apart
   // invites pressing the wrong one.
   const saveBasics = () => {
     if (!basics) return;
-    void priced(async () => {
-      await saveCoachBasics(basics);
-      track('coach_basics_saved');
-      // Discover reads the primary specialty and the headline, so the cached
-      // people list is stale the moment either changes.
-      s.set('profileRevision', s.profileRevision + 1);
-    });
-  };
-
-  const saveRate = () => {
-    const cents = parseMoney(rate);
-    if (cents === null) { setError('Enter a rate like 45 or 45.50.'); return; }
-    void priced(async () => {
-      await setSessionRate(cents);
-      track('coach_rate_set');
-      // Discover sorts and quotes from this, so the cached people list is stale
-      // the moment it changes.
-      s.set('profileRevision', s.profileRevision + 1);
-    });
-  };
-
-  const addPackage = () => {
-    const sessions = Number(pkgSessions.replace(/[^0-9]/g, ''));
-    const cents = parseMoney(pkgPrice);
-    if (cents === null) { setError('Enter a package price like 400 or 399.99.'); return; }
-    void priced(async () => {
-      await savePackage({ sessions, priceCents: cents });
-      track('coach_package_added');
-      setPkgSessions(''); setPkgPrice('');
-      s.set('profileRevision', s.profileRevision + 1);
-    });
-  };
-
-  const createPromo = () => {
-    const pct = Number(promoPct.replace(/[^0-9]/g, ''));
-    void priced(async () => {
-      await addPromo(promoCode, pct);
-      track('coach_promo_added');
-      setPromoCode(''); setPromoPct('');
-    });
+    setBusy(true);
+    setError(null);
+    void (async () => {
+      try {
+        await saveCoachBasics(basics);
+        track('coach_basics_saved');
+        // Discover reads the primary specialty and the headline, so the cached
+        // people list is stale the moment either changes.
+        s.set('profileRevision', s.profileRevision + 1);
+        setAttempt(attempt + 1);
+      } catch (e) {
+        track('write_failed', { error_code: analyticsErrorCode(e) });
+        setError(errorMessage(e));
+      } finally { setBusy(false); }
+    })();
   };
 
   return (
     <OverlayScaffold header={<OverlayHeader title={coach ? 'Coaching settings' : 'Coaching'} onBack={s.closeOverlay}
-      subtitle={coach ? 'What you teach, when, and what it costs' : 'Free for coaches and members'} />}>
+      subtitle={coach ? 'What you teach, and when' : 'Free for coaches and members'} />}>
       <View style={{ paddingHorizontal: 18, gap: 16 }}>
         {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
         {coach === null && !error && (
@@ -196,104 +141,9 @@ export function CoachingOverlay() {
 
             <CoachAvailability />
 
-            <SectionHeading>Your rate</SectionHeading>
-            <Text style={[t.bodySm, { color: c.txt2 }]}>
-              What one session with you costs. This is the price people see in Discover and on the Book button.
-            </Text>
-            <Row gap={10} style={{ alignItems: 'center' }}>
-              <Text style={[t.price, { color: c.accent }]}>$</Text>
-              <View style={{ flex: 1 }}>
-                <Field value={rate} onChange={setRate} label="Price per session"
-                  placeholder="45" keyboardType="decimal-pad" />
-              </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Save your rate per session"
-                onPress={saveRate} disabled={busy}
-                style={{ minHeight: 44, paddingHorizontal: 6, justifyContent: 'center' }}>
-                <Text style={[t.label, { color: c.accent }]}>Save</Text>
-              </Pressable>
-            </Row>
-            <Text style={[t.caption, { color: c.txt3 }]}>
-              Leave it at 0 and BOOK’D quotes nothing rather than guessing a figure for you.
-            </Text>
-
-            <SectionHeading>Session packages</SectionHeading>
-            <Text style={[t.bodySm, { color: c.txt2 }]}>
-              A block of sessions bought at once, usually cheaper per session than booking them one by one.
-            </Text>
-
-            {pricing?.packages.length === 0 && (
-              <Text style={[t.bodySm, { color: c.txt3 }]}>No packages yet — people can still book single sessions.</Text>
-            )}
-
-            {pricing?.packages.map((pkg: SessionPackage) => (
-              <Row key={pkg.id} gap={10} style={{ alignItems: 'center', borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 12 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[t.name, { color: c.txt }]}>{pkg.sessions} sessions · ${money(pkg.priceCents)}</Text>
-                  <Text style={[t.bodySm, { color: c.txt2 }]}>${money(pkg.perSessionCents)} a session</Text>
-                </View>
-                {/* Switching off is the gentler gesture and comes first: clients
-                    who already bought this package keep reading its label. */}
-                <Toggle value={pkg.active} onChange={(next) => void priced(() => setPackageActive(pkg.id, next))} />
-                <Pressable accessibilityRole="button" accessibilityLabel={`Delete the ${pkg.sessions} session package`}
-                  onPress={() => void priced(() => removePackage(pkg.id))} disabled={busy}
-                  style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="trash-2" size={18} color={c.txt3} />
-                </Pressable>
-              </Row>
-            ))}
-
-            <Row gap={10} style={{ alignItems: 'center' }}>
-              <View style={{ width: 92 }}>
-                <Field value={pkgSessions} onChange={setPkgSessions} label="Number of sessions"
-                  placeholder="10" keyboardType="decimal-pad" />
-              </View>
-              <Text style={[t.price, { color: c.accent }]}>$</Text>
-              <View style={{ flex: 1 }}>
-                <Field value={pkgPrice} onChange={setPkgPrice} label="Package price"
-                  placeholder="400" keyboardType="decimal-pad" />
-              </View>
-            </Row>
-            <VoltButton label="Add package" busy={busy} busyLabel="Saving…"
-              enabled={pkgSessions.trim() !== '' && pkgPrice.trim() !== '' && !busy} onPress={addPackage} />
-
-            <SectionHeading>Promotions</SectionHeading>
-            <Text style={[t.bodySm, { color: c.txt2 }]}>
-              A code that takes a percentage off your prices. Switch one off and it stops working without disappearing.
-            </Text>
-
-            {pricing?.promos.length === 0 && (
-              <Text style={[t.bodySm, { color: c.txt3 }]}>No promotions running.</Text>
-            )}
-
-            {pricing?.promos.map((promo: Promo) => (
-              <Row key={promo.id} gap={10} style={{ alignItems: 'center', borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 12 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[t.name, { color: c.txt }]}>{promo.code}</Text>
-                  <Text style={[t.bodySm, { color: c.txt2 }]}>{promo.pct}% off</Text>
-                </View>
-                <Toggle value={promo.active} onChange={(next) => void priced(() => setPromoActive(promo.id, next))} />
-                <Pressable accessibilityRole="button" accessibilityLabel={`Delete the code ${promo.code}`}
-                  onPress={() => void priced(() => removePromo(promo.id))} disabled={busy}
-                  style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="trash-2" size={18} color={c.txt3} />
-                </Pressable>
-              </Row>
-            ))}
-
-            <Row gap={10} style={{ alignItems: 'center' }}>
-              <View style={{ flex: 1 }}>
-                <Field value={promoCode} onChange={setPromoCode} label="Promotion code"
-                  placeholder="SUMMER20" />
-              </View>
-              <View style={{ width: 82 }}>
-                <Field value={promoPct} onChange={setPromoPct} label="Percentage off"
-                  placeholder="20" keyboardType="decimal-pad" />
-              </View>
-              <Text style={[t.price, { color: c.accent }]}>%</Text>
-            </Row>
-            <VoltButton label="Add promotion" busy={busy} busyLabel="Saving…"
-              enabled={promoCode.trim().length > 2 && promoPct.trim() !== '' && !busy} onPress={createPromo} />
-
+            {/* Rate, packages and promo codes live on one screen, "Packages,
+                pricing & promos" -- they were duplicated here, and two editors
+                for one price is two editors that can disagree. */}
           </>
         )}
       </View>

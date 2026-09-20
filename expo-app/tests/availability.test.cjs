@@ -229,3 +229,140 @@ test('a suggested period never runs past the end of the day', () => {
   const late = suggestedPeriod([{ startsAt: 21 * 60, endsAt: 23 * 60 }]);
   assert.ok(late.endsAt <= DAY_ENDS_AT, `${late.endsAt} must not exceed ${DAY_ENDS_AT}`);
 });
+
+// ---- typed time input ------------------------------------------------------
+//
+// Steppers could only produce a time the schedule can hold. A text box can
+// produce anything, so what it refuses -- and what it says when it refuses --
+// is the whole of this feature's safety.
+
+const parse = (text) => availability().parseTimeInput(text);
+const ok = (text) => { const r = parse(text); assert.ok('minutes' in r, `${text}: ${r.error}`); return r.minutes; };
+const bad = (text) => { const r = parse(text); assert.ok('error' in r, `${text} should have been refused`); return r.error; };
+
+test('the forms people actually type all work', () => {
+  assert.equal(ok('9:00 AM'), 9 * 60);
+  assert.equal(ok('9:00'), 9 * 60);
+  assert.equal(ok('9'), 9 * 60);
+  assert.equal(ok('9:30am'), 9 * 60 + 30);
+  assert.equal(ok('  9:30 AM  '), 9 * 60 + 30);
+  assert.equal(ok('17:30'), 17 * 60 + 30);
+  assert.equal(ok('5 pm'), 17 * 60);
+  assert.equal(ok('5:30 PM'), 17 * 60 + 30);
+});
+
+test('noon and midday are not confused with each other', () => {
+  assert.equal(ok('12:00 PM'), 12 * 60);
+  assert.equal(ok('12:30 PM'), 12 * 60 + 30);
+  // 12:00 AM is midnight, which is outside bookable hours -- refused, but for
+  // being out of range rather than being misread as noon.
+  assert.match(bad('12:00 AM'), /Bookable hours/);
+});
+
+test('a time between slots is refused rather than rounded', () => {
+  // Silently rounding 9:17 to 9:30 is a schedule the coach did not agree to.
+  assert.match(bad('9:17'), /hour or half hour/);
+  assert.match(bad('9:45'), /hour or half hour/);
+});
+
+test('out-of-range times say so', () => {
+  assert.match(bad('3:00 AM'), /Bookable hours/);
+  assert.match(bad('23:30'), /Bookable hours/);
+  // The last bookable start is 10:30 PM, and 11:00 PM is a valid FINISH.
+  assert.equal(ok('11:00 PM'), 23 * 60);
+});
+
+test('nonsense gets a reason, not a crash', () => {
+  assert.match(bad(''), /Enter a time/);
+  assert.match(bad('lunchtime'), /not a time/);
+  assert.match(bad('9:99'), /Minutes/);
+  assert.match(bad('25:00'), /Hours go up to 23/);
+  assert.match(bad('13 pm'), /1 to 12/);
+});
+
+test('a period needs its finish after its start', () => {
+  const { parsePeriodInput } = availability();
+  assert.match(parsePeriodInput('5:00 PM', '9:00 AM').error, /after the start/);
+  assert.match(parsePeriodInput('9:00 AM', '9:00 AM').error, /after the start/);
+  const good = parsePeriodInput('9:00 AM', '12:00 PM');
+  assert.equal(good.period.startsAt, 9 * 60);
+  assert.equal(good.period.endsAt, 12 * 60);
+});
+
+test('a bad half of a period reports which half', () => {
+  const { parsePeriodInput } = availability();
+  assert.match(parsePeriodInput('nonsense', '5:00 PM').error, /not a time/);
+  assert.match(parsePeriodInput('9:00 AM', '9:17').error, /hour or half hour/);
+});
+
+// ---- day ranges ------------------------------------------------------------
+
+test('a range covers both ends and everything between', () => {
+  const { daysInRange } = availability();
+  assert.equal(daysInRange(0, 4).join(','), '0,1,2,3,4');   // Mon to Fri
+  assert.equal(daysInRange(5, 6).join(','), '5,6');         // Sat to Sun
+});
+
+test('a single day is a range of one', () => {
+  const { daysInRange } = availability();
+  assert.equal(daysInRange(2, 2).join(','), '2');
+});
+
+test('a range that wraps the week is a real shift pattern, not an error', () => {
+  const { daysInRange } = availability();
+  // Saturday to Monday: a weekend that runs into the week.
+  assert.equal(daysInRange(5, 0).join(','), '5,6,0');
+  assert.equal(daysInRange(6, 1).join(','), '6,0,1');
+});
+
+test('a range never repeats a day', () => {
+  const { daysInRange } = availability();
+  for (const [from, to] of [[0, 6], [3, 2], [6, 5]]) {
+    const days = daysInRange(from, to);
+    assert.equal(new Set(days).size, days.length, `${from}->${to} repeated a day`);
+    assert.ok(days.length <= 7);
+  }
+});
+
+// ---- adding hours to a day -------------------------------------------------
+
+test('a period added to an empty day is that day', () => {
+  const { addPeriod, periodLabel } = availability();
+  const added = addPeriod([], { startsAt: 9 * 60, endsAt: 17 * 60 });
+  assert.equal(added.length, 1);
+  assert.equal(periodLabel(added[0]), '9:00 AM – 5:00 PM');
+});
+
+test('a separate period stays separate', () => {
+  const { addPeriod } = availability();
+  const added = addPeriod([{ startsAt: 9 * 60, endsAt: 12 * 60 }], { startsAt: 16 * 60, endsAt: 20 * 60 });
+  assert.equal(added.length, 2);
+});
+
+test('overlapping and touching periods merge instead of stacking', () => {
+  const { addPeriod, periodLabel } = availability();
+  // The stored slots cannot tell two overlapping entries apart, so keeping them
+  // separate would be a lie the next read corrects.
+  const overlap = addPeriod([{ startsAt: 9 * 60, endsAt: 12 * 60 }], { startsAt: 11 * 60, endsAt: 14 * 60 });
+  assert.equal(overlap.length, 1);
+  assert.equal(periodLabel(overlap[0]), '9:00 AM – 2:00 PM');
+
+  const touching = addPeriod([{ startsAt: 9 * 60, endsAt: 12 * 60 }], { startsAt: 12 * 60, endsAt: 14 * 60 });
+  assert.equal(touching.length, 1);
+  assert.equal(periodLabel(touching[0]), '9:00 AM – 2:00 PM');
+});
+
+test('adding the same hours twice changes nothing', () => {
+  const { addPeriod } = availability();
+  const once = addPeriod([], { startsAt: 9 * 60, endsAt: 17 * 60 });
+  const twice = addPeriod(once, { startsAt: 9 * 60, endsAt: 17 * 60 });
+  assert.equal(JSON.stringify(twice), JSON.stringify(once));
+});
+
+test('a third separate period is detectable, so the form can refuse it', () => {
+  const { addPeriod } = availability();
+  const two = [{ startsAt: 7 * 60, endsAt: 9 * 60 }, { startsAt: 12 * 60, endsAt: 14 * 60 }];
+  assert.equal(addPeriod(two, { startsAt: 18 * 60, endsAt: 20 * 60 }).length, 3);
+  // But one that bridges them is still two, and must not be refused.
+  assert.equal(addPeriod(two, { startsAt: 9 * 60, endsAt: 12 * 60 }).length, 1);
+});
