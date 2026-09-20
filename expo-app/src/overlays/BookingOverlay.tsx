@@ -4,11 +4,13 @@ import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Ov
 import { Card, FormSheet, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { coachPackageOptions } from '../state/models';
-import { fetchCoachAvailability, fetchPackageUsage, PackageUsage } from '../lib/queries';
+import { fetchCoachAvailability } from '../lib/queries';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import * as D from '../state/sampleData';
 import { fetchBlackouts } from '../lib/availability';
-import { bookPackageSessions, SessionSlot } from '../lib/packages';
+import {
+  bookPackageSessions, fetchMyPackages, PackageProgress, progressSummary, SessionSlot,
+} from '../lib/packages';
 import { bookingDayLabel, errorMessage, SCHED_TIMES, scheduledFor, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -98,7 +100,11 @@ export function BookingOverlay() {
   //
   // The first booking records the pack price; later redemptions record zero.
   // Usage establishes pack coverage, not whether the coach has been paid.
-  const [usage, setUsage] = React.useState<PackageUsage | null>(null);
+  // What this account already owns of each pack, counted from the bookings.
+  // The old read was client_package_balances.used, a counter that only went
+  // up -- so a cancelled session was gone and the picker offered fewer
+  // sessions than the person had actually paid for.
+  const [owned, setOwned] = React.useState<Map<string, PackageProgress> | null>(null);
   const [usageLoading, setUsageLoading] = React.useState(true);
   // undefined while the coach's schedule is still loading, null once we know
   // they have not set one.
@@ -122,15 +128,17 @@ export function BookingOverlay() {
   React.useEffect(() => {
     if (!personId) return;
     let live = true;
-    setUsage(null);
+    setOwned(null);
     setUsageLoading(true);
     setWeek(undefined);
-    fetchPackageUsage().then((rows) => {
-      if (live) {
-        setUsage(rows);
+    fetchMyPackages().then(
+      (packs) => {
+        if (!live) return;
+        setOwned(new Map(packs.map((pack) => [pack.packageId, pack])));
         setUsageLoading(false);
-      }
-    });
+      },
+      () => { if (live) setUsageLoading(false); },
+    );
     // A schedule we cannot read must not hide the coach: fall back to the
     // open-coach offering, which is what the server would accept anyway.
     fetchCoachAvailability(personId).then(
@@ -153,6 +161,32 @@ export function BookingOverlay() {
   );
   const bookDate = useStore((state) => state.bookDate);
   const bookSlot = useStore((state) => state.bookSlot);
+  // Land on a pack this account is already part-way through.
+  //
+  // Booking a second session from a ten-pack and being shown "Single session ·
+  // $50" is the screen offering to sell something already paid for. If there is
+  // an active pack with this coach, that is what the screen opens on.
+  React.useEffect(() => {
+    const person = useStore.getState().personById(useStore.getState().openId);
+    if (!owned || !person) return;
+    const options = coachPackageOptions(person);
+    const state = useStore.getState();
+    const current = options[state.bookPkg];
+    const currentRemaining = current?.packageId ? owned.get(current.packageId)?.remaining ?? 0 : 0;
+    if (currentRemaining > 0) return;
+    const active = options.findIndex(
+      (option) => option.packageId && (owned.get(option.packageId)?.remaining ?? 0) > 0,
+    );
+    if (active >= 0 && active !== state.bookPkg) {
+      state.set('bookPkg', active);
+      setChosenSlots({});
+    }
+    // `person` is read through the store rather than listed as a dependency:
+    // the people list is replaced on every refresh, and depending on the object
+    // would re-run this and fight a choice the person had just made.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owned, personId]);
+
   const chosen = days.find((entry) => entry.date === bookDate) ?? null;
   // Which days are bookable, by their local key. bookableDays has already
   // applied the weekly hours, the days off and today's elapsed slots, so the
@@ -224,15 +258,16 @@ export function BookingOverlay() {
   const picked = Object.entries(chosenSlots)
     .sort(([a], [b]) => (a < b ? -1 : 1));
 
-  const usageKnown = !selectedPkg?.packageId || usage !== null;
-  const balance = selectedPkg?.packageId ? usage?.[selectedPkg.packageId] : undefined;
-  const total = balance?.total ?? selectedPkg?.sessions ?? 0;
-  const remaining = total - (balance?.used ?? 0);
-  const redeeming = Boolean(balance) && remaining > 0;
-  // What is still unspent, so the picker can stop at it. Without a balance
-  // row nothing has been booked yet and the whole pack is available.
-  const allowance = balance ? Math.max(remaining, 0) : selectedPkg?.sessions ?? 1;
-  const exhausted = Boolean(balance) && remaining <= 0;
+  const usageKnown = !selectedPkg?.packageId || owned !== null;
+  const held = selectedPkg?.packageId ? owned?.get(selectedPkg.packageId) : undefined;
+  const total = held?.total ?? selectedPkg?.sessions ?? 0;
+  const remaining = held ? held.remaining : total;
+  // Already bought means already paid for. Booking more of it costs nothing.
+  const redeeming = Boolean(held) && remaining > 0;
+  // What is still unspent, so the picker stops where the pack does. A pack
+  // nobody has bought yet offers all of its sessions.
+  const allowance = held ? Math.max(remaining, 0) : selectedPkg?.sessions ?? 1;
+  const exhausted = Boolean(held) && remaining <= 0;
   const dueNow = redeeming ? 0 : selectedPkg?.price ?? 0;
   const priceLabel = !usageKnown
     ? usageLoading ? 'Loading…' : 'Unavailable'
@@ -339,9 +374,14 @@ export function BookingOverlay() {
         <View style={{ gap: 10 }}>
           {pkgs.map((pk, i) => {
             const sel = s.bookPkg === i;
+            const mine = pk.packageId ? owned?.get(pk.packageId) : undefined;
             return (
               <Pressable key={pk.name} onPress={() => {
                 s.set('bookPkg', i);
+                // Sessions chosen for the last pack do not belong to this
+                // one, and may be more than it has left.
+                setChosenSlots({});
+                setBookingError(null);
                 track('package_selected', { package_index: i, sessions: pk.sessions });
               }}>
                 <Card background={sel ? alpha(c.volt, 0.1) : c.surface} borderColor={sel ? c.volt : c.line} style={{ padding: 14 }}>
@@ -350,7 +390,20 @@ export function BookingOverlay() {
                       <Text style={[t.name, { color: c.txt }]}>{pk.name}</Text>
                       <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{pk.note}</Text>
                     </View>
-                    <Text style={[t.price, { color: c.accent }]}>${pk.price}</Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      {/* A pack already bought shows what is left of it
+                          rather than its price. Quoting the price again on
+                          something already paid for reads like a second
+                          charge. */}
+                      {mine ? (
+                        <>
+                          <Text style={[t.price, { color: c.accent }]}>{mine.remaining} left</Text>
+                          <Text style={[t.caption, { color: c.txt3, marginTop: 1 }]}>{progressSummary(mine)}</Text>
+                        </>
+                      ) : (
+                        <Text style={[t.price, { color: c.accent }]}>${pk.price}</Text>
+                      )}
+                    </View>
                   </Row>
                 </Card>
               </Pressable>
