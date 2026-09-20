@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Card, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import { Card, FormSheet, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { coachPackageOptions } from '../state/models';
 import { fetchCoachAvailability, fetchPackageUsage, PackageUsage } from '../lib/queries';
 import { track } from '../lib/analytics';
@@ -9,6 +10,17 @@ import * as D from '../state/sampleData';
 import { fetchBlackouts } from '../lib/availability';
 import { bookingDayLabel, SCHED_TIMES, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
+
+// The calendar is Monday-first, like every other calendar in the app and
+// like coach_availability.weekday.
+const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const CELL_WIDTH = `${100 / 7}%` as const;
+
+const addMonths = (from: Date, months: number) =>
+  new Date(from.getFullYear(), from.getMonth() + months, 1);
+
+const sameMonth = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 
 // How far ahead the picker offers. The coach's weekly schedule repeats, so a
 // month of it is plenty and keeps the list scannable.
@@ -91,6 +103,13 @@ export function BookingOverlay() {
   // they have not set one.
   const [week, setWeek] = React.useState<Record<number, string[]> | null | undefined>(undefined);
   const [closed, setClosed] = React.useState<string[]>([]);
+  // The time sheet opens on tapping a day, so a day tap is one decision
+  // rather than two separate lists to hunt through.
+  const [pickingTime, setPickingTime] = React.useState(false);
+  const [month, setMonth] = React.useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [bookingQuote, setBookingQuote] = React.useState<{ redeeming: boolean; dueNow: number } | null>(null);
   const personId = p?.id;
   React.useEffect(() => {
@@ -128,6 +147,28 @@ export function BookingOverlay() {
   const bookDate = useStore((state) => state.bookDate);
   const bookSlot = useStore((state) => state.bookSlot);
   const chosen = days.find((entry) => entry.date === bookDate) ?? null;
+  // Which days are bookable, by their local key. bookableDays has already
+  // applied the weekly hours, the days off and today's elapsed slots, so the
+  // calendar colours itself from the same answer the server would give.
+  const byDate = React.useMemo(
+    () => new Map(days.map((entry) => [entry.date, entry])),
+    [days],
+  );
+  // Paging stops where the offer does. A month with nothing bookable in it is
+  // a dead end, and letting someone walk into one is worse than not offering
+  // the step.
+  const firstMonth = React.useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }, []);
+  const lastMonth = React.useMemo(() => {
+    const last = days[days.length - 1];
+    if (!last) return firstMonth;
+    const [year, monthNumber] = last.date.split('-').map(Number);
+    return new Date(year, monthNumber - 1, 1);
+  }, [days, firstMonth]);
+  const canGoBack = !sameMonth(month, firstMonth);
+  const canGoForward = !sameMonth(month, lastMonth);
 
   // Select the first real opening once the schedule arrives, and re-select if
   // the day or slot the store is holding is not one this coach offers.
@@ -235,70 +276,10 @@ export function BookingOverlay() {
       }
     >
       <View style={{ paddingHorizontal: 18 }}>
-        <SectionHeading style={{ marginBottom: 11 }}>Day</SectionHeading>
-        {week === undefined ? (
-          <Text style={[t.bodySm, { color: c.txt3 }]}>Checking when {p.name.split(' ')[0]} is available…</Text>
-        ) : days.length === 0 ? (
-          <Card style={{ padding: 14 }}>
-            <Text style={[t.bodySm, { color: c.txt2 }]}>
-              {p.name.split(' ')[0]} has no bookable times in the next four weeks. Message them to arrange a session.
-            </Text>
-          </Card>
-        ) : (
-          <Row style={{ flexWrap: 'wrap' }} gap={9}>
-            {days.map((entry) => {
-              const sel = bookDate === entry.date;
-              return (
-                <Pressable
-                  key={entry.date}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: sel }}
-                  accessibilityLabel={bookingDayLabel(entry.date)}
-                  onPress={() => {
-                    s.set('bookDate', entry.date);
-                    if (!entry.slots.includes(bookSlot ?? '')) s.set('bookSlot', entry.slots[0]);
-                  }}
-                  style={{ borderRadius: 12, backgroundColor: sel ? c.volt : c.surface, borderColor: sel ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 9, minWidth: 54, alignItems: 'center' }}
-                >
-                  <Text style={[t.caption, { color: sel ? c.ink : c.txt3 }]}>{entry.dow}</Text>
-                  <Text style={[t.labelSm, { color: sel ? c.ink : c.txt }]}>{entry.day}</Text>
-                </Pressable>
-              );
-            })}
-          </Row>
-        )}
-
-        {chosen && (
-          <>
-            <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Time</SectionHeading>
-            <Row style={{ flexWrap: 'wrap' }} gap={9}>
-              {chosen.slots.map((slot) => {
-                const sel = bookSlot === slot;
-                return (
-                  <Pressable
-                    key={slot}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: sel }}
-                    onPress={() => s.set('bookSlot', slot)}
-                    style={{ borderRadius: 12, backgroundColor: sel ? c.volt : c.surface, borderColor: sel ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 11 }}
-                  >
-                    <Text style={[t.labelSm, { color: sel ? c.ink : c.txt }]}>{slot}</Text>
-                  </Pressable>
-                );
-              })}
-            </Row>
-            {/* An open coach is a coach who never opened "My schedule". The
-                server accepts any time for them, so say these are suggestions
-                rather than implying a schedule that does not exist. */}
-            {week === null && (
-              <Text style={[t.caption, { color: c.txt3, marginTop: 9 }]}>
-                {p.name.split(' ')[0]} has not published a schedule. These are suggested times — confirm the exact time with them.
-              </Text>
-            )}
-          </>
-        )}
-
-        <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Package</SectionHeading>
+        {/* Package first. What you are buying decides what a day costs, and
+            picking the day before the thing being bought put the cheapest
+            question last. */}
+        <SectionHeading style={{ marginBottom: 11 }}>Package</SectionHeading>
         <View style={{ gap: 10 }}>
           {pkgs.map((pk, i) => {
             const sel = s.bookPkg === i;
@@ -320,6 +301,143 @@ export function BookingOverlay() {
             );
           })}
         </View>
+
+        <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Pick a day</SectionHeading>
+        {week === undefined ? (
+          <Text style={[t.bodySm, { color: c.txt3 }]}>Checking when {p.name.split(' ')[0]} is available…</Text>
+        ) : days.length === 0 ? (
+          <Card style={{ padding: 14 }}>
+            <Text style={[t.bodySm, { color: c.txt2 }]}>
+              {p.name.split(' ')[0]} has no bookable times in the next four weeks. Message them to arrange a session.
+            </Text>
+          </Card>
+        ) : (
+          <>
+            <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Previous month"
+                onPress={() => setMonth(addMonths(month, -1))} disabled={!canGoBack}
+                style={{ minHeight: 44, minWidth: 44, justifyContent: 'center' }}>
+                <Text style={[t.label, { color: canGoBack ? c.accent : c.txt3, opacity: canGoBack ? 1 : 0.4 }]}>‹</Text>
+              </Pressable>
+              <Text style={[t.labelSm, { color: c.txt }]}>
+                {MONTH_NAMES[month.getMonth()]} {month.getFullYear()}
+              </Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Next month"
+                onPress={() => setMonth(addMonths(month, 1))} disabled={!canGoForward}
+                style={{ minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
+                <Text style={[t.label, { color: canGoForward ? c.accent : c.txt3, opacity: canGoForward ? 1 : 0.4 }]}>›</Text>
+              </Pressable>
+            </Row>
+
+            <Row>
+              {DOW.map((letter, index) => (
+                <View key={letter + index} style={{ flex: 1, alignItems: 'center' }}>
+                  <Text style={[t.caption, { color: c.txt3 }]}>{letter}</Text>
+                </View>
+              ))}
+            </Row>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {monthCells(month.getFullYear(), month.getMonth()).map((day, index) => {
+                if (day === null) return <View key={'blank' + index} style={{ width: CELL_WIDTH, height: 48 }} />;
+                const key = dateKey(new Date(month.getFullYear(), month.getMonth(), day));
+                const entry = byDate.get(key);
+                const open = Boolean(entry);
+                const sel = bookDate === key;
+                return (
+                  <Pressable key={key} disabled={!open}
+                    onPress={() => {
+                      s.set('bookDate', key);
+                      // The slot held from the previous day may not exist on
+                      // this one -- a coach who works mornings on Monday and
+                      // evenings on Wednesday would otherwise keep 9:00 AM
+                      // showing on a Wednesday they do not work it.
+                      if (entry && !entry.slots.includes(bookSlot ?? '')) s.set('bookSlot', entry.slots[0]);
+                      setPickingTime(true);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: sel, disabled: !open }}
+                    accessibilityLabel={entry
+                      ? day + ' ' + MONTH_NAMES[month.getMonth()] + ', ' + entry.slots.length + ' times free'
+                      : day + ' ' + MONTH_NAMES[month.getMonth()] + ', not available'}
+                    style={{ width: CELL_WIDTH, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: sel ? c.volt : open ? alpha(c.volt, 0.14) : 'transparent',
+                      borderWidth: open && !sel ? 1 : 0, borderColor: alpha(c.volt, 0.45),
+                      opacity: open ? 1 : 0.3 }}>
+                      <Text style={[t.bodySm, { color: sel ? c.ink : open ? c.accent : c.txt3 }]}>{day}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Colour alone would leave anyone who cannot see it guessing which
+                days are which. Every day also says which it is in its
+                accessible label; this is the legend for everyone else. */}
+            <Row gap={16} style={{ marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Row gap={6} style={{ alignItems: 'center' }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, borderWidth: 1,
+                  borderColor: alpha(c.volt, 0.45), backgroundColor: alpha(c.volt, 0.14) }} />
+                <Text style={[t.caption, { color: c.txt2 }]}>Available</Text>
+              </Row>
+              <Row gap={6} style={{ alignItems: 'center' }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: c.volt }} />
+                <Text style={[t.caption, { color: c.txt2 }]}>Chosen</Text>
+              </Row>
+              <Row gap={6} style={{ alignItems: 'center' }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: c.surface2 }} />
+                <Text style={[t.caption, { color: c.txt2 }]}>Not working</Text>
+              </Row>
+            </Row>
+
+            {bookDate && bookSlot && (
+              <Pressable accessibilityRole="button" accessibilityLabel="Change the time"
+                onPress={() => setPickingTime(true)} style={{ marginTop: 14 }}>
+                <Card background={alpha(c.volt, 0.1)} borderColor={c.volt} style={{ padding: 14 }}>
+                  <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View>
+                      <Text style={[t.name, { color: c.txt }]}>{bookingDayLabel(bookDate)}</Text>
+                      <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{bookSlot}</Text>
+                    </View>
+                    <Text style={[t.label, { color: c.accent }]}>Change</Text>
+                  </Row>
+                </Card>
+              </Pressable>
+            )}
+
+            {/* An open coach is a coach who never set their hours. The server
+                accepts any time for them, so say these are suggestions rather
+                than implying a schedule that does not exist. */}
+            {week === null && (
+              <Text style={[t.caption, { color: c.txt3, marginTop: 10 }]}>
+                {p.name.split(' ')[0]} has not published a schedule. These are suggested times — confirm the exact time with them.
+              </Text>
+            )}
+          </>
+        )}
+
+        <FormSheet
+          visible={pickingTime && Boolean(chosen)}
+          title={chosen ? bookingDayLabel(chosen.date) : 'Pick a time'}
+          subtitle={chosen ? chosen.slots.length + (chosen.slots.length === 1 ? ' time free' : ' times free') : undefined}
+          onClose={() => setPickingTime(false)}
+        >
+          <Row style={{ flexWrap: 'wrap' }} gap={9}>
+            {(chosen ? chosen.slots : []).map((slot) => {
+              const sel = bookSlot === slot;
+              return (
+                <Pressable key={slot} accessibilityRole="button" accessibilityState={{ selected: sel }}
+                  accessibilityLabel={slot}
+                  onPress={() => { s.set('bookSlot', slot); setPickingTime(false); }}
+                  style={{ borderRadius: 12, backgroundColor: sel ? c.volt : c.surface,
+                    borderColor: sel ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 11 }}>
+                  <Text style={[t.labelSm, { color: sel ? c.ink : c.txt }]}>{slot}</Text>
+                </Pressable>
+              );
+            })}
+          </Row>
+        </FormSheet>
       </View>
     </OverlayScaffold>
   );
