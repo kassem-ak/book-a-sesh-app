@@ -27,9 +27,9 @@ import {
 } from '../overlays/UtilityOverlays';
 import {
   CoachRequestsOverlay,
-  CoachScheduleOverlay,
   CoachPackagesOverlay,
 } from '../overlays/CoachOverlays';
+import { CoachHoursOverlay, CoachSubjectsOverlay } from '../overlays/CoachSubjectsOverlay';
 
 export function OverlayRouter({ id }: { id: string }) {
   switch (id) {
@@ -79,8 +79,13 @@ export function OverlayRouter({ id }: { id: string }) {
       return <ReportOverlay />;
     case 'coachRequests':
       return <CoachRequestsOverlay />;
+    // The old slot-by-slot schedule editor is gone; `coachSchedule` now opens
+    // the hours screen, so any link still pointing at it lands somewhere real.
     case 'coachSchedule':
-      return <CoachScheduleOverlay />;
+    case 'coachHours':
+      return <CoachHoursOverlay />;
+    case 'coachSubjects':
+      return <CoachSubjectsOverlay />;
     case 'coachPackages':
       return <CoachPackagesOverlay />;
     default:

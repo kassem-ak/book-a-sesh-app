@@ -102,9 +102,14 @@ export function ProfileScreen() {
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
               <ToolRow title="Appointment requests" body="Review requests · record decisions" onPress={() => s.set('overlay', 'coachRequests')} />
-
               <ToolRow title="Today's sessions" body="Day view - mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
-              <ToolRow title="Packages, pricing & promos" body="Set prices · record codes, not yet redeemable" onPress={() => s.set('overlay', 'coachPackages')} />
+              {/* One row per decision, like the rows either side of them. These
+                  were three sections of a single "Coaching settings" page --
+                  what you teach, when you work and what you charge are made at
+                  three different times and belong apart. */}
+              <ToolRow title="What you teach" body="Your subjects and experience" onPress={() => s.set('overlay', 'coachSubjects')} />
+              <ToolRow title="When you coach" body="Working hours · days off" onPress={() => s.set('overlay', 'coachHours')} />
+              <ToolRow title="Packages, pricing & promos" body="Set prices · answer cancellations" onPress={() => s.set('overlay', 'coachPackages')} />
             </View>
           </Card>
         </>
@@ -134,15 +139,17 @@ export function ProfileScreen() {
           onPress={() => s.set('overlay', 'myCommunities')}
         />
         <RowDivider />
-        <GroupRow
-          icon="award"
-          title={isCoach ? 'Coaching settings' : 'Become a coach'}
-          body={isCoach
-            ? 'What you teach, when you work, your rate and packages'
-            : 'Free. Adds a coach profile so people can book you'}
-          onPress={() => s.set('overlay', 'coaching')}
-        />
-        <RowDivider />
+        {/* Only for somebody who is not a coach yet: once they are, everything
+            it held lives in Coach tools above. */}
+        {!isCoach && <>
+          <GroupRow
+            icon="award"
+            title="Become a coach"
+            body="Free. Adds a coach profile so people can book you"
+            onPress={() => s.set('overlay', 'coaching')}
+          />
+          <RowDivider />
+        </>}
         <GroupRow
           icon="user-check"
           title="Your circle"

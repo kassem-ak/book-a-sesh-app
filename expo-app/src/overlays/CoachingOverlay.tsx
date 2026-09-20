@@ -2,9 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Field, Icon, Row, SectionHeading, Toggle, VoltButton } from '../components/ui';
-import { becomeCoach, CoachBasics, fetchCoachBasics, isCoach, saveCoachBasics } from '../lib/coaching';
-import { CoachAvailability } from '../components/CoachAvailability';
-import { SportsPicker } from '../components/SportsPicker';
+import { becomeCoach, isCoach } from '../lib/coaching';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, useStore } from '../state/store';
 import { useTheme } from '../theme';
@@ -30,7 +28,6 @@ export function CoachingOverlay() {
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const [basics, setBasics] = useState<CoachBasics | null>(null);
 
   const [headline, setHeadline] = useState('');
 
@@ -41,11 +38,6 @@ export function CoachingOverlay() {
       const mine = await isCoach();
       if (!active) return;
       setCoach(mine);
-      if (mine) {
-        const coachBasics = await fetchCoachBasics();
-        if (!active) return;
-        setBasics(coachBasics);
-      }
     })().catch((e) => { if (active) setError(errorMessage(e)); });
     return () => { active = false; };
   }, [attempt, s.authUserId, s.authUid]);
@@ -65,28 +57,6 @@ export function CoachingOverlay() {
       track('write_failed', { error_code: analyticsErrorCode(e) });
       setError(errorMessage(e));
     } finally { setBusy(false); }
-  };
-
-  // Subject and experience save together: they are one answer to "what do you
-  // coach, and how well", and a screen with two Save buttons a centimetre apart
-  // invites pressing the wrong one.
-  const saveBasics = () => {
-    if (!basics) return;
-    setBusy(true);
-    setError(null);
-    void (async () => {
-      try {
-        await saveCoachBasics(basics);
-        track('coach_basics_saved');
-        // Discover reads the primary specialty and the headline, so the cached
-        // people list is stale the moment either changes.
-        s.set('profileRevision', s.profileRevision + 1);
-        setAttempt(attempt + 1);
-      } catch (e) {
-        track('write_failed', { error_code: analyticsErrorCode(e) });
-        setError(errorMessage(e));
-      } finally { setBusy(false); }
-    })();
   };
 
   return (
@@ -114,37 +84,14 @@ export function CoachingOverlay() {
           </>
         )}
 
+        {/* Already a coach: what they set lives in Coach tools now, one screen
+            each. What you teach, when you work and what you charge are three
+            decisions made at three different times, and stacking them into one
+            settings page made something nobody could scan. */}
         {coach === true && (
-          <>
-            <SectionHeading>What you teach</SectionHeading>
-            <Text style={[t.bodySm, { color: c.txt2 }]}>
-              Your coaching subjects. The first is the one you lead with — it is what people see in Discover and what they filter by.
-            </Text>
-            <Text style={[t.caption, { color: c.txt3 }]}>
-              This is separate from your own sports and hobbies, which live in Edit profile. You can teach one thing and play another.
-            </Text>
-            {basics && (
-              <SportsPicker
-                selected={basics.teachingIds}
-                onChange={(teachingIds) => setBasics({ ...basics, teachingIds })}
-                coach
-              />
-            )}
-
-            <SectionHeading>Your experience</SectionHeading>
-            <Field value={basics?.headline ?? ''} onChange={(headline) => basics && setBasics({ ...basics, headline })}
-              label="Coach headline" placeholder="Strength coach, 6 years" />
-            <Field value={basics?.level ?? ''} onChange={(level) => basics && setBasics({ ...basics, level })}
-              label="Your coaching level" placeholder="Level 3 certified · national squad" />
-            <VoltButton label="Save subject and experience" busy={busy} busyLabel="Saving…"
-              enabled={Boolean(basics) && !busy} onPress={saveBasics} />
-
-            <CoachAvailability />
-
-            {/* Rate, packages and promo codes live on one screen, "Packages,
-                pricing & promos" -- they were duplicated here, and two editors
-                for one price is two editors that can disagree. */}
-          </>
+          <Text style={[t.bodySm, { color: c.txt2 }]}>
+            You are a coach. Your subjects, your hours and your prices are in Coach tools on your profile.
+          </Text>
         )}
       </View>
     </OverlayScaffold>
