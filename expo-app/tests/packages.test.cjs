@@ -164,3 +164,93 @@ test('a finished pack still says so rather than going blank', () => {
   const { progressSummary } = harness().module;
   assert.equal(progressSummary({ total: 5, booked: 0, pending: 0, taken: 5, remaining: 0 }), '5 done · 0 left');
 });
+
+// ---- asking to cancel a package -------------------------------------------
+//
+// The money never moves through the app, so this is a request to a person and
+// a record of their answer. The server owns who may decide and what an approval
+// must carry; these pin the wire shape and the arithmetic the coach is shown.
+
+test('the request carries only what the client is allowed to set', async () => {
+  const h = harness();
+  await h.module.requestCancellation(COACH, PACK, '  Moving away  ');
+  const write = h.calls.find((c) => c.method === 'POST' && c.path.endsWith('/package_cancellations'));
+  const sent = Array.isArray(write.body) ? write.body[0] : write.body;
+  assert.equal(sent.client_id, ME);
+  assert.equal(sent.coach_id, COACH);
+  assert.equal(sent.package_id, PACK);
+  assert.equal(sent.reason, 'Moving away');
+  // status and refund are left to their defaults. Sending them would be the
+  // client writing the coach's answer, and the insert policy refuses it.
+  assert.ok(!('status' in sent));
+  assert.ok(!('refund_cents' in sent));
+  assert.ok(!('decided_by' in sent));
+});
+
+test('an empty reason is stored as nothing, not an empty string', async () => {
+  const h = harness();
+  await h.module.requestCancellation(COACH, PACK, '   ');
+  const write = h.calls.find((c) => c.method === 'POST' && c.path.endsWith('/package_cancellations'));
+  const sent = Array.isArray(write.body) ? write.body[0] : write.body;
+  assert.equal(sent.reason, null);
+});
+
+test('approving without an amount is refused before it reaches the server', async () => {
+  const h = harness();
+  // "Nothing back" is a decision; "I did not say" is half an answer that leaves
+  // the client knowing the pack is gone and not what they are getting.
+  await assert.rejects(() => h.module.decideCancellation('req-1', 'approved'), /how much/i);
+  assert.equal(h.calls.filter((c) => c.method === 'POST').length, 0);
+});
+
+test('approving with nothing back is a real answer', async () => {
+  const h = harness();
+  await h.module.decideCancellation('req-1', 'approved', 0);
+  const rpc = h.calls.find((c) => c.path.endsWith('/rpc/decide_package_cancellation'));
+  assert.equal(rpc.body.p_status, 'approved');
+  assert.equal(rpc.body.p_refund_cents, 0);
+});
+
+test('a negative refund is clamped rather than sent', async () => {
+  const h = harness();
+  await h.module.decideCancellation('req-1', 'approved', -500);
+  const rpc = h.calls.find((c) => c.path.endsWith('/rpc/decide_package_cancellation'));
+  assert.equal(rpc.body.p_refund_cents, 0);
+});
+
+test('declining carries no amount at all', async () => {
+  const h = harness();
+  await h.module.decideCancellation('req-1', 'rejected');
+  const rpc = h.calls.find((c) => c.path.endsWith('/rpc/decide_package_cancellation'));
+  assert.equal(rpc.body.p_status, 'rejected');
+  assert.equal(rpc.body.p_refund_cents, null);
+});
+
+test('taking a request back is one update, not a delete', async () => {
+  const h = harness();
+  await h.module.withdrawCancellation('req-1');
+  const write = h.calls.find((c) => c.method === 'PATCH');
+  assert.ok(write, 'expected an update');
+  assert.equal(write.body.status, 'withdrawn');
+  // Deleting it would lose the fact that it was ever asked.
+  assert.equal(h.calls.filter((c) => c.method === 'DELETE').length, 0);
+});
+
+test('the suggested refund is the unused share of what was paid', () => {
+  const { suggestedRefundCents } = harness().module;
+  // Six of ten left on a $400 pack.
+  assert.equal(suggestedRefundCents({ total: 10, remaining: 6 }, 40000), 24000);
+  assert.equal(suggestedRefundCents({ total: 5, remaining: 0 }, 20000), 0);
+  assert.equal(suggestedRefundCents({ total: 5, remaining: 5 }, 20000), 20000);
+});
+
+test('an odd split rounds to a whole cent rather than a fraction', () => {
+  const { suggestedRefundCents } = harness().module;
+  // Two of three left on $100: 66.666...
+  assert.equal(suggestedRefundCents({ total: 3, remaining: 2 }, 10000), 6667);
+});
+
+test('a pack with no sessions suggests nothing instead of dividing by zero', () => {
+  const { suggestedRefundCents } = harness().module;
+  assert.equal(suggestedRefundCents({ total: 0, remaining: 0 }, 10000), 0);
+});
