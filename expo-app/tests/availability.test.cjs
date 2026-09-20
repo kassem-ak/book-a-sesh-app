@@ -366,3 +366,90 @@ test('a third separate period is detectable, so the form can refuse it', () => {
   // But one that bridges them is still two, and must not be refused.
   assert.equal(addPeriod(two, { startsAt: 9 * 60, endsAt: 12 * 60 }).length, 1);
 });
+
+// ---- grouping identical days ----------------------------------------------
+//
+// A coach who set nine to five Monday to Friday should see one row, not the
+// same fact copied five times.
+
+const NINE_TO_FIVE = ['9:00 AM','9:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM',
+  '12:00 PM','12:30 PM','1:00 PM','1:30 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM','4:00 PM','4:30 PM'];
+const EVENING = ['6:00 PM','6:30 PM','7:00 PM','7:30 PM'];
+
+test('a run of days with the same hours is one group', () => {
+  const { groupWeek, periodLabel } = availability();
+  const groups = groupWeek({ 0: NINE_TO_FIVE, 1: NINE_TO_FIVE, 2: NINE_TO_FIVE, 3: NINE_TO_FIVE, 4: NINE_TO_FIVE });
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].days.join(','), '0,1,2,3,4');
+  assert.equal(periodLabel(groups[0].periods[0]), '9:00 AM – 5:00 PM');
+});
+
+test('a day with different hours breaks the run', () => {
+  const { groupWeek } = availability();
+  const groups = groupWeek({ 0: NINE_TO_FIVE, 1: NINE_TO_FIVE, 2: EVENING, 3: NINE_TO_FIVE, 4: NINE_TO_FIVE });
+  assert.equal(groups.length, 3);
+  assert.equal(groups.map((g) => g.days.join('')).join('|'), '01|2|34');
+});
+
+test('a gap in the week breaks the run even when the hours match', () => {
+  const { groupWeek } = availability();
+  // Monday and Wednesday are not consecutive, so "Monday – Wednesday" would
+  // claim Tuesday, which the coach does not work.
+  const groups = groupWeek({ 0: NINE_TO_FIVE, 2: NINE_TO_FIVE });
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].days.join(','), '0');
+  assert.equal(groups[1].days.join(','), '2');
+});
+
+test('days that do not work appear nowhere', () => {
+  const { groupWeek } = availability();
+  const groups = groupWeek({ 0: NINE_TO_FIVE, 1: [], 2: NINE_TO_FIVE });
+  assert.equal(groups.length, 2);
+  assert.ok(!groups.some((g) => g.days.includes(1)));
+});
+
+test('an empty week is no groups, not an empty group', () => {
+  const { groupWeek } = availability();
+  assert.equal(groupWeek({}).length, 0);
+  assert.equal(groupWeek({ 3: [] }).length, 0);
+});
+
+test('two periods a day group only when BOTH match', () => {
+  const { groupWeek } = availability();
+  const both = [...NINE_TO_FIVE.slice(0, 6), ...EVENING];
+  const same = groupWeek({ 0: both, 1: both });
+  assert.equal(same.length, 1);
+  assert.equal(same[0].periods.length, 2);
+
+  // Same morning, no evening on Tuesday: not the same hours.
+  const differs = groupWeek({ 0: both, 1: NINE_TO_FIVE.slice(0, 6) });
+  assert.equal(differs.length, 2);
+});
+
+test('the whole week on the same hours is one group', () => {
+  const { groupWeek } = availability();
+  const week = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, NINE_TO_FIVE]));
+  const groups = groupWeek(week);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].days.length, 7);
+});
+
+test('grouping does not wrap Sunday into Monday', () => {
+  const { groupWeek } = availability();
+  // A wrapping range is real, but a row reading "Saturday – Monday" above
+  // Tuesday is harder to read than the two rows it replaces.
+  const groups = groupWeek({ 0: NINE_TO_FIVE, 5: NINE_TO_FIVE, 6: NINE_TO_FIVE });
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].days.join(','), '0');
+  assert.equal(groups[1].days.join(','), '5,6');
+});
+
+test('the public profile label is short and reads as a range', () => {
+  // PersonOverlay shows these in a fixed-width column beside the hours, so the
+  // long day names would wrap on a phone.
+  const { groupWeek } = availability();
+  const groups = groupWeek({ 0: NINE_TO_FIVE, 1: NINE_TO_FIVE, 6: EVENING });
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].days.length, 2);
+  assert.equal(groups[1].days.join(','), '6');
+});
