@@ -100,8 +100,12 @@ export function PersonOverlay() {
       } />}
       bottomBar={
         <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
+          {/* No price on the Book button. It quoted the per-session rate, which
+              is only one of the things a session can cost -- a package makes it
+              cheaper, and the booking screen is where that is chosen. A figure
+              here is a promise the next screen may not keep. */}
           {p.isCoach ? (
-            <VoltButton label={`Book a session · $${p.price}`} onPress={s.openBooking} />
+            <VoltButton label="Book a session" onPress={s.openBooking} />
           ) : (
             <View style={{ gap: 10 }}>
               <VoltButton
