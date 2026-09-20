@@ -4,8 +4,8 @@ import { DatePickerSheet } from './DatePickerSheet';
 import { Field, Icon, Row, SectionHeading, VoltButton } from './ui';
 import {
   addPeriod, Blackout, blackoutLabel, closeDate, daysInRange, fetchMyBlackouts,
-  fetchMyWeek, groupWeek, MAX_PERIODS_PER_DAY, openDate, parsePeriodInput, Period,
-  periodLabel, periodsFromSlots, saveDayPeriods, Week,
+  fetchMyWeek, groupWeek, maskTimeInput, MAX_PERIODS_PER_DAY, normaliseTimeInput, openDate,
+  parsePeriodInput, Period, periodLabel, periodsFromSlots, saveDayPeriods, Week,
 } from '../lib/availability';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, useStore } from '../state/store';
@@ -281,12 +281,17 @@ function DayPicker({ label, value, onChange }: {
   );
 }
 
-// Typed, not stepped.
+// Typed, not stepped -- and masked as it is typed.
 //
-// Stepping to 8:00 PM from 9:00 AM is twenty-two taps. What the input accepts
-// is deliberately wide -- "9", "9:30", "17:30", "5 pm" -- and what it refuses
-// it refuses out loud, because a time silently rounded to the nearest half hour
-// is a schedule the coach did not agree to.
+// Stepping to 8:00 PM from 9:00 AM is twenty-two taps. Typing it is four, and
+// the colon and the meridiem are not among them: digits fall into H:MM on their
+// own, and leaving the field finishes the job, so "930" settles as "9:30 AM"
+// and "1730" as "5:30 PM".
+//
+// The mask shapes, it does not police. Rejecting keystrokes as they are typed
+// makes a field feel broken, because half of every valid time is an invalid
+// prefix of it -- so what is genuinely wrong is refused on submit, out loud,
+// with the reason.
 function TimeInput({ label, value, onChange }: {
   label: string; value: string; onChange: (text: string) => void;
 }) {
@@ -296,10 +301,15 @@ function TimeInput({ label, value, onChange }: {
       <Text style={[t.caption, { color: c.txt3, marginBottom: 4 }]}>{label}</Text>
       <TextInput
         value={value}
-        onChangeText={onChange}
+        onChangeText={(text) => onChange(maskTimeInput(text))}
+        onBlur={() => onChange(normaliseTimeInput(value))}
         placeholder="9:00 AM"
         placeholderTextColor={c.txt3}
         accessibilityLabel={label}
+        accessibilityHint="Type the digits. The colon and AM or PM are added for you."
+        // The mask inserts the punctuation, so the numeric pad is all anyone
+        // needs -- except for the a/p that picks the meridiem, which is why
+        // this stays a normal keyboard rather than a number pad.
         autoCapitalize="characters"
         autoCorrect={false}
         style={[t.label, { color: c.txt, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1,
