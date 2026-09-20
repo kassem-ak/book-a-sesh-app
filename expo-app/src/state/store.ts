@@ -464,6 +464,8 @@ export interface SpotterState {
 
   openPerson(id: string): void;
   openBooking(): void;
+  /** Book the rest of a package straight from My bookings. */
+  openPackBooking(coachId: string): void;
   backToPerson(): void;
   confirmBooking(): Promise<void>;
   goToBookings(): void;
@@ -1067,6 +1069,18 @@ export const useStore = create<SpotterState>((set, get) => ({
     } catch (error) {
       set(errorState(error));
     }
+  },
+  // Tapping a pack in My bookings goes straight to booking the rest of it.
+  //
+  // `bookPkg` is left at 0 rather than resolved here: the booking screen reads
+  // what this account owns and lands on an active pack by itself, so choosing
+  // the index in two places would be two answers that can disagree.
+  openPackBooking: (coachId) => {
+    set({
+      openId: coachId, overlay: 'booking', booked: false,
+      bookPkg: 0, bookDate: null, bookSlot: null, writeError: null,
+    });
+    track('package_booking_opened');
   },
   openBooking: () => {
     set({ overlay: 'booking', booked: false, bookPkg: 0, bookDate: null, bookSlot: null, writeError: null });
