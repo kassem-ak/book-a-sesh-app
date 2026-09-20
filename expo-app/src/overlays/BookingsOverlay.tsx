@@ -132,7 +132,8 @@ export function BookingsOverlay() {
                 <SectionHeading style={{ marginBottom: 11 }}>Packages</SectionHeading>
                 <View style={{ gap: 10 }}>
                   {progress.map((pack) => (
-                    <ProgressCard key={pack.packageId} pack={pack} withLabel={`with ${pack.withName}`} />
+                    <ProgressCard key={pack.packageId} pack={pack} withLabel={`with ${pack.withName}`}
+                      onBook={pack.remaining > 0 ? () => s.openPackBooking(pack.coachId) : undefined} />
                   ))}
                 </View>
               </>
@@ -312,11 +313,16 @@ function selectedLabel(key: string) {
 // Four numbers rather than one bar: "3 of 10 used" cannot tell somebody whether
 // the other seven are bookable now or already spoken for, and that is the only
 // question a person opening this card is asking.
-export function ProgressCard({ pack, withLabel }: { pack: PackageProgress; withLabel: string }) {
+export function ProgressCard({ pack, withLabel, onBook }: {
+  pack: PackageProgress; withLabel: string;
+  /** Absent when the pack has nothing left -- a card that looks tappable and
+   *  leads to a screen that cannot book anything is worse than a flat one. */
+  onBook?: () => void;
+}) {
   const { c, t } = useTheme();
   const spent = pack.taken + pack.booked + pack.pending;
   const filled = pack.total > 0 ? Math.min(Math.max(spent / pack.total, 0), 1) : 0;
-  return (
+  const card = (
     <Card style={{ padding: 14 }}>
       <Row style={{ justifyContent: 'space-between', marginBottom: 10 }}>
         <Row gap={11}>
@@ -331,8 +337,18 @@ export function ProgressCard({ pack, withLabel }: { pack: PackageProgress; withL
       <View style={{ height: 6, borderRadius: 999, backgroundColor: c.surface2, overflow: 'hidden' }}>
         <View style={{ width: `${filled * 100}%`, height: 6, borderRadius: 999, backgroundColor: c.volt }} />
       </View>
-      <Text style={[t.caption, { color: c.txt2, marginTop: 8 }]}>{progressSummary(pack)}</Text>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+        <Text style={[t.caption, { color: c.txt2 }]}>{progressSummary(pack)}</Text>
+        {onBook && <Text style={[t.label, { color: c.accent }]}>Book a session</Text>}
+      </Row>
     </Card>
+  );
+  if (!onBook) return card;
+  return (
+    <Pressable onPress={onBook} accessibilityRole="button"
+      accessibilityLabel={`Book one of the ${pack.remaining} sessions left ${withLabel}`}>
+      {card}
+    </Pressable>
   );
 }
 
