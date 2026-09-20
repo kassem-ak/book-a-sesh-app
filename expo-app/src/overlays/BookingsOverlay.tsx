@@ -2,7 +2,7 @@ import React, { ReactNode, useCallback, useEffect, useMemo, useState } from 'rea
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, MicroBadge, Row, SectionHeading, Segmented } from '../components/ui';
+import { Avatar, Card, Field, FormSheet, MicroBadge, Row, SectionHeading, Segmented, VoltButton } from '../components/ui';
 import {
   BookingStatus,
   MyBooking,
@@ -20,7 +20,10 @@ import {
   formatSessionWhen,
 } from '../lib/bookings';
 import { dateKey as dayKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
-import { fetchMyPackages, PackageProgress, progressSummary } from '../lib/packages';
+import {
+  fetchCancellations, fetchMyPackages, PackageCancellation, PackageProgress,
+  progressSummary, requestCancellation, withdrawCancellation,
+} from '../lib/packages';
 import { initials } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -35,6 +38,11 @@ export function BookingsOverlay() {
   // Counted from the bookings rather than a stored counter, so a cancelled
   // session comes back to the pack instead of being lost.
   const [progress, setProgress] = useState<PackageProgress[]>([]);
+  // Cancellation requests, keyed by package. A pack has at most one open
+  // request -- the database has a partial unique index saying so.
+  const [cancels, setCancels] = useState<Map<string, PackageCancellation>>(new Map());
+  const [asking, setAsking] = useState<PackageProgress | null>(null);
+  const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Cancelling is destructive and RN Web has no Alert, so the card asks for a
@@ -48,16 +56,24 @@ export function BookingsOverlay() {
     setLoading(true);
     setError(null);
     try {
-      const [mine, balances, packs] = await Promise.all([
-        fetchMyBookings(), fetchMyPackageBalances(), fetchMyPackages(),
+      const [mine, balances, packs, requests] = await Promise.all([
+        fetchMyBookings(), fetchMyPackageBalances(), fetchMyPackages(), fetchCancellations(),
       ]);
       setBookings(mine);
       setPackages(balances);
       setProgress(packs);
+      // Newest first from the server, so the first row for a pack is the
+      // current one and anything older is history.
+      const latest = new Map<string, PackageCancellation>();
+      for (const request of requests) {
+        if (!latest.has(request.packageId)) latest.set(request.packageId, request);
+      }
+      setCancels(latest);
     } catch (e) {
       setBookings(EMPTY);
       setPackages([]);
       setProgress([]);
+      setCancels(new Map());
       setError(e instanceof Error ? e.message : 'Could not load your bookings.');
     } finally {
       setLoading(false);
@@ -81,6 +97,19 @@ export function BookingsOverlay() {
       setActionError(e instanceof Error ? e.message : 'Could not accept that session.');
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  // Write, then re-read. A package that shows a state the server refused is
+  // worse than one that is briefly a beat behind.
+  const run = async (write: () => Promise<void>, fallback: string) => {
+    setActionError(null);
+    try {
+      await write();
+      await load();
+    } catch (e) {
+      track('write_failed', { error_code: analyticsErrorCode(e) });
+      setActionError(e instanceof Error ? e.message : fallback);
     }
   };
 
@@ -131,10 +160,26 @@ export function BookingsOverlay() {
               <>
                 <SectionHeading style={{ marginBottom: 11 }}>Packages</SectionHeading>
                 <View style={{ gap: 10 }}>
-                  {progress.map((pack) => (
-                    <ProgressCard key={pack.packageId} pack={pack} withLabel={`with ${pack.withName}`}
-                      onBook={pack.remaining > 0 ? () => s.openPackBooking(pack.coachId) : undefined} />
-                  ))}
+                  {progress.map((pack) => {
+                    const request = cancels.get(pack.packageId);
+                    const open = request?.status === 'requested';
+                    const cancelled = request?.status === 'approved';
+                    return (
+                      <ProgressCard key={pack.packageId} pack={pack} withLabel={`with ${pack.withName}`}
+                        request={request}
+                        // A cancelled pack books nothing, and a pack with a
+                        // question hanging over it should not be spent while
+                        // the coach is still deciding.
+                        onBook={pack.remaining > 0 && !open && !cancelled
+                          ? () => s.openPackBooking(pack.coachId) : undefined}
+                        onAskCancel={pack.remaining > 0 && !request
+                          ? () => { setReason(''); setActionError(null); setAsking(pack); } : undefined}
+                        onWithdraw={open
+                          ? () => void run(() => withdrawCancellation(request!.id),
+                              'Could not take that request back.') : undefined}
+                      />
+                    );
+                  })}
                 </View>
               </>
             ) : packages.length > 0 && (
@@ -188,6 +233,34 @@ export function BookingsOverlay() {
             )}
           </>
         )}
+        <FormSheet
+          visible={Boolean(asking)}
+          title="Request cancellation"
+          subtitle={asking ? `${asking.remaining} of ${asking.total} sessions are still unused.` : undefined}
+          onClose={() => setAsking(null)}
+          footer={
+            <VoltButton label="Send the request" enabled={Boolean(asking)}
+              onPress={() => {
+                const pack = asking;
+                if (!pack) return;
+                void run(async () => {
+                  await requestCancellation(pack.coachId, pack.packageId, reason);
+                  track('package_cancellation_requested');
+                  setAsking(null);
+                }, 'Could not send that request.');
+              }} />
+          }
+        >
+          <Text style={[t.bodySm, { color: c.txt2 }]}>
+            {asking ? asking.withName.split(' ')[0] : 'Your coach'} decides whether to cancel it and how much to give
+            back. BOOK’D does not move money — whatever you agree is paid between the two of you.
+          </Text>
+          <Text style={[t.caption, { color: c.txt3 }]}>
+            Sessions you have already booked stay in your calendar. Cancel those separately if you do not want them.
+          </Text>
+          <Field value={reason} onChange={setReason} label="Why, optionally"
+            placeholder="Moving away, injured, changed plans" />
+        </FormSheet>
       </View>
     </OverlayScaffold>
   );
@@ -313,11 +386,14 @@ function selectedLabel(key: string) {
 // Four numbers rather than one bar: "3 of 10 used" cannot tell somebody whether
 // the other seven are bookable now or already spoken for, and that is the only
 // question a person opening this card is asking.
-export function ProgressCard({ pack, withLabel, onBook }: {
+export function ProgressCard({ pack, withLabel, onBook, request, onAskCancel, onWithdraw }: {
   pack: PackageProgress; withLabel: string;
   /** Absent when the pack has nothing left -- a card that looks tappable and
    *  leads to a screen that cannot book anything is worse than a flat one. */
   onBook?: () => void;
+  request?: PackageCancellation;
+  onAskCancel?: () => void;
+  onWithdraw?: () => void;
 }) {
   const { c, t } = useTheme();
   const spent = pack.taken + pack.booked + pack.pending;
@@ -341,14 +417,64 @@ export function ProgressCard({ pack, withLabel, onBook }: {
         <Text style={[t.caption, { color: c.txt2 }]}>{progressSummary(pack)}</Text>
         {onBook && <Text style={[t.label, { color: c.accent }]}>Book a session</Text>}
       </Row>
+
+      {request && request.status !== 'withdrawn' && (
+        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: c.line2 }}>
+          {request.status === 'requested' && (
+            <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={[t.bodySm, { color: c.txt2, flex: 1 }]}>
+                Cancellation asked for. Waiting on {pack.withName.split(' ')[0]}.
+              </Text>
+              {onWithdraw && (
+                <Pressable accessibilityRole="button" accessibilityLabel="Take the cancellation request back"
+                  onPress={onWithdraw} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>Take it back</Text>
+                </Pressable>
+              )}
+            </Row>
+          )}
+          {request.status === 'approved' && (
+            <>
+              <Text style={[t.bodySm, { color: c.danger }]}>
+                Cancelled{request.refundCents !== null ? ` · ${formatCents(request.refundCents)} back` : ''}
+              </Text>
+              {/* Said plainly: the app records what the two of them agreed, it
+                  does not move anybody's money. */}
+              <Text style={[t.caption, { color: c.txt3, marginTop: 2 }]}>
+                {pack.withName.split(' ')[0]} pays you directly — BOOK’D does not move money.
+              </Text>
+            </>
+          )}
+          {request.status === 'rejected' && (
+            <Text style={[t.bodySm, { color: c.txt2 }]}>
+              {pack.withName.split(' ')[0]} declined the cancellation. Your sessions are still yours.
+            </Text>
+          )}
+        </View>
+      )}
     </Card>
   );
-  if (!onBook) return card;
-  return (
-    <Pressable onPress={onBook} accessibilityRole="button"
-      accessibilityLabel={`Book one of the ${pack.remaining} sessions left ${withLabel}`}>
-      {card}
+  // The ask sits outside the pressable card: nesting a button inside a button
+  // makes which one fired a matter of luck.
+  const ask = onAskCancel ? (
+    <Pressable accessibilityRole="button" accessibilityLabel={`Ask to cancel the package ${withLabel}`}
+      onPress={onAskCancel} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 }}>
+      <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>
+        Request cancellation
+      </Text>
     </Pressable>
+  ) : null;
+
+  return (
+    <View style={{ gap: 2 }}>
+      {onBook ? (
+        <Pressable onPress={onBook} accessibilityRole="button"
+          accessibilityLabel={`Book one of the ${pack.remaining} sessions left ${withLabel}`}>
+          {card}
+        </Pressable>
+      ) : card}
+      {ask}
+    </View>
   );
 }
 

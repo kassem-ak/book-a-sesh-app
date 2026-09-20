@@ -8,7 +8,10 @@ import {
   addPromo, CoachPricing, fetchMyPricing, money, parseMoney, removePackage, removePromo,
   savePackage, SessionPackage, setSessionRate,
 } from '../lib/pricing';
-import { fetchClientPackages, PackageProgress, progressSummary } from '../lib/packages';
+import {
+  decideCancellation, fetchCancellations, fetchClientPackages, PackageCancellation,
+  PackageProgress, progressSummary, suggestedRefundCents,
+} from '../lib/packages';
 import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
 import { initials } from '../state/models';
@@ -742,6 +745,11 @@ export function CoachPackagesOverlay() {
   // What each client has left of a pack they bought. The same view the client
   // reads, from the other side -- so the two cannot show different numbers.
   const [clients, setClients] = useState<PackageProgress[]>([]);
+  // Open cancellation requests, keyed by client+package. The refund box starts
+  // at the unused share of what was paid -- the arithmetic the coach would do
+  // anyway -- and stays editable, because it is their money and their call.
+  const [requests, setRequests] = useState<PackageCancellation[]>([]);
+  const [refunds, setRefunds] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -761,14 +769,18 @@ export function CoachPackagesOverlay() {
     setLoading(true);
     setError(null);
     try {
-      const [current, sold] = await Promise.all([fetchMyPricing(), fetchClientPackages()]);
+      const [current, sold, asked] = await Promise.all([
+        fetchMyPricing(), fetchClientPackages(), fetchCancellations(),
+      ]);
       setPricing(current);
       setClients(sold);
+      setRequests(asked.filter((request) => request.status === 'requested'));
       setRate(current.rateCents ? money(current.rateCents) : '');
       setDrafts({});
     } catch (e) {
       setPricing(null);
       setClients([]);
+      setRequests([]);
       setError(errorText(e, 'Could not load your packages.'));
     } finally {
       setLoading(false);
@@ -984,17 +996,76 @@ export function CoachPackagesOverlay() {
                 <Note>Nobody is part-way through a pack right now.</Note>
               ) : (
                 clients.map((pack) => (
-                  <Card key={pack.clientId + pack.packageId} style={{ padding: 14 }}>
-                    <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[t.name, { color: c.txt }]}>{pack.withName}</Text>
-                        <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
-                          {pack.total}-session pack · {progressSummary(pack)}
-                        </Text>
-                      </View>
-                      <Text style={[t.priceSm, { color: c.accent }]}>{pack.remaining} left</Text>
-                    </Row>
-                  </Card>
+                  (() => {
+                    const key = pack.clientId + pack.packageId;
+                    const request = requests.find(
+                      (r) => r.clientId === pack.clientId && r.packageId === pack.packageId,
+                    );
+                    const sold = pricing?.packages.find((p) => p.id === pack.packageId);
+                    const suggested = sold ? suggestedRefundCents(pack, sold.priceCents) : 0;
+                    const typed = refunds[key] ?? money(suggested);
+                    return (
+                      <Card key={key} style={{ padding: 14, gap: 10 }}>
+                        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[t.name, { color: c.txt }]}>{pack.withName}</Text>
+                            <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
+                              {pack.total}-session pack · {progressSummary(pack)}
+                            </Text>
+                          </View>
+                          <Text style={[t.priceSm, { color: c.accent }]}>{pack.remaining} left</Text>
+                        </Row>
+
+                        {request && (
+                          <View style={{ gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: c.line }}>
+                            <Text style={[t.labelSm, { color: c.danger }]}>
+                              {pack.withName.split(' ')[0]} asked to cancel this pack
+                            </Text>
+                            {request.reason ? (
+                              <Text style={[t.bodySm, { color: c.txt2 }]}>“{request.reason}”</Text>
+                            ) : null}
+                            <Text style={[t.caption, { color: c.txt3 }]}>
+                              How much are you giving back? BOOK’D records the figure — it does not move the money, so
+                              pay them however you normally would. {pack.remaining} of {pack.total} sessions are unused.
+                            </Text>
+                            <Row gap={10} style={{ alignItems: 'center' }}>
+                              <Text style={[t.price, { color: c.accent }]}>$</Text>
+                              <View style={{ flex: 1 }}>
+                                <MoneyField value={typed}
+                                  onChange={(next) => setRefunds((current) => ({ ...current, [key]: next }))}
+                                  label={`Amount to give back to ${pack.withName}`} placeholder="0" />
+                              </View>
+                            </Row>
+                            <Row gap={12}>
+                              <View style={{ flex: 1 }}>
+                                <VoltButton label="Approve" busy={busy} busyLabel="Saving…" enabled={!busy}
+                                  onPress={() => {
+                                    const cents = parseMoney(typed);
+                                    if (cents === null) {
+                                      setActionError('Enter an amount like 120 or 0.');
+                                      return;
+                                    }
+                                    run(async () => {
+                                      await decideCancellation(request.id, 'approved', cents);
+                                      track('package_cancellation_decided');
+                                    }, 'Could not approve that request.');
+                                  }} />
+                              </View>
+                              <Pressable accessibilityRole="button" disabled={busy}
+                                accessibilityLabel={`Decline the cancellation from ${pack.withName}`}
+                                onPress={() => run(
+                                  () => decideCancellation(request.id, 'rejected'),
+                                  'Could not decline that request.',
+                                )}
+                                style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' }}>
+                                <Text style={[t.label, { color: c.txt2 }]}>Decline</Text>
+                              </Pressable>
+                            </Row>
+                          </View>
+                        )}
+                      </Card>
+                    );
+                  })()
                 ))
               )}
             </View>

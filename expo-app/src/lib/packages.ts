@@ -140,3 +140,130 @@ export function progressSummary(progress: PackageProgress): string {
   parts.push(`${progress.remaining} left`);
   return parts.join(' · ');
 }
+
+// ---- asking to cancel a package --------------------------------------------
+//
+// A pack is paid for in one go, directly to the coach -- BOOK'D never touches
+// the money. So this cannot be a refund button; it is a request to a person,
+// and what comes back is their answer plus the amount they agree to hand back.
+//
+// Every screen that shows that amount has to say the app is recording what two
+// people agreed rather than moving anybody's money.
+
+export type CancellationStatus = 'requested' | 'approved' | 'rejected' | 'withdrawn';
+
+export type PackageCancellation = {
+  id: string;
+  packageId: string;
+  clientId: string;
+  coachId: string;
+  /** The other party, whichever side of it this account is on. */
+  withName: string;
+  reason: string | null;
+  status: CancellationStatus;
+  /** What the coach agreed to give back. Null until they answer -- and 0 is a
+   *  real answer, not a missing one. */
+  refundCents: number | null;
+  createdAt: string;
+};
+
+const CANCEL_COLUMNS = 'id, package_id, client_id, coach_id, reason, status, refund_cents, created_at';
+
+type CancelRow = {
+  id: string; package_id: string; client_id: string; coach_id: string;
+  reason: string | null; status: string; refund_cents: number | null; created_at: string;
+};
+
+const asStatus = (value: string): CancellationStatus =>
+  value === 'approved' || value === 'rejected' || value === 'withdrawn' ? value : 'requested';
+
+const toCancellation = (row: CancelRow, withName: string): PackageCancellation => ({
+  id: row.id,
+  packageId: row.package_id,
+  clientId: row.client_id,
+  coachId: row.coach_id,
+  withName,
+  reason: row.reason,
+  status: asStatus(row.status),
+  refundCents: row.refund_cents,
+  createdAt: row.created_at,
+});
+
+/** Every cancellation this account is part of, either side.
+ *
+ *  One read rather than two: `cancel_parties_read` already returns exactly the
+ *  rows where this account is the client or the coach, so filtering again in
+ *  the client would only duplicate the policy. */
+export async function fetchCancellations(): Promise<PackageCancellation[]> {
+  const me = await currentAppUserId();
+  const { data, error } = await supabase
+    .from('package_cancellations').select(CANCEL_COLUMNS).order('created_at', { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []) as CancelRow[];
+  const names = await namesFor(rows.map((row) => (row.client_id === me ? row.coach_id : row.client_id)));
+  return rows.map((row) =>
+    toCancellation(row, names.get(row.client_id === me ? row.coach_id : row.client_id) ?? 'Member'));
+}
+
+/** Ask the coach to cancel a package. */
+export async function requestCancellation(
+  coachId: string,
+  packageId: string,
+  reason?: string,
+): Promise<void> {
+  const me = await currentAppUserId();
+  // status and refund are left to their defaults: the insert policy refuses any
+  // other value, which is what stops a client writing the coach's answer.
+  const { error } = await supabase.from('package_cancellations').insert({
+    client_id: me,
+    coach_id: coachId,
+    package_id: packageId,
+    reason: reason?.trim() || null,
+  });
+  if (error) {
+    // The partial unique index means one open request per pack. 23505 here is
+    // "you already asked", not the generic "that slot is taken".
+    if ((error as { code?: string }).code === '23505') {
+      throw new Error('You have already asked to cancel this package.');
+    }
+    throw error;
+  }
+}
+
+/** Take the request back before it is answered. */
+export async function withdrawCancellation(id: string): Promise<void> {
+  await currentAppUserId();
+  const { error } = await supabase
+    .from('package_cancellations').update({ status: 'withdrawn' }).eq('id', id);
+  if (error) throw error;
+}
+
+/** The coach's answer. An approval carries the amount they are giving back --
+ *  0 included, because "nothing" is a decision and the server refuses an
+ *  approval with no amount at all. */
+export async function decideCancellation(
+  id: string,
+  status: 'approved' | 'rejected',
+  refundCents?: number,
+): Promise<void> {
+  await currentAppUserId();
+  if (status === 'approved' && (refundCents === undefined || !Number.isFinite(refundCents))) {
+    throw new Error('Say how much you are giving back, even if it is nothing.');
+  }
+  const { error } = await supabase.rpc('decide_package_cancellation', {
+    p_id: id,
+    p_status: status,
+    p_refund_cents: status === 'approved' ? Math.max(0, Math.round(refundCents as number)) : null,
+  });
+  if (error) throw error;
+}
+
+/** What a coach might reasonably give back: the unused share of what was paid.
+ *
+ *  A suggestion, not a rule. It is the arithmetic the coach would do anyway,
+ *  and having it in front of them beats a blank box -- but it is their money
+ *  and their call, so the field stays editable. */
+export function suggestedRefundCents(progress: PackageProgress, packPriceCents: number): number {
+  if (progress.total <= 0) return 0;
+  return Math.max(0, Math.round((packPriceCents * progress.remaining) / progress.total));
+}
