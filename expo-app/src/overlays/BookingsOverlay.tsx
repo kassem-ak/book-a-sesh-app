@@ -3,6 +3,7 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Avatar, Card, Field, FormSheet, MicroBadge, Row, SectionHeading, Segmented, VoltButton } from '../components/ui';
+import { RefundNegotiation } from '../components/RefundNegotiation';
 import {
   BookingStatus,
   MyBooking,
@@ -22,7 +23,7 @@ import {
 import { dateKey as dayKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import {
   fetchCancellations, fetchMyPackages, PackageCancellation, PackageProgress,
-  progressSummary, requestCancellation, withdrawCancellation,
+  progressSummary, requestCancellation, suggestedRefundCents, withdrawCancellation,
 } from '../lib/packages';
 import { initials } from '../state/models';
 import { useStore } from '../state/store';
@@ -162,7 +163,9 @@ export function BookingsOverlay() {
                 <View style={{ gap: 10 }}>
                   {progress.map((pack) => {
                     const request = cancels.get(pack.packageId);
-                    const open = request?.status === 'requested';
+                    // 'offered' is still open: the figure is being argued
+                    // over, and the pack is what the argument is about.
+                    const open = request?.status === 'requested' || request?.status === 'offered';
                     const cancelled = request?.status === 'approved';
                     return (
                       <ProgressCard key={pack.packageId} pack={pack} withLabel={`with ${pack.withName}`}
@@ -174,9 +177,10 @@ export function BookingsOverlay() {
                           ? () => s.openPackBooking(pack.coachId) : undefined}
                         onAskCancel={pack.remaining > 0 && !request
                           ? () => { setReason(''); setActionError(null); setAsking(pack); } : undefined}
-                        onWithdraw={open
+                        onWithdraw={open || request?.status === 'offered'
                           ? () => void run(() => withdrawCancellation(request!.id),
                               'Could not take that request back.') : undefined}
+                        onSettled={() => void load()}
                       />
                     );
                   })}
@@ -386,7 +390,7 @@ function selectedLabel(key: string) {
 // Four numbers rather than one bar: "3 of 10 used" cannot tell somebody whether
 // the other seven are bookable now or already spoken for, and that is the only
 // question a person opening this card is asking.
-export function ProgressCard({ pack, withLabel, onBook, request, onAskCancel, onWithdraw }: {
+export function ProgressCard({ pack, withLabel, onBook, request, onAskCancel, onWithdraw, onSettled }: {
   pack: PackageProgress; withLabel: string;
   /** Absent when the pack has nothing left -- a card that looks tappable and
    *  leads to a screen that cannot book anything is worse than a flat one. */
@@ -394,6 +398,9 @@ export function ProgressCard({ pack, withLabel, onBook, request, onAskCancel, on
   request?: PackageCancellation;
   onAskCancel?: () => void;
   onWithdraw?: () => void;
+  /** Re-read after an offer or an acceptance, so the card and the panel cannot
+   *  disagree about where the negotiation got to. */
+  onSettled?: () => void;
 }) {
   const { c, t } = useTheme();
   const spent = pack.taken + pack.booked + pack.pending;
@@ -420,18 +427,27 @@ export function ProgressCard({ pack, withLabel, onBook, request, onAskCancel, on
 
       {request && request.status !== 'withdrawn' && (
         <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: c.line2 }}>
-          {request.status === 'requested' && (
-            <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={[t.bodySm, { color: c.txt2, flex: 1 }]}>
-                Cancellation asked for. Waiting on {pack.withName.split(' ')[0]}.
-              </Text>
-              {onWithdraw && (
-                <Pressable accessibilityRole="button" accessibilityLabel="Take the cancellation request back"
-                  onPress={onWithdraw} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>Take it back</Text>
-                </Pressable>
+          {(request.status === 'requested' || request.status === 'offered') && (
+            <>
+              <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={[t.bodySm, { color: c.txt2, flex: 1 }]}>
+                  {request.status === 'requested'
+                    ? `Cancellation asked for. Waiting on ${pack.withName.split(' ')[0]}.`
+                    : 'Settling on what comes back'}
+                </Text>
+                {onWithdraw && (
+                  <Pressable accessibilityRole="button" accessibilityLabel="Take the cancellation request back"
+                    onPress={onWithdraw} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>Take it back</Text>
+                  </Pressable>
+                )}
+              </Row>
+              {onSettled && (
+                <RefundNegotiation request={request}
+                  suggestedCents={suggestedRefundCents(pack, 0)}
+                  onSettled={onSettled} />
               )}
-            </Row>
+            </>
           )}
           {request.status === 'approved' && (
             <>

@@ -254,3 +254,103 @@ test('a pack with no sessions suggests nothing instead of dividing by zero', () 
   const { suggestedRefundCents } = harness().module;
   assert.equal(suggestedRefundCents({ total: 0, remaining: 0 }, 10000), 0);
 });
+
+// ---- settling on the amount ------------------------------------------------
+//
+// The server owns who may offer and who may accept; that is verified against
+// the live schema. What is left here is whose move the UI thinks it is, and the
+// ordering that decides which figure is actually on the table.
+
+function offersHarness(rows) {
+  const calls = [];
+  const supabase = createClient('https://example.invalid', 'test-key', {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: async (url, init) => {
+      const target = new URL(url);
+      calls.push({ method: init?.method ?? 'GET', path: target.pathname, query: target.search,
+        body: init?.body ? JSON.parse(init.body) : null });
+      if (target.pathname.endsWith('/package_refund_offers')) {
+        return new Response(JSON.stringify(rows), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    } },
+  });
+  const filename = join(__dirname, '../src/lib/packages.ts');
+  const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exports = {};
+  runInNewContext(code, { exports, require: (id) => (
+    id === './supabase' ? { supabase } : { currentAppUserId: async () => ME }
+  ), URL, Response, Headers, Promise, Array, Object, JSON, Number, String, Map, Set }, { filename });
+  return { module: exports, calls };
+}
+
+const offer = (by, cents, seq) => ({
+  id: 'o' + seq, request_id: 'req-1', offered_by: by, amount_cents: cents,
+  note: null, created_at: '2026-09-21T10:00:00Z', seq,
+});
+
+test('offers are read oldest first, ordered by sequence not timestamp', async () => {
+  const h = offersHarness([offer(COACH, 12000, 1), offer(ME, 15000, 2)]);
+  const rows = await h.module.fetchRefundOffers('req-1');
+  assert.equal(rows.map((o) => o.amountCents).join(','), '12000,15000');
+  const read = h.calls.find((c) => c.path.endsWith('/package_refund_offers'));
+  // created_at defaults to now(), which is the transaction's start time -- two
+  // offers written in one transaction tie, and the tie is broken arbitrarily.
+  assert.match(read.query, /order=seq/);
+  assert.match(read.query, /request_id=eq\.req-1/);
+});
+
+test('an offer knows whose it is', async () => {
+  const h = offersHarness([offer(COACH, 12000, 1), offer(ME, 15000, 2)]);
+  const rows = await h.module.fetchRefundOffers('req-1');
+  assert.equal(rows[0].mine, false);
+  assert.equal(rows[1].mine, true);
+});
+
+test('the standing offer is theirs, not yours', () => {
+  const { standingOffer } = offersHarness([]).module;
+  // Their offer is on the table: you can accept it.
+  assert.equal(standingOffer([{ amountCents: 12000, mine: false }]).amountCents, 12000);
+  // Yours is: you are waiting, and there is nothing for you to accept.
+  assert.equal(standingOffer([{ amountCents: 12000, mine: true }]), null);
+  // The latest one is what counts, not the first.
+  assert.equal(
+    standingOffer([{ amountCents: 12000, mine: true }, { amountCents: 15000, mine: false }]).amountCents,
+    15000,
+  );
+  assert.equal(
+    standingOffer([{ amountCents: 12000, mine: false }, { amountCents: 15000, mine: true }]),
+    null,
+  );
+});
+
+test('no offers yet means nothing to accept', () => {
+  const { standingOffer } = offersHarness([]).module;
+  assert.equal(standingOffer([]), null);
+});
+
+test('an offer is sent as whole cents, with the note trimmed away when empty', async () => {
+  const h = offersHarness([]);
+  await h.module.offerRefund('req-1', 12000.4, '   ');
+  const rpc = h.calls.find((c) => c.path.endsWith('/rpc/offer_package_refund'));
+  assert.equal(rpc.body.p_request, 'req-1');
+  assert.equal(rpc.body.p_cents, 12000);
+  assert.equal(rpc.body.p_note, null);
+});
+
+test('a negative offer is refused before it reaches the server', async () => {
+  const h = offersHarness([]);
+  await assert.rejects(() => h.module.offerRefund('req-1', -1), /0 or more/);
+  assert.equal(h.calls.filter((c) => c.method === 'POST').length, 0);
+});
+
+test('accepting names only the request -- the server decides which offer that is', async () => {
+  const h = offersHarness([]);
+  await h.module.acceptRefund('req-1');
+  const rpc = h.calls.find((c) => c.path.endsWith('/rpc/accept_package_refund'));
+  // Sending an amount would let a stale screen accept a figure that is no
+  // longer on the table.
+  assert.equal(JSON.stringify(rpc.body), JSON.stringify({ p_request: 'req-1' }));
+});
