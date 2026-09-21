@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Card, FormSheet, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import { Card, Field, FormSheet, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { coachPackageOptions } from '../state/models';
 import { fetchCoachAvailability } from '../lib/queries';
@@ -9,7 +9,8 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import * as D from '../state/sampleData';
 import { fetchBlackouts } from '../lib/availability';
 import {
-  bookPackageSessions, fetchMyPackages, PackageProgress, progressSummary, SessionSlot,
+  bookPackageSessions, fetchCancellations, fetchMyPackages, PackageCancellation,
+  PackageProgress, progressSummary, requestCancellation, SessionSlot,
 } from '../lib/packages';
 import { bookingDayLabel, errorMessage, SCHED_TIMES, scheduledFor, useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -105,6 +106,12 @@ export function BookingOverlay() {
   // up -- so a cancelled session was gone and the picker offered fewer
   // sessions than the person had actually paid for.
   const [owned, setOwned] = React.useState<Map<string, PackageProgress> | null>(null);
+  // A cancellation already asked for, if any. While one is open the pack is
+  // frozen: booking more sessions would change the unused count the coach is
+  // being asked to refund against.
+  const [openRequest, setOpenRequest] = React.useState<PackageCancellation | null>(null);
+  const [askingCancel, setAskingCancel] = React.useState(false);
+  const [cancelReason, setCancelReason] = React.useState('');
   const [usageLoading, setUsageLoading] = React.useState(true);
   // undefined while the coach's schedule is still loading, null once we know
   // they have not set one.
@@ -138,6 +145,18 @@ export function BookingOverlay() {
         setUsageLoading(false);
       },
       () => { if (live) setUsageLoading(false); },
+    );
+    // Independent of the packs: a request that fails to load must not hide
+    // the pack itself, and the server refuses a booking on a cancelled pack
+    // regardless of what this screen believes.
+    fetchCancellations().then(
+      (requests) => {
+        if (!live) return;
+        setOpenRequest(requests.find(
+          (request) => request.coachId === personId && request.status === 'requested',
+        ) ?? null);
+      },
+      () => { if (live) setOpenRequest(null); },
     );
     // A schedule we cannot read must not hide the coach: fall back to the
     // open-coach offering, which is what the server would accept anyway.
@@ -249,8 +268,15 @@ export function BookingOverlay() {
     }
   };
 
-  const pkgs = coachPackageOptions(p);
-  const selectedPkg = pkgs[s.bookPkg] ?? pkgs[0];
+  const everyPkg = coachPackageOptions(p);
+  // A pack already bought with sessions left is what this screen is for.
+  // Offering the others alongside it invites buying a second pack while the
+  // first is half unused, and buries the thing they came to spend.
+  const activePkg = everyPkg.find(
+    (option) => option.packageId && (owned?.get(option.packageId)?.remaining ?? 0) > 0,
+  );
+  const pkgs = activePkg ? [activePkg] : everyPkg;
+  const selectedPkg = (activePkg ? pkgs[0] : pkgs[s.bookPkg]) ?? pkgs[0];
 
   // A pack of two or more is booked several sessions at a time. A single
   // session has nothing to choose between, so it keeps the old one-tap path.
@@ -333,14 +359,20 @@ export function BookingOverlay() {
             </Text>
           )}
           <VoltButton
-            label={exhausted
+            label={openRequest
+              ? 'Cancellation pending'
+              : exhausted
               ? 'Pack already used'
               : multi
                 ? picked.length > 1
                   ? `Book ${picked.length} sessions`
                   : 'Book this session'
                 : 'Confirm booking'}
-            enabled={!exhausted && (multi ? picked.length > 0 : Boolean(bookDate && bookSlot))}
+            // A pack with a cancellation on the table is frozen: booking more
+            // of it would change the unused count the coach is being asked to
+            // refund against.
+            enabled={!exhausted && !openRequest
+              && (multi ? picked.length > 0 : Boolean(bookDate && bookSlot))}
             busy={multi ? bookingMany : s.writeBusy === 'booking'}
             busyLabel="Booking..."
             onPress={() => {
@@ -370,7 +402,9 @@ export function BookingOverlay() {
         {/* Package first. What you are buying decides what a day costs, and
             picking the day before the thing being bought put the cheapest
             question last. */}
-        <SectionHeading style={{ marginBottom: 11 }}>Package</SectionHeading>
+        <SectionHeading style={{ marginBottom: 11 }}>
+          {activePkg ? 'Your package' : 'Package'}
+        </SectionHeading>
         <View style={{ gap: 10 }}>
           {pkgs.map((pk, i) => {
             const sel = s.bookPkg === i;
@@ -388,7 +422,11 @@ export function BookingOverlay() {
                   <Row style={{ justifyContent: 'space-between' }}>
                     <View>
                       <Text style={[t.name, { color: c.txt }]}>{pk.name}</Text>
-                      <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{pk.note}</Text>
+                      <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>
+                        {mine
+                          ? `${mine.remaining} of ${mine.total} still to book`
+                          : pk.note}
+                      </Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       {/* A pack already bought shows what is left of it
@@ -398,7 +436,14 @@ export function BookingOverlay() {
                       {mine ? (
                         <>
                           <Text style={[t.price, { color: c.accent }]}>{mine.remaining} left</Text>
-                          <Text style={[t.caption, { color: c.txt3, marginTop: 1 }]}>{progressSummary(mine)}</Text>
+                          {/* The breakdown only when it says something the
+                              number above does not. On an untouched pack it
+                              was the same words twice. */}
+                          {(mine.booked > 0 || mine.pending > 0 || mine.taken > 0) && (
+                            <Text style={[t.caption, { color: c.txt3, marginTop: 1 }]}>
+                              {progressSummary(mine)}
+                            </Text>
+                          )}
                         </>
                       ) : (
                         <Text style={[t.price, { color: c.accent }]}>${pk.price}</Text>
@@ -410,6 +455,67 @@ export function BookingOverlay() {
             );
           })}
         </View>
+
+        {activePkg && (
+          openRequest ? (
+            <View style={{ marginTop: 12, borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 14 }}>
+              <Text style={[t.labelSm, { color: c.txt }]}>Cancellation asked for</Text>
+              <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
+                Waiting on {p.name.split(' ')[0]}. Your pack is on hold until it is settled — take the request back in
+                My bookings if you want to keep using it.
+              </Text>
+            </View>
+          ) : (
+            <Pressable accessibilityRole="button" accessibilityLabel="Request cancellation of this package"
+              onPress={() => { setCancelReason(''); setBookingError(null); setAskingCancel(true); }}
+              style={{ marginTop: 12, minHeight: 44, justifyContent: 'center' }}>
+              <Text style={[t.label, { color: c.txt2 }]}>Request cancellation</Text>
+            </Pressable>
+          )
+        )}
+
+        <FormSheet
+          visible={askingCancel}
+          title="Request cancellation"
+          subtitle={selectedPkg?.packageId && owned?.get(selectedPkg.packageId)
+            ? `${owned.get(selectedPkg.packageId)!.remaining} of ${owned.get(selectedPkg.packageId)!.total} sessions are still unused.`
+            : undefined}
+          onClose={() => setAskingCancel(false)}
+          footer={
+            <VoltButton label="Send the request" busy={bookingMany} busyLabel="Sending…"
+              enabled={Boolean(selectedPkg?.packageId) && !bookingMany}
+              onPress={() => {
+                const packageId = selectedPkg?.packageId;
+                if (!packageId) return;
+                setBookingMany(true);
+                setBookingError(null);
+                void (async () => {
+                  try {
+                    await requestCancellation(p.id, packageId, cancelReason);
+                    track('package_cancellation_requested');
+                    const requests = await fetchCancellations();
+                    setOpenRequest(requests.find(
+                      (request) => request.coachId === p.id && request.status === 'requested',
+                    ) ?? null);
+                    setAskingCancel(false);
+                  } catch (error) {
+                    track('write_failed', { error_code: analyticsErrorCode(error) });
+                    setBookingError(errorMessage(error));
+                  } finally { setBookingMany(false); }
+                })();
+              }} />
+          }
+        >
+          <Text style={[t.bodySm, { color: c.txt2 }]}>
+            {p.name.split(' ')[0]} decides whether to cancel it and how much to give back — you can settle on a figure
+            between you. BOOK’D records what you agree; it does not move money.
+          </Text>
+          <Text style={[t.caption, { color: c.txt3 }]}>
+            Sessions you have already booked stay in your calendar. Cancel those separately if you do not want them.
+          </Text>
+          <Field value={cancelReason} onChange={setCancelReason} label="Why, optionally"
+            placeholder="Moving away, injured, changed plans" />
+        </FormSheet>
 
         <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Pick a day</SectionHeading>
         {week === undefined ? (
