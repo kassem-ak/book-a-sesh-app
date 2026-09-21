@@ -13,6 +13,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { avatarSize, radii, useTheme } from '../theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
@@ -27,6 +28,27 @@ export type BrandName = 'facebook' | 'google' | 'apple' | 'windows';
 
 export function BrandIcon({ name, size = 18, color }: { name: BrandName; size?: number; color: string }) {
   return <FontAwesome name={name} size={size} color={color} />;
+}
+
+// The BOOK'D mark, drawn rather than loaded.
+//
+// The same two shapes as the app icon, from assets/brand/BOOKD_app_icon.svg:
+// they have to agree, because this is what someone sees on the way in from a
+// home screen where they just tapped the other one.
+//
+// A component and not an <Image> because the ring is the foreground colour and
+// so changes with the theme -- shipping it as a PNG would mean two files, and
+// two files drift. The viewBox is the mark's own bounding box, so `size` is the
+// height you actually get.
+export function BrandMark({ size = 44, color }: { size?: number; color?: string }) {
+  const { c } = useTheme();
+  return (
+    <Svg width={size * (648.6 / 628)} height={size} viewBox="198 198 648.6 628"
+      accessibilityRole="image" accessibilityLabel="BOOK'D">
+      <Circle cx="512" cy="512" r="260" fill="none" stroke={color ?? c.txt} strokeWidth={108} />
+      <Path d="M540.6,419l209-209h97l-169,285-90,48-47-124Z" fill={c.volt} />
+    </Svg>
+  );
 }
 
 // ---- Card ----

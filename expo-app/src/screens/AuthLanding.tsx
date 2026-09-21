@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { BrandIcon, Field, Icon, Row } from '../components/ui';
+import { BrandIcon, BrandMark, Field, Icon, Row } from '../components/ui';
 import { SSO_LABELS, SsoProvider, signInWithProvider } from '../lib/session';
 import { SportsPicker } from '../components/SportsPicker';
 import { saveSignupDraft } from '../lib/signup';
@@ -79,6 +79,9 @@ export function AuthLanding() {
           </>
         ) : step === 'start' ? (
           <>
+            {/* The mark they just tapped, on the first thing they see. */}
+            <BrandMark size={40} />
+            <View style={{ height: 20 }} />
             <Text style={[t.bodySm, { color: c.txt2 }]}>Let&apos;s</Text>
             <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Get Started</Text>
             <View style={{ height: 22 }} />

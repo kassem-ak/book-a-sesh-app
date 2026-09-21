@@ -14,6 +14,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "icon": {
+        "light": "./assets/icon-light.png",
+        "dark": "./assets/icon.png",
+        "tinted": "./assets/icon-tinted.png"
+      },
       "supportsTablet": false,
       "bundleIdentifier": "com.bookd.app",
       "config": {
@@ -23,7 +28,7 @@
     "android": {
       "package": "com.bookd.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B0E11",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
@@ -59,12 +64,12 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/android-icon-foreground.png",
+          "image": "./assets/splash-icon-light.png",
           "imageWidth": 160,
           "resizeMode": "contain",
-          "backgroundColor": "#0D0E11",
+          "backgroundColor": "#F4F5F7",
           "dark": {
-            "image": "./assets/android-icon-foreground.png",
+            "image": "./assets/splash-icon-dark.png",
             "backgroundColor": "#0D0E11"
           }
         }
@@ -73,7 +78,7 @@
       [
         "expo-notifications",
         {
-          "color": "#0D0E11",
+          "color": "#C6F24E",
           "defaultChannel": "default"
         }
       ]
