@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { Row, VoltButton } from './ui';
+import { Button, Row, VoltButton } from './ui';
 import { formatCents } from '../lib/bookings';
 import {
   acceptRefund, fetchRefundOffers, offerRefund, PackageCancellation, RefundOffer, standingOffer,
@@ -122,7 +122,7 @@ export function RefundNegotiation({ request, suggestedCents, onSettled }: {
                   borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, minHeight: 44 }]}
               />
             </View>
-            <Pressable accessibilityRole="button" disabled={busy}
+            <Button label={offers?.length ? 'Counter' : 'Offer'} icon="send" enabled={!busy}
               accessibilityLabel={offers?.length ? 'Counter with this amount' : 'Offer this amount'}
               onPress={() => {
                 const cents = parseMoney(amount);
@@ -131,11 +131,7 @@ export function RefundNegotiation({ request, suggestedCents, onSettled }: {
                   await offerRefund(request.id, cents);
                   track('package_refund_offered');
                 });
-              }}
-              style={{ minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 12,
-                borderWidth: 1, borderColor: c.line, backgroundColor: alpha(c.volt, 0.1) }}>
-              <Text style={[t.label, { color: c.accent }]}>{offers?.length ? 'Counter' : 'Offer'}</Text>
-            </Pressable>
+              }} />
           </Row>
         </>
       )}

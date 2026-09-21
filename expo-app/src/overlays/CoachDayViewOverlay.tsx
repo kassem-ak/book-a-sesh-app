@@ -2,7 +2,7 @@ import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'reac
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading } from '../components/ui';
+import { Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading } from '../components/ui';
 import { BookingStatus, bookingStatusLabel, currentAppUserId, formatCents } from '../lib/bookings';
 import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
@@ -252,16 +252,10 @@ export function CoachDayViewOverlay() {
                 >
                   <Text style={[t.label, { color: c.ink }]}>{busyId ? 'Saving…' : 'YES'}</Text>
                 </Pressable>
-                <Pressable
-                  onPress={() => setConfirmSession(null)}
-                  disabled={busyId !== null}
-                  accessibilityRole="button"
+                <Button label="Keep it" icon="x" style={{ flex: 1 }}
+                  enabled={busyId === null}
                   accessibilityLabel="No, keep this session unchanged"
-                  accessibilityState={{ disabled: busyId !== null }}
-                  style={{ flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center', opacity: busyId ? 0.6 : 1 }}
-                >
-                  <Text style={[t.label, { color: c.txt2 }]}>NO</Text>
-                </Pressable>
+                  onPress={() => setConfirmSession(null)} />
               </Row>
             </Card>
           )}
@@ -295,9 +289,8 @@ function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void 
     <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
       <Text style={[t.bodySm, { color: c.danger }]}>{message}</Text>
       <Row style={{ marginTop: 12 }}>
-        <Pressable onPress={onRetry} accessibilityRole="button" accessibilityLabel="Try loading sessions for this day again">
-          <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>Try again</Text>
-        </Pressable>
+        <Button label="Try again" icon="refresh-cw" tone="danger" onPress={onRetry}
+          accessibilityLabel="Try loading sessions for this day again" style={{ marginTop: 12 }} />
       </Row>
     </Card>
   );

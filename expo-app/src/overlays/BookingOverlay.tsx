@@ -1,7 +1,9 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Card, Field, FormSheet, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import {
+  Button, Card, Field, FormSheet, Icon, IconButton, Row, SectionHeading, VoltButton,
+} from '../components/ui';
 import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { coachPackageOptions } from '../state/models';
 import { fetchCoachAvailability } from '../lib/queries';
@@ -466,11 +468,9 @@ export function BookingOverlay() {
               </Text>
             </View>
           ) : (
-            <Pressable accessibilityRole="button" accessibilityLabel="Request cancellation of this package"
-              onPress={() => { setCancelReason(''); setBookingError(null); setAskingCancel(true); }}
-              style={{ marginTop: 12, minHeight: 44, justifyContent: 'center' }}>
-              <Text style={[t.label, { color: c.txt2 }]}>Request cancellation</Text>
-            </Pressable>
+            <Button label="Request cancellation" icon="x-circle" tone="danger" style={{ marginTop: 12 }}
+              accessibilityLabel="Request cancellation of this package"
+              onPress={() => { setCancelReason(''); setBookingError(null); setAskingCancel(true); }} />
           )
         )}
 
@@ -529,19 +529,13 @@ export function BookingOverlay() {
         ) : (
           <>
             <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Previous month"
-                onPress={() => setMonth(addMonths(month, -1))} disabled={!canGoBack}
-                style={{ minHeight: 44, minWidth: 44, justifyContent: 'center' }}>
-                <Text style={[t.label, { color: canGoBack ? c.accent : c.txt3, opacity: canGoBack ? 1 : 0.4 }]}>‹</Text>
-              </Pressable>
+              <IconButton icon="chevron-left" accessibilityLabel="Previous month"
+                onPress={() => setMonth(addMonths(month, -1))} enabled={canGoBack} />
               <Text style={[t.labelSm, { color: c.txt }]}>
                 {MONTH_NAMES[month.getMonth()]} {month.getFullYear()}
               </Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Next month"
-                onPress={() => setMonth(addMonths(month, 1))} disabled={!canGoForward}
-                style={{ minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
-                <Text style={[t.label, { color: canGoForward ? c.accent : c.txt3, opacity: canGoForward ? 1 : 0.4 }]}>›</Text>
-              </Pressable>
+              <IconButton icon="chevron-right" accessibilityLabel="Next month"
+                onPress={() => setMonth(addMonths(month, 1))} enabled={canGoForward} />
             </Row>
 
             <Row>
@@ -614,11 +608,8 @@ export function BookingOverlay() {
                     {picked.length} of {allowance} chosen
                   </Text>
                   {picked.length > 0 && (
-                    <Pressable accessibilityRole="button" accessibilityLabel="Clear the sessions you picked"
-                      onPress={() => { setChosenSlots({}); setBookingError(null); }}
-                      style={{ minHeight: 44, justifyContent: 'center' }}>
-                      <Text style={[t.label, { color: c.txt2 }]}>Clear</Text>
-                    </Pressable>
+                    <Button label="Clear" icon="x" accessibilityLabel="Clear the sessions you picked"
+                      onPress={() => { setChosenSlots({}); setBookingError(null); }} />
                   )}
                 </Row>
                 {/* Every session the pack still has, so nobody has to count

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Stars, VoltButton } from '../components/ui';
+import {
+  Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading, Stars, VoltButton,
+} from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
 import { Certification, fetchCertifications } from '../lib/coaching';
 import { blackoutLabel, DayGroup, fetchBlackouts, groupWeek, periodLabel } from '../lib/availability';
@@ -112,17 +114,15 @@ export function PersonOverlay() {
                 label="Ask to train together"
                 onPress={() => s.set('overlay', 'partnerSession')}
               />
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label="Or send a message first"
+                icon="message-circle"
+                full
+                busy={messaging}
+                busyLabel="Opening…"
                 accessibilityLabel={`Message ${p.name}`}
-                accessibilityState={{ busy: messaging }}
-                onPress={messaging ? undefined : message}
-                style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Text style={[t.label, { color: c.accent }]}>
-                  {messaging ? 'Opening…' : 'Or send a message first'}
-                </Text>
-              </Pressable>
+                onPress={message}
+              />
             </View>
           )}
         </View>
@@ -250,14 +250,9 @@ export function PersonOverlay() {
             nothing opened it, so neither was reachable before this. */}
         <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Safety</SectionHeading>
         <Row gap={10}>
-          <Pressable
-            onPress={() => s.set('overlay', 'report')}
-            accessibilityRole="button"
+          <Button label="Report" icon="flag" tone="danger" height={46} style={{ flex: 1 }}
             accessibilityLabel={`Report ${p.name}`}
-            style={{ flex: 1, minHeight: 46, borderRadius: 14, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Text style={[t.labelSm, { color: c.txt2 }]}>Report</Text>
-          </Pressable>
+            onPress={() => s.set('overlay', 'report')} />
           <Pressable
             onPress={() => void s.toggleBlock(p.id)}
             disabled={s.writeBusy === 'block'}

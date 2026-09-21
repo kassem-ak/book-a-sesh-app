@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { FormSheet, Row, VoltButton } from './ui';
+import { FormSheet, IconButton, Row, VoltButton } from './ui';
 import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { alpha, useTheme } from '../theme';
 
@@ -66,19 +66,12 @@ export function DatePickerSheet({
       }
     >
       <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous month"
-          onPress={() => step(-1)} disabled={atFirstMonth}
-          style={{ minHeight: 44, minWidth: 44, justifyContent: 'center' }}>
-          <Text style={[t.label, { color: atFirstMonth ? c.txt3 : c.accent, opacity: atFirstMonth ? 0.4 : 1 }]}>‹</Text>
-        </Pressable>
+        <IconButton icon="chevron-left" accessibilityLabel="Previous month"
+          onPress={() => step(-1)} enabled={!atFirstMonth} />
         <Text style={[t.labelSm, { color: c.txt }]}>
           {MONTH_NAMES[cursor.getMonth()]} {cursor.getFullYear()}
         </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Next month"
-          onPress={() => step(1)}
-          style={{ minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
-          <Text style={[t.label, { color: c.accent }]}>›</Text>
-        </Pressable>
+        <IconButton icon="chevron-right" accessibilityLabel="Next month" onPress={() => step(1)} />
       </Row>
 
       <Row>

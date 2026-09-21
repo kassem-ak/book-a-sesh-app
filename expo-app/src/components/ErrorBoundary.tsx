@@ -1,4 +1,5 @@
 import React from 'react';
+import { Feather } from '@expo/vector-icons';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { dark, light } from '../theme/colors';
 import { track } from '../lib/analytics';
@@ -56,6 +57,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
           </Text>
         </ScrollView>
 
+        {/* Hand-rolled rather than <Button>, for the same reason the palette is
+            read directly above: the crash may have come from the theme or the
+            store, and a shared component that calls useTheme() would take this
+            screen down with it. Feather needs nothing but a colour. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Try again"
@@ -64,10 +69,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
             height: 52,
             borderRadius: 15,
             backgroundColor: c.volt,
+            flexDirection: 'row',
+            gap: 8,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
+          <Feather name="refresh-cw" size={18} color={c.ink} />
           <Text style={{ color: c.ink, fontSize: 16, fontWeight: '700' }}>Try again</Text>
         </Pressable>
       </View>

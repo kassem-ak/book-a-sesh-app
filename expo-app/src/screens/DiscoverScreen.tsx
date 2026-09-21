@@ -2,14 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  Avatar,
-  Card,
-  Field,
-  Icon,
-  Row,
-  SectionHeading,
-  Segmented,
-  Stars,
+  Avatar, Button, Card, Chip, Field, Icon, Row, SectionHeading, Segmented, Stars,
 } from '../components/ui';
 import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, parseGeoPoint } from '../lib/geo';
 import { track } from '../lib/analytics';
@@ -183,10 +176,13 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
             placeholderTextColor={c.txt3} accessibilityLabel="Search sports and hobbies" autoCorrect={false}
             style={[t.label, { color: c.txt, minHeight: 44, paddingHorizontal: 10, borderBottomColor: c.line2, borderBottomWidth: 1, marginBottom: 4 }]} />
           {!sports && !sportsFailed && <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3, padding: 11 }]}>Loading sports and hobbies…</Text>}
-          {sportsFailed && <Pressable accessibilityRole="button" accessibilityLabel="Retry loading sports and hobbies"
-            onPress={retrySports} style={{ padding: 11, minHeight: 44, justifyContent: 'center' }}>
-            <Text style={[t.bodySm, { color: c.danger }]}>Sports and hobbies could not load. Tap to retry.</Text>
-          </Pressable>}
+          {sportsFailed && (
+            <View style={{ padding: 11, gap: 10, alignItems: 'flex-start' }}>
+              <Text style={[t.bodySm, { color: c.danger }]}>Sports and hobbies could not load.</Text>
+              <Button label="Try again" icon="refresh-cw" tone="danger"
+                accessibilityLabel="Retry loading sports and hobbies" onPress={retrySports} />
+            </View>
+          )}
           {sports && matchCount === 0 && sportQuery.trim().length > 0 && (
             <Text style={[t.bodySm, { color: c.txt3, padding: 11 }]}>Nothing matches “{sportQuery.trim()}”.</Text>
           )}
@@ -213,9 +209,9 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
               ))}
             </>;
           })()}
-          <Pressable accessibilityRole="button" onPress={s.openRequest} style={{ padding: 11, borderTopColor: c.line2, borderTopWidth: 1, marginTop: 4 }}>
-            <Text style={[t.label, { color: c.accent }]}>Request a sport or hobby</Text>
-          </Pressable>
+          <View style={{ padding: 11, borderTopColor: c.line2, borderTopWidth: 1, marginTop: 4 }}>
+            <Button label="Request a sport or hobby" icon="plus" onPress={s.openRequest} />
+          </View>
         </Card>
       )}
       <View style={{ marginTop: 10 }}>
@@ -233,18 +229,16 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
         <SectionHeading>All {isCoaches ? 'coaches' : 'partners'}</SectionHeading>
         {entries.length > 1 && <Row gap={4}>
           {sortOptions.map(({ key, label }) => (
-            <Pressable key={key} onPress={() => {
+            <Chip key={key} label={label} active={s.sortBy === key} onPress={() => {
               if (key !== s.sortBy) track('discover_sort_changed', { sort: key });
               setStoreValue('sortBy', key);
-            }} accessibilityRole="button" accessibilityLabel={`Sort by ${label.toLowerCase()}`} accessibilityState={{ selected: s.sortBy === key }} hitSlop={8}>
-              <Text style={[t.labelSm, { color: s.sortBy === key ? c.accent : c.txt3, paddingHorizontal: 6, paddingVertical: 5 }]}>{label}</Text>
-            </Pressable>
+            }} />
           ))}
         </Row>}
       </Row>
       {loadError ? <View accessibilityRole="alert">
         <Note>{loadError}</Note>
-        {onRetry && <Pressable onPress={onRetry} accessibilityRole="button" style={{ alignSelf: 'flex-start', paddingVertical: 12 }}><Text style={[t.labelSm, { color: c.accent }]}>Try again</Text></Pressable>}
+        {onRetry && <Button label="Try again" icon="refresh-cw" tone="danger" onPress={onRetry} style={{ marginTop: 12 }} />}
       </View> : entries.length === 0 && <Note>{emptyMessage}</Note>}
       <View style={{ gap: 12 }}>
         {rest.map(({ person, distanceLabel }) => <PersonCard key={person.id} p={person} distanceLabel={distanceLabel} onPress={() => s.openPerson(person.id)} />)}

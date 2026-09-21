@@ -1,7 +1,9 @@
 import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, VoltButton } from '../components/ui';
+import {
+  Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, VoltButton,
+} from '../components/ui';
 import { MarginKey, ShareKey } from '../state/models';
 import * as D from '../state/sampleData';
 import { fmtMoney, numStr, pct, useStore } from '../state/store';
@@ -14,16 +16,15 @@ export function AdminAccountingOverlay() {
 
   return (
     <OverlayScaffold
-      header={<OverlayHeader title="Accounting" onBack={s.closeOverlay} trailing={<Pressable onPress={() => s.set('overlay', 'acctHistory')}><Text style={[t.labelSm, { color: c.accent }]}>History</Text></Pressable>} />}
+      header={<OverlayHeader title="Accounting" onBack={s.closeOverlay} trailing={<Button label="History" icon="clock" onPress={() => s.set('overlay', 'acctHistory')} />} />}
       bottomBar={
         <View style={{ padding: 16, backgroundColor: c.bg }}>
           <Row gap={10}>
             <View style={{ flex: 1 }}>
               <VoltButton label="Propose changes" enabled={s.acctDirty() && s.sharesOk() && s.acctEditable()} onPress={s.submitProposal} />
             </View>
-            <Pressable onPress={s.acctDirty() && s.acctEditable() ? s.discardDraft : undefined} style={{ flex: 1, height: 52, borderRadius: 15, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={[t.overlayTitle, { fontSize: 16, color: s.acctDirty() && s.acctEditable() ? c.txt2 : c.txt3 }]}>Discard</Text>
-            </Pressable>
+            <Button label="Discard" icon="rotate-ccw" height={52} style={{ flex: 1 }}
+              enabled={s.acctDirty() && s.acctEditable()} onPress={s.discardDraft} />
           </Row>
         </View>
       }
@@ -103,9 +104,7 @@ export function AdminAccountingOverlay() {
                   <Text style={[t.caption, { fontFamily: t.microBadge.fontFamily, color: c.ink }]}>Approve as {admin.split(' ')[0]}</Text>
                 </Pressable>
               ))}
-              <Pressable onPress={s.cancelProposal} style={{ borderRadius: 999, backgroundColor: c.surface2, paddingHorizontal: 12, paddingVertical: 8 }}>
-                <Text style={[t.caption, { fontFamily: t.microBadge.fontFamily, color: c.txt2 }]}>Withdraw</Text>
-              </Pressable>
+              <Button label="Withdraw" icon="corner-up-left" onPress={s.cancelProposal} />
             </Row>
           </Card>
         )}
@@ -167,9 +166,8 @@ export function AccountingExpenseOverlay() {
         <View style={{ padding: 16, backgroundColor: c.bg, gap: 12 }}>
           <VoltButton label="Save expense" enabled={s.canSaveExpense()} onPress={s.saveExpense} />
           {editing && (
-            <Pressable onPress={s.deleteExpense} style={{ height: 52, borderRadius: 15, backgroundColor: alpha(c.danger, 0.14), alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={[t.overlayTitle, { fontSize: 16, color: c.danger }]}>Delete expense</Text>
-            </Pressable>
+            <Button label="Delete expense" icon="trash-2" tone="danger" height={52} full
+              onPress={s.deleteExpense} />
           )}
         </View>
       }

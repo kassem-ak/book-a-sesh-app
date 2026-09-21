@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, StripedPlaceholder } from '../components/ui';
+import {
+  Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading, StripedPlaceholder,
+} from '../components/ui';
 import { Community, CommunityRole, EventItem, EventSuggestion } from '../state/models';
 import { fetchCommunities, fetchEvents, fetchEventSuggestions, fetchMyCommunityMemberships } from '../lib/queries';
 import { useStore } from '../state/store';
@@ -204,9 +206,7 @@ export function CommunityScreen() {
 
       <Row style={{ marginTop: 34, marginBottom: 11, justifyContent: 'space-between' }}>
         <SectionHeading>Communities</SectionHeading>
-        <Pressable onPress={s.openRequest} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={[t.label, { color: c.accent }]}>Request a sport</Text>
-        </Pressable>
+        <Button label="Request a sport" icon="plus" onPress={s.openRequest} />
       </Row>
       {communities.length === 0 && (
         <Note>{loaded.communities ? 'No communities yet.' : 'Loading communities…'}</Note>

@@ -143,7 +143,10 @@ export function ShopRegisterOverlay() {
         {s.shopRegCatMenu && (
           <Card style={{ marginTop: 8, padding: 6 }}>
             {D.shopCategories.map((cat) => (
-              <Pressable key={cat} onPress={() => { s.set('shopRegCat', cat); s.set('shopRegCatMenu', false); }} style={{ paddingVertical: 11, paddingHorizontal: 10 }}>
+              <Pressable key={cat} accessibilityRole="menuitem"
+                accessibilityLabel={cat}
+                onPress={() => { s.set('shopRegCat', cat); s.set('shopRegCatMenu', false); }}
+                style={{ paddingVertical: 11, paddingHorizontal: 10, minHeight: 44, justifyContent: 'center' }}>
                 <Text style={[t.label, { color: c.txt }]}>{cat}</Text>
               </Pressable>
             ))}

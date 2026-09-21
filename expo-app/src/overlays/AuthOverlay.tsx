@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { SportsPicker } from '../components/SportsPicker';
-import { BrandIcon, BrandName, Field, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import {
+  BrandIcon, BrandName, Button, Field, Icon, Row, SectionHeading, VoltButton,
+} from '../components/ui';
 import { signInEmail, signInWithProvider, signUpEmail, SSO_LABELS, SsoProvider } from '../lib/session';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { saveSignupDraft } from '../lib/signup';
@@ -83,9 +85,8 @@ export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { on
         <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
           We sent a confirmation link to {email.trim()}. Open it, then sign in here.
         </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to sign in" onPress={() => { setConfirmSent(false); setMode('in'); }} style={{ marginTop: 18, minHeight: 44, justifyContent: 'center' }}>
-          <Text style={[t.label, { color: c.accent }]}>Back to sign in</Text>
-        </Pressable>
+        <Button label="Back to sign in" icon="arrow-left" style={{ marginTop: 18 }}
+          onPress={() => { setConfirmSent(false); setMode('in'); }} />
       </View>
     );
   }
@@ -148,21 +149,18 @@ export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { on
         onPress={submit}
       />
 
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label={mode === 'in' ? 'New here? Create an account' : 'Already have an account? Sign in'}
+        icon={mode === 'in' ? 'user-plus' : 'log-in'}
         accessibilityLabel={mode === 'in' ? 'Create an account' : 'Sign in to an existing account'}
-        accessibilityState={{ disabled: busy }}
-        disabled={busy}
+        enabled={!busy}
+        full
+        style={{ marginTop: 18 }}
         onPress={() => {
           setMode(mode === 'in' ? 'up' : 'in');
           setError(null);
         }}
-        style={{ marginTop: 18 }}
-      >
-        <Text style={[t.label, { color: c.accent, textAlign: 'center' }]}>
-          {mode === 'in' ? 'New here? Create an account' : 'Already have an account? Sign in'}
-        </Text>
-      </Pressable>
+      />
     </View>
   );
 }
