@@ -1,7 +1,10 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Segmented, StripedPlaceholder, VoltButton } from '../components/ui';
+import {
+  Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Segmented,
+  StripedPlaceholder, VoltButton,
+} from '../components/ui';
 import { CommunityRole, EventSuggestion, isMeetup } from '../state/models';
 import * as D from '../state/sampleData';
 import { eventDayOptions, isExplicit, useStore } from '../state/store';
@@ -36,17 +39,15 @@ export function CommunityDetailOverlay() {
           </Row>
           <Text style={[t.bodySm, { color: c.txt2, marginTop: 12 }]}>{s.communityAbout(cm.id)}</Text>
           {canModerate && (
-            <Pressable onPress={s.openEditCommunity} style={{ marginTop: 12, alignSelf: 'flex-start' }}>
-              <Text style={[t.label, { color: c.accent }]}>Edit details</Text>
-            </Pressable>
+            <Button label="Edit details" icon="edit-2" onPress={s.openEditCommunity}
+              style={{ marginTop: 12 }} />
           )}
         </Card>
 
         <Row style={{ marginTop: 22, marginBottom: 11, justifyContent: 'space-between' }}>
           <SectionHeading>Events</SectionHeading>
-          <Pressable onPress={canModerate ? s.openCreateEvent : s.openSuggestEvent}>
-            <Text style={[t.label, { color: c.accent }]}>{canModerate ? '+ Create' : 'Suggest event'}</Text>
-          </Pressable>
+          <Button label={canModerate ? 'Create' : 'Suggest event'} icon="plus"
+            onPress={canModerate ? s.openCreateEvent : s.openSuggestEvent} />
         </Row>
         <View style={{ gap: 10 }}>
           {evs.map((ev) => (
@@ -288,9 +289,7 @@ function SuggestionCard({ suggestion, canApprove, onApprove }: { suggestion: Eve
           <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{suggestion.whenLabel} - {suggestion.requestedBy}</Text>
         </View>
         {canApprove && (
-          <Pressable onPress={onApprove} style={{ borderRadius: 999, backgroundColor: c.volt, paddingHorizontal: 14, paddingVertical: 9 }}>
-            <Text style={[t.labelSm, { color: c.ink }]}>Approve</Text>
-          </Pressable>
+          <Button label="Approve" icon="check" tone="primary" height={44} onPress={onApprove} />
         )}
       </Row>
     </Card>

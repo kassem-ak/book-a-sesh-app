@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Card, Icon, MicroBadge, Row, StripedPlaceholder } from '../components/ui';
+import {
+  Avatar, Button, Card, Icon, MicroBadge, Row, StripedPlaceholder,
+} from '../components/ui';
 import { Venue } from '../lib/courts';
 import { formatDistanceKm, distanceKmBetween, getDevicePoint, GeoPoint } from '../lib/geo';
 import {
@@ -183,15 +185,14 @@ function AllCourtsView({
 
         {loading && venues.length === 0 && <Note>Loading venues…</Note>}
         {!loading && error && (
-          <Pressable
-            onPress={() => void loadVenues()}
-            accessibilityRole="button"
-            accessibilityLabel="Retry loading venues"
-            style={{ marginTop: 18, minHeight: 44, justifyContent: 'center' }}
-          >
+          <View style={{ marginTop: 18, gap: 10, alignItems: 'flex-start' }}>
+            {/* The message is not a control. It used to be inside the tap
+                target, which made the whole failure look pressable and gave
+                a screen reader one long button where a sentence belonged. */}
             <Text style={[t.bodySm, { color: c.danger }]}>{error}</Text>
-            <Text style={[t.labelSm, { color: c.txt2, marginTop: 4 }]}>Tap to try again</Text>
-          </Pressable>
+            <Button label="Try again" icon="refresh-cw" tone="danger"
+              accessibilityLabel="Retry loading venues" onPress={() => void loadVenues()} />
+          </View>
         )}
         {!loading && !error && venues.length === 0 && <Note>No venues listed yet.</Note>}
 

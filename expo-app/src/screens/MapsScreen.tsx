@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Field } from '../components/ui';
+import { Avatar, Button, Field, IconButton } from '../components/ui';
 import { MapCanvas, MapMarker } from '../components/MapCanvas';
 import { useSports } from '../components/useSports';
 import { track } from '../lib/analytics';
@@ -135,20 +135,17 @@ export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; 
           <View style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: c.bg, borderColor: c.line, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
             <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt2 }]}>{status}</Text>
             {(loadError || peopleError) && (
-              <Pressable accessibilityRole="button" accessibilityLabel="Try loading the map again"
-                onPress={() => { setAttempt(attempt + 1); onRetry?.(); }} style={{ minHeight: 44, justifyContent: 'center' }}>
-                <Text style={[t.labelSm, { color: c.accent }]}>Try again</Text>
-              </Pressable>
+              <Button label="Try again" icon="refresh-cw" tone="danger"
+                accessibilityLabel="Try loading the map again"
+                onPress={() => { setAttempt(attempt + 1); onRetry?.(); }} />
             )}
           </View>
         )}
 
         {!me && people !== null && (
-          <Pressable accessibilityRole="button" accessibilityLabel="Open your profile to share your location"
-            onPress={() => s.set('tab', 'profile')}
-            style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: c.bg, borderColor: c.line, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center' }}>
-            <Text style={[t.labelSm, { color: c.accent }]}>Show my location · Profile → Edit profile</Text>
-          </Pressable>
+          <Button label="Show my location" icon="map-pin" style={{ marginTop: 8 }}
+            accessibilityLabel="Open your profile to share your location"
+            onPress={() => s.set('tab', 'profile')} />
         )}
       </View>
 
@@ -166,10 +163,7 @@ export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; 
               {selected.shareLevel === 'exact' ? 'Sharing a pin' : 'Sharing an approximate area (~1 km)'}
             </Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setSelected(null)}
-            style={{ minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={[t.label, { color: c.txt3 }]}>×</Text>
-          </Pressable>
+          <IconButton icon="x" accessibilityLabel="Close" onPress={() => setSelected(null)} />
         </Pressable>
       )}
     </View>

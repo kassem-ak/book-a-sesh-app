@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Field, Icon, Row, SectionHeading, Toggle, VoltButton } from '../components/ui';
 import { becomeCoach, isCoach } from '../lib/coaching';

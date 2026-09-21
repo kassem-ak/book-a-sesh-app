@@ -2,7 +2,10 @@ import React, { ReactNode, useCallback, useEffect, useMemo, useState } from 'rea
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, Field, FormSheet, MicroBadge, Row, SectionHeading, Segmented, VoltButton } from '../components/ui';
+import {
+  Avatar, Button, ButtonTone, Card, Field, FormSheet, IconName, MicroBadge, Row, SectionHeading,
+  Segmented, VoltButton,
+} from '../components/ui';
 import { RefundNegotiation } from '../components/RefundNegotiation';
 import {
   BookingStatus,
@@ -306,11 +309,11 @@ function MonthCalendar({ sessions, onCancel }: { sessions: MyBooking[]; onCancel
   return (
     <View>
       <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <TextAction label="‹ Prev" color={c.txt2} accessibilityLabel="Previous month" onPress={() => step(-1)} />
+        <TextAction label="Prev" icon="chevron-left" accessibilityLabel="Previous month" onPress={() => step(-1)} />
         <Text style={[t.labelSm, { color: c.txt }]}>
           {MONTH_NAMES[cursor.getMonth()]} {cursor.getFullYear()}
         </Text>
-        <TextAction label="Next ›" color={c.txt2} accessibilityLabel="Next month" onPress={() => step(1)} />
+        <TextAction label="Next" icon="chevron-right" accessibilityLabel="Next month" onPress={() => step(1)} />
       </Row>
 
       <Row style={{ marginBottom: 6 }}>
@@ -436,10 +439,8 @@ export function ProgressCard({ pack, withLabel, onBook, request, onAskCancel, on
                     : 'Settling on what comes back'}
                 </Text>
                 {onWithdraw && (
-                  <Pressable accessibilityRole="button" accessibilityLabel="Take the cancellation request back"
-                    onPress={onWithdraw} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>Take it back</Text>
-                  </Pressable>
+                  <Button label="Take it back" icon="rotate-ccw" onPress={onWithdraw}
+                    accessibilityLabel="Take the cancellation request back" />
                 )}
               </Row>
               {onSettled && (
@@ -473,12 +474,8 @@ export function ProgressCard({ pack, withLabel, onBook, request, onAskCancel, on
   // The ask sits outside the pressable card: nesting a button inside a button
   // makes which one fired a matter of luck.
   const ask = onAskCancel ? (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Ask to cancel the package ${withLabel}`}
-      onPress={onAskCancel} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 }}>
-      <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>
-        Request cancellation
-      </Text>
-    </Pressable>
+    <Button label="Request cancellation" icon="x-circle" tone="danger" onPress={onAskCancel}
+      accessibilityLabel={`Ask to cancel the package ${withLabel}`} />
   ) : null;
 
   return (
@@ -563,10 +560,10 @@ function SessionCard({
             {booking.withName.split(' ')[0]} asked you to train.
           </Text>
           <Row gap={14}>
-            <TextAction label={busy ? 'Saving…' : 'Accept'} color={c.accent} busy={busy}
+            <TextAction label={busy ? 'Saving…' : 'Accept'} icon="check" busy={busy}
               accessibilityLabel={`Accept training with ${booking.withName} on ${when}`}
               onPress={busy ? undefined : onAccept} />
-            <TextAction label="Decline" color={c.txt2}
+            <TextAction label="Decline" icon="x" tone="danger"
               accessibilityLabel={`Decline training with ${booking.withName} on ${when}`}
               onPress={busy ? undefined : onAskCancel} />
           </Row>
@@ -579,13 +576,14 @@ function SessionCard({
           <Row gap={14}>
             <TextAction
               label="Keep"
-              color={c.txt2}
+              icon="check"
               accessibilityLabel={`Keep your session with ${booking.withName} on ${when}`}
               onPress={busy ? undefined : onKeep}
             />
             <TextAction
               label={busy ? 'Cancelling…' : 'Yes, cancel'}
-              color={c.danger}
+              icon="x-circle"
+              tone="danger"
               busy={busy}
               accessibilityLabel={`Confirm cancelling your session with ${booking.withName} on ${when}`}
               onPress={busy ? undefined : onConfirmCancel}
@@ -603,7 +601,8 @@ function SessionCard({
           {cancellable && (
             <TextAction
               label="Cancel"
-              color={c.txt2}
+              icon="x"
+              tone="danger"
               accessibilityLabel={`Cancel your session with ${booking.withName} on ${when}`}
               onPress={onAskCancel}
             />
@@ -614,32 +613,28 @@ function SessionCard({
   );
 }
 
+// The row actions on a booking card. A wrapper rather than <Button> at each
+// call site only because the label doubles as the accessible name here: the
+// visible word is "Decline" but what is being declined has to be said in full.
 function TextAction({
   label,
-  color,
+  icon,
+  tone = 'secondary',
   accessibilityLabel,
   onPress,
   busy = false,
 }: {
   label: string;
-  color: string;
+  icon: IconName;
+  tone?: ButtonTone;
   accessibilityLabel: string;
   onPress?: () => void;
   busy?: boolean;
 }) {
-  const { t } = useTheme();
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ disabled: !onPress, busy }}
-      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-    >
-      <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color, opacity: onPress ? 1 : 0.6 }]}>
-        {label}
-      </Text>
-    </Pressable>
+    <Button label={label} icon={icon} tone={tone} busy={busy}
+      enabled={Boolean(onPress)} onPress={onPress ?? (() => {})}
+      accessibilityLabel={accessibilityLabel} />
   );
 }
 
@@ -658,7 +653,7 @@ function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void 
     <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
       <Text style={[t.bodySm, { color: c.danger }]}>{message}</Text>
       <Row style={{ marginTop: 12 }}>
-        <TextAction label="Try again" color={c.txt2} accessibilityLabel="Retry loading your bookings" onPress={onRetry} />
+        <TextAction label="Try again" icon="refresh-cw" tone="danger" accessibilityLabel="Retry loading your bookings" onPress={onRetry} />
       </Row>
     </Card>
   );

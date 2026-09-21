@@ -41,6 +41,7 @@ test('a server region refusal replaces the profile error and offers retry and si
     'react-native': { View: 'View', Text: 'Text', Pressable: 'Pressable' },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '../theme': { useTheme: () => ({ c: {} }) },
+    '../components/ui': { Button: 'Button', BrandMark: 'BrandMark' },
     '../state/store': { useStore, errorMessage: error => error.message },
     '../lib/session': { ensureAppSession: async () => {}, signOutUser: async () => { signedOut = true; } },
     '../lib/supabase': { assertSupabaseConfigured() {}, supabase: { auth: {
@@ -73,7 +74,9 @@ test('a server region refusal replaces the profile error and offers retry and si
   };
   const settle = async () => { render(); await new Promise(setImmediate); return render(); };
   const nodes = tree => tree && typeof tree === 'object' ? [tree, ...tree.children.flatMap(nodes)] : [];
-  const button = (tree, label) => nodes(tree).find(node => node.props.accessibilityLabel === label);
+  // The dead-end screens went from bare Pressables to <Button label=…>, so the
+  // label is the prop now rather than the accessible name written beside it.
+  const button = (tree, label) => nodes(tree).find(node => node.props.label === label);
   let tree = await settle();
   assert.match(JSON.stringify(tree), /BOOK'D is not available in your region yet/);
   assert.doesNotMatch(JSON.stringify(tree), /This account has no profile yet/);

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, LayoutChangeEvent, PanResponder, Pressable, Text, View } from 'react-native';
 import { GeoPoint } from '../lib/geo';
+import { IconButton } from './ui';
 import { useTheme } from '../theme';
 
 // A real slippy map, drawn from raster tiles with plain Views and Images.
@@ -169,10 +170,9 @@ export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
       && entry.left < size.width + 80 && entry.top < size.height + 80);
 
   const zoomBy = (delta: number) => setZoom((value) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value + delta)));
-  const control = {
-    width: 44, height: 44, borderRadius: 14, alignItems: 'center' as const,
-    justifyContent: 'center' as const, backgroundColor: c.bg, borderColor: c.line, borderWidth: 1,
-  };
+  // The map's own controls sit on the map rather than on a surface, so they
+  // keep the page background instead of IconButton's card colour.
+  const control = { backgroundColor: c.bg };
 
   return (
     // mapBg is the theme's own token for map canvas, so the gap before tiles
@@ -193,16 +193,11 @@ export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
 
       <View style={{ position: 'absolute', right: 12, bottom: 34, gap: 8 }}>
         {onRecenter && (
-          <Pressable accessibilityRole="button" accessibilityLabel="Centre the map on my location" onPress={onRecenter} style={control}>
-            <Text style={[t.label, { color: c.accent }]}>◎</Text>
-          </Pressable>
+          <IconButton icon="crosshair" accessibilityLabel="Centre the map on my location"
+            onPress={onRecenter} style={control} />
         )}
-        <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" onPress={() => zoomBy(1)} style={control}>
-          <Text style={[t.label, { color: c.txt }]}>+</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" onPress={() => zoomBy(-1)} style={control}>
-          <Text style={[t.label, { color: c.txt }]}>−</Text>
-        </Pressable>
+        <IconButton icon="plus" accessibilityLabel="Zoom in" onPress={() => zoomBy(1)} style={control} />
+        <IconButton icon="minus" accessibilityLabel="Zoom out" onPress={() => zoomBy(-1)} style={control} />
       </View>
 
       {/* Every tile provider's licence requires visible attribution, so this

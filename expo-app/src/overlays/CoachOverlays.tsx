@@ -1,8 +1,10 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { analyticsErrorCode, track } from '../lib/analytics';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, VoltButton } from '../components/ui';
+import {
+  Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading, VoltButton,
+} from '../components/ui';
 import { currentAppUserId, formatCents, formatExpiry } from '../lib/bookings';
 import {
   addPromo, CoachPricing, fetchMyPricing, money, parseMoney, removePackage, removePromo,
@@ -628,11 +630,8 @@ export function CoachPackagesOverlay() {
               <View style={{ flex: 1 }}>
                 <MoneyField value={rate} onChange={setRate} label="Price per session" placeholder="45" />
               </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Save your rate per session"
-                onPress={saveRate} disabled={busy}
-                style={{ minHeight: 44, paddingHorizontal: 6, justifyContent: 'center' }}>
-                <Text style={[t.label, { color: c.accent }]}>Save</Text>
-              </Pressable>
+              <Button label="Save" icon="check" enabled={!busy} onPress={saveRate}
+                accessibilityLabel="Save your rate per session" />
             </Row>
             <Text style={[t.bodySm, { color: c.txt3, marginTop: 8 }]}>
               Leave it at 0 and BOOK’D quotes nothing rather than guessing a figure for you.
@@ -687,16 +686,13 @@ export function CoachPackagesOverlay() {
                             <VoltButton label="Save package" busy={busy} busyLabel="Saving…"
                               enabled={!busy} onPress={() => savePkg(pkg)} />
                           </View>
-                          <Pressable accessibilityRole="button" accessibilityLabel="Discard these changes"
+                          <Button label="Undo" icon="rotate-ccw" enabled={!busy}
+                            accessibilityLabel="Discard these changes"
                             onPress={() => setDrafts((current) => {
                               const next = { ...current };
                               delete next[pkg.id];
                               return next;
-                            })}
-                            disabled={busy}
-                            style={{ minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' }}>
-                            <Text style={[t.label, { color: c.txt2 }]}>Undo</Text>
-                          </Pressable>
+                            })} />
                         </Row>
                       )}
                     </Card>
@@ -777,15 +773,12 @@ export function CoachPackagesOverlay() {
                             <RefundNegotiation request={request}
                               suggestedCents={suggested}
                               onSettled={load} />
-                            <Pressable accessibilityRole="button" disabled={busy}
+                            <Button label="Decline the cancellation" icon="x" tone="danger" enabled={!busy}
                               accessibilityLabel={`Decline the cancellation from ${pack.withName}`}
                               onPress={() => run(
                                 () => decideCancellation(request.id, 'rejected'),
                                 'Could not decline that request.',
-                              )}
-                              style={{ minHeight: 44, justifyContent: 'center' }}>
-                              <Text style={[t.label, { color: c.txt2 }]}>Decline the cancellation</Text>
-                            </Pressable>
+                              )} />
                           </View>
                         )}
                       </Card>
@@ -1003,9 +996,8 @@ function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void 
     <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
       <Text style={[t.bodySm, { color: c.danger }]}>{message}</Text>
       <Row style={{ marginTop: 12 }}>
-        <Pressable onPress={onRetry} accessibilityRole="button" accessibilityLabel="Try loading again">
-          <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>Try again</Text>
-        </Pressable>
+        <Button label="Try again" icon="refresh-cw" tone="danger" onPress={onRetry}
+          accessibilityLabel="Try loading again" style={{ marginTop: 12 }} />
       </Row>
     </Card>
   );

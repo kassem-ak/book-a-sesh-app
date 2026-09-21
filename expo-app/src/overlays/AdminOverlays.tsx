@@ -2,7 +2,9 @@ import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Card, Icon, MicroBadge, Row, SectionHeading, VoltButton } from '../components/ui';
+import {
+  Button, Card, Icon, MicroBadge, Row, SectionHeading, VoltButton,
+} from '../components/ui';
 import {
   DECISION_LABEL,
   FlagVerdict,
@@ -716,15 +718,8 @@ function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void 
   return (
     <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
       <Text style={[t.bodySm, { color: c.danger }]}>{message}</Text>
-      <Pressable
-        onPress={onRetry}
-        accessibilityRole="button"
-        accessibilityLabel="Retry loading"
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        style={{ marginTop: 12, alignSelf: 'flex-start' }}
-      >
-        <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: c.txt2 }]}>Try again</Text>
-      </Pressable>
+      <Button label="Try again" icon="refresh-cw" tone="danger" onPress={onRetry}
+        accessibilityLabel="Retry loading" style={{ marginTop: 12 }} />
     </Card>
   );
 }

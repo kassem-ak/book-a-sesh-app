@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
-import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Segmented, Stars } from '../components/ui';
+import {
+  Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading, Segmented, Stars,
+} from '../components/ui';
 import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, mapPointToPercent, MapPoint, parseGeoPoint } from '../lib/geo';
 import { fetchShops } from '../lib/queries';
 import { supabase } from '../lib/supabase';
@@ -227,9 +229,9 @@ export function ShopScreen() {
             <Text style={[t.name, { color: c.txt }]}>Own a sports or hobby shop?</Text>
             <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>Apply to sell in-app and reach nearby athletes.</Text>
           </View>
-          <Pressable onPress={() => s.set('overlay', 'shopRegister')} accessibilityRole="button" accessibilityLabel="Register a partner shop" style={{ borderRadius: 999, backgroundColor: c.volt, paddingHorizontal: 16, paddingVertical: 11 }}>
-            <Text style={[t.labelSm, { color: c.ink }]}>Be a Shop</Text>
-          </Pressable>
+          <Button label="Be a Shop" icon="shopping-bag" tone="primary" height={44}
+            accessibilityLabel="Register a partner shop"
+            onPress={() => s.set('overlay', 'shopRegister')} />
         </Row>
       </Card>
     </ScrollView>

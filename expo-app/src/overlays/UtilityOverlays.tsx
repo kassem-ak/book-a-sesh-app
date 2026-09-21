@@ -13,7 +13,9 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import { CalendarItem, calendarWhen, fetchCalendar } from '../lib/calendar';
 import { decidePartnerSession } from '../lib/partners';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Card, Icon, MicroBadge, Row, SectionHeading, VoltButton } from '../components/ui';
+import {
+  Button, Card, Icon, MicroBadge, Row, SectionHeading, VoltButton,
+} from '../components/ui';
 import {
   fetchCounterpart,
   fetchMessages,
@@ -65,24 +67,8 @@ function ErrorCard({ title, detail, onRetry }: { title: string; detail: string; 
         </Row>
         <Text style={[t.bodySm, { color: c.txt2, marginTop: 6 }]}>{detail}</Text>
         {onRetry ? (
-          <Pressable
-            onPress={onRetry}
-            accessibilityRole="button"
-            accessibilityLabel={`Retry: ${title}`}
-            style={{
-              marginTop: 12,
-              minHeight: 44,
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: c.surface2,
-              borderColor: c.line,
-              borderWidth: 1,
-            }}
-          >
-            <Text style={[t.labelSm, { color: c.txt }]}>Try again</Text>
-          </Pressable>
+          <Button label="Try again" icon="refresh-cw" tone="danger" full
+            style={{ marginTop: 12 }} accessibilityLabel={`Retry: ${title}`} onPress={onRetry} />
         ) : null}
       </View>
     </Card>
@@ -386,15 +372,8 @@ export function NotificationsOverlay() {
           subtitle={unread > 0 ? `${unread} unread` : undefined}
           trailing={
             unread > 0 ? (
-              <Pressable
-                onPress={markAll}
-                accessibilityRole="button"
-                accessibilityLabel={`Mark all ${unread} notifications as read`}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1 }}
-              >
-                <Text style={[t.labelSm, { color: c.txt2 }]}>Mark all read</Text>
-              </Pressable>
+              <Button label="Mark all read" icon="check-circle" onPress={markAll}
+                accessibilityLabel={`Mark all ${unread} notifications as read`} />
             ) : undefined
           }
         />
@@ -427,28 +406,16 @@ export function NotificationsOverlay() {
                 </Row>
                 {item.needsAnswer && (
                   <Row gap={10}>
-                    <Pressable
-                      accessibilityRole="button"
+                    <Button label="Accept" icon="check" tone="primary" height={44} style={{ flex: 1 }}
                       accessibilityLabel={`Accept ${item.title}`}
-                      accessibilityState={{ busy: answering === item.id }}
-                      disabled={answering !== null}
-                      onPress={() => void answer(item, 'accepted')}
-                      style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center',
-                        borderRadius: 12, backgroundColor: c.volt }}
-                    >
-                      <Text style={[t.labelSm, { color: c.ink }]}>Accept</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
+                      busy={answering === item.id} busyLabel="Saving…"
+                      enabled={answering === null}
+                      onPress={() => void answer(item, 'accepted')} />
+                    <Button label="Decline" icon="x" tone="danger" style={{ flex: 1 }}
                       accessibilityLabel={`Decline ${item.title}`}
-                      accessibilityState={{ busy: answering === item.id }}
-                      disabled={answering !== null}
-                      onPress={() => void answer(item, 'declined')}
-                      style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center',
-                        borderRadius: 12, borderWidth: 1, borderColor: c.line }}
-                    >
-                      <Text style={[t.labelSm, { color: c.txt2 }]}>Decline</Text>
-                    </Pressable>
+                      busy={answering === item.id} busyLabel="Saving…"
+                      enabled={answering === null}
+                      onPress={() => void answer(item, 'declined')} />
                   </Row>
                 )}
               </Card>

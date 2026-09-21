@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, MicroBadge, Row, VoltButton } from '../components/ui';
+import { Avatar, Button, MicroBadge, Row, VoltButton } from '../components/ui';
 import { CirclePerson, fetchCircle } from '../lib/social';
 import { initials } from '../state/models';
 import { errorMessage, useStore } from '../state/store';
@@ -70,15 +70,14 @@ export function CircleOverlay() {
                 </View>
               </Row>
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label="Following"
+              icon="check"
               accessibilityLabel={`Stop following ${person.name}`}
-              accessibilityState={{ busy: s.writeBusy === 'follow' }}
+              busy={s.writeBusy === 'follow'}
+              busyLabel="Saving…"
               onPress={() => void s.toggleFollow(person.id)}
-              style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 10 }}
-            >
-              <Text style={[t.labelSm, { color: c.txt3 }]}>Following</Text>
-            </Pressable>
+            />
           </Row>
         ))}
       </View>

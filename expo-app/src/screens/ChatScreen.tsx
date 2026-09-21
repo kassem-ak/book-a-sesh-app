@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Card, Icon, Row } from '../components/ui';
+import { Avatar, Button, Card, Icon, Row } from '../components/ui';
 import { fetchConversations, type ConversationSummary } from '../lib/chat';
 import { fetchNotifications, type AppNotification } from '../lib/notifications';
 import { useStore } from '../state/store';
@@ -73,27 +73,18 @@ export function ChatScreen() {
               <Text style={[t.name, { color: c.txt, flex: 1 }]}>Couldn’t load conversations</Text>
             </Row>
             <Text style={[t.bodySm, { color: c.txt2, marginTop: 6 }]}>{error}</Text>
-            <Pressable
+            <Button
+              label="Try again"
+              icon="refresh-cw"
+              tone="danger"
+              full
+              style={{ marginTop: 12 }}
+              accessibilityLabel="Retry loading conversations"
               onPress={() => {
                 setChats(null);
                 setReloads((n) => n + 1);
               }}
-              accessibilityRole="button"
-              accessibilityLabel="Retry loading conversations"
-              style={{
-                marginTop: 12,
-                minHeight: 44,
-                alignItems: 'center',
-                justifyContent: 'center',
-                paddingVertical: 10,
-                borderRadius: 12,
-                backgroundColor: c.surface2,
-                borderColor: c.line,
-                borderWidth: 1,
-              }}
-            >
-              <Text style={[t.labelSm, { color: c.txt }]}>Try again</Text>
-            </Pressable>
+            />
           </View>
         </Card>
       ) : chats.length === 0 ? (
@@ -106,9 +97,8 @@ export function ChatScreen() {
             <Text style={[t.bodySm, { color: c.txt2, marginTop: 5, textAlign: 'center' }]}>
               Open a coach or training partner's profile and tap Message to start a conversation.
             </Text>
-            <Pressable accessibilityRole="button" onPress={() => s.set('tab', 'discover')} style={{ minHeight: 44, justifyContent: 'center', marginTop: 12 }}>
-              <Text style={[t.labelSm, { color: c.accent }]}>Find people</Text>
-            </Pressable>
+            <Button label="Find people" icon="search" style={{ marginTop: 12 }}
+              onPress={() => s.set('tab', 'discover')} />
           </View>
         </Card>
       ) : (
@@ -152,26 +142,8 @@ export function ChatScreen() {
               ? reminder.body ?? reminder.title
               : 'No session reminders right now. Confirmed bookings show up here.'}
           </Text>
-          <Pressable
-            onPress={s.openBookings}
-            accessibilityRole="button"
-            accessibilityLabel="Open booking"
-            style={{
-              marginTop: 12,
-              minHeight: 44,
-              alignSelf: 'flex-start',
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingVertical: 10,
-              borderRadius: 999,
-              paddingHorizontal: 18,
-              backgroundColor: c.volt,
-              borderColor: c.line,
-              borderWidth: 1,
-            }}
-          >
-            <Text style={[t.labelSm, { color: c.ink }]}>Open booking</Text>
-          </Pressable>
+          <Button label="Open booking" icon="calendar" tone="primary" height={44}
+            style={{ marginTop: 12, alignSelf: 'flex-start' }} onPress={s.openBookings} />
         </View>
       </Card>
     </ScrollView>

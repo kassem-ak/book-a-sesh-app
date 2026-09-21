@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useTheme } from '../theme';
+import { IconButton } from './ui';
 import type { MapCanvasProps } from './MapCanvas';
 import { TileMap } from './TileMap';
 
@@ -106,19 +107,9 @@ function GoogleMap({ center, markers, initialZoom = 13, onRecenter }: MapCanvasP
       </MapView>
 
       {onRecenter && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Centre the map on my location"
+        <IconButton icon="crosshair" accessibilityLabel="Centre the map on my location"
           onPress={onRecenter}
-          style={{
-            position: 'absolute', right: 12, bottom: 34,
-            width: 44, height: 44, borderRadius: 14,
-            alignItems: 'center', justifyContent: 'center',
-            backgroundColor: c.bg, borderColor: c.line, borderWidth: 1,
-          }}
-        >
-          <Text style={[t.label, { color: c.accent }]}>◎</Text>
-        </Pressable>
+          style={{ position: 'absolute', right: 12, bottom: 34, backgroundColor: c.bg }} />
       )}
       {/* No zoom buttons: pinch is the native gesture, and duplicating it in
           chrome would be web habit imported onto a phone. */}

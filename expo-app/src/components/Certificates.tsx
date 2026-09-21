@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
-import { Field, FormSheet, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
+import { Button, Field, FormSheet, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
 import { PickedAvatar } from '../lib/avatars';
 import {
   addCertification, Certification, fetchCertifications, pickCertificateImage, removeCertification,
@@ -145,13 +145,9 @@ export function Certificates({ coachId }: { coachId: string }) {
         <Field value={issuer} onChange={setIssuer} label="Issued by" placeholder="Issuing body" />
         <Field value={year} onChange={setYear} label="Year" placeholder="2024" keyboardType="decimal-pad" />
         <Row gap={14} style={{ alignItems: 'center' }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Choose a photo of the certificate"
-            accessibilityState={{ busy: picking }} onPress={() => void choose()} disabled={picking || busy}
-            style={{ minHeight: 44, justifyContent: 'center' }}>
-            <Text style={[t.label, { color: c.accent }]}>
-              {picking ? 'Opening photos…' : image ? 'Change photo' : 'Add a photo'}
-            </Text>
-          </Pressable>
+          <Button label={image ? 'Change photo' : 'Add a photo'} icon="image"
+            busy={picking} busyLabel="Opening photos…" enabled={!busy}
+            accessibilityLabel="Choose a photo of the certificate" onPress={() => void choose()} />
           {image && (
             <Image source={{ uri: image.uri }} accessibilityIgnoresInvertColors
               accessibilityLabel="Selected certificate photo"

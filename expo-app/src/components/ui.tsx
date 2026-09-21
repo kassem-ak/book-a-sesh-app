@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { avatarSize, radii, useTheme } from '../theme';
 
-type IconName = React.ComponentProps<typeof Feather>['name'];
+export type IconName = React.ComponentProps<typeof Feather>['name'];
 
 export function Icon({ name, size = 20, color }: { name: IconName; size?: number; color: string }) {
   return <Feather name={name} size={size} color={color} />;
@@ -84,7 +84,110 @@ export function Card({
   return <View style={[box, style]}>{children}</View>;
 }
 
-// ---- Volt CTA button ----
+// ---- Buttons ----
+//
+// Every action in the app is one of these. It used to be that only the primary
+// CTA looked like a button and everything else was a coloured word with a 44pt
+// box around it -- "Save", "Decline", "Try again" -- which reads as prose and
+// behaves as a control. People do not tap prose, and on a phone they cannot
+// hover to find out. So: a border, a fill, an icon and a target, always.
+//
+// Three weights, because the app only makes three kinds of request:
+//
+//   primary    the one thing this screen is for. Volt, filled, full width.
+//   secondary  a real action that is not the point of the screen.
+//   danger     refusing, deleting, cancelling, or retrying something that broke.
+//
+// Anything quieter than `secondary` is not a button, it is a link, and the app
+// does not have links.
+export type ButtonTone = 'primary' | 'secondary' | 'danger';
+
+export function Button({
+  label,
+  onPress,
+  icon,
+  tone = 'secondary',
+  enabled = true,
+  busy = false,
+  busyLabel = 'Processing...',
+  full = false,
+  height,
+  style,
+  accessibilityLabel,
+}: {
+  label: string;
+  onPress: () => void;
+  /** Feather name. Every button carries one: the glyph is what the eye finds
+   *  first in a column of otherwise identical pills. */
+  icon?: IconName;
+  tone?: ButtonTone;
+  enabled?: boolean;
+  /** Blocks re-entry while a write is in flight (double-tap = double order). */
+  busy?: boolean;
+  busyLabel?: string;
+  /** Primary buttons stretch by default; the others hug their label. */
+  full?: boolean;
+  height?: number;
+  style?: StyleProp<ViewStyle>;
+  /** When the visible label is not the whole story -- "Decline" on a card that
+   *  does not say aloud what is being declined. */
+  accessibilityLabel?: string;
+}) {
+  const { c, t } = useTheme();
+  const live = enabled && !busy;
+  const primary = tone === 'primary';
+  // 52 for the CTA, 44 everywhere else -- 44 being the smallest target a thumb
+  // reliably hits, so nothing here goes under it.
+  const box = height ?? (primary ? 52 : 44);
+  const stretch = full || primary;
+
+  const fill = !enabled ? c.surface2 : primary ? c.volt : c.surface;
+  const edge = primary ? 'transparent' : !enabled ? c.line2 : tone === 'danger' ? c.danger : c.line;
+  const fg = !enabled ? c.txt3 : primary ? c.ink : tone === 'danger' ? c.danger : c.accent;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ disabled: !live, busy }}
+      onPress={live ? onPress : undefined}
+      style={[{
+        height: box,
+        minHeight: box,
+        borderRadius: radii.button,
+        backgroundColor: fill,
+        borderWidth: primary ? 0 : 1,
+        borderColor: edge,
+        paddingHorizontal: primary ? 12 : 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        alignSelf: stretch ? 'stretch' : 'flex-start',
+        opacity: busy ? 0.7 : 1,
+      }, style]}
+    >
+      {icon && <Icon name={icon} size={primary ? 18 : 16} color={fg} />}
+      {/* Android clips shrink-to-fit Text with custom fonts; stretch instead. */}
+      <Text
+        numberOfLines={1}
+        style={[primary ? t.overlayTitle : t.label, {
+          fontSize: primary ? 16 : 14,
+          color: fg,
+          // Only the stretched ones need centring; a hugging button is already
+          // as wide as its label, and stretching the Text inside it pushes the
+          // icon off to the far edge.
+          ...(stretch && !icon ? { alignSelf: 'stretch' as const, textAlign: 'center' as const } : null),
+        }]}
+      >
+        {busy ? busyLabel : label}
+      </Text>
+    </Pressable>
+  );
+}
+
+// The primary CTA, kept under its old name because most of the app calls it
+// that. One implementation underneath, so the two cannot drift apart.
 export function VoltButton({
   label,
   onPress,
@@ -92,38 +195,63 @@ export function VoltButton({
   height = 52,
   busy = false,
   busyLabel = 'Processing...',
+  icon,
 }: {
   label: string;
   onPress: () => void;
   enabled?: boolean;
   height?: number;
-  /** Blocks re-entry while a write is in flight (double-tap = double order). */
   busy?: boolean;
   busyLabel?: string;
+  icon?: IconName;
 }) {
-  const { c, t } = useTheme();
-  const live = enabled && !busy;
+  return (
+    <Button label={label} onPress={onPress} enabled={enabled} height={height}
+      busy={busy} busyLabel={busyLabel} icon={icon} tone="primary" />
+  );
+}
+
+// A button with no room for a word: the month steppers, the map controls, a
+// close. The glyph carries the meaning, so the accessible name is required
+// rather than derived -- there is no label to fall back on.
+export function IconButton({
+  icon,
+  onPress,
+  accessibilityLabel,
+  tone = 'secondary',
+  enabled = true,
+  size = 44,
+  style,
+}: {
+  icon: IconName;
+  onPress: () => void;
+  accessibilityLabel: string;
+  tone?: ButtonTone;
+  enabled?: boolean;
+  size?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { c } = useTheme();
+  const fg = !enabled ? c.txt3 : tone === 'danger' ? c.danger : c.accent;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: !live, busy }}
-      onPress={live ? onPress : undefined}
-      style={{
-        height,
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: !enabled }}
+      onPress={enabled ? onPress : undefined}
+      style={[{
+        width: size,
+        height: size,
         borderRadius: radii.button,
-        backgroundColor: enabled ? c.volt : c.surface2,
+        backgroundColor: c.surface,
+        borderWidth: 1,
+        borderColor: !enabled ? c.line2 : tone === 'danger' ? c.danger : c.line,
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: busy ? 0.7 : 1,
-      }}
+        opacity: enabled ? 1 : 0.5,
+      }, style]}
     >
-      {/* Android clips shrink-to-fit Text with custom fonts; stretch instead. */}
-      <Text
-        numberOfLines={1}
-        style={[t.overlayTitle, { fontSize: 16, color: enabled ? c.ink : c.txt3, alignSelf: 'stretch', textAlign: 'center' }]}
-      >
-        {busy ? busyLabel : label}
-      </Text>
+      <Icon name={icon} size={18} color={fg} />
     </Pressable>
   );
 }

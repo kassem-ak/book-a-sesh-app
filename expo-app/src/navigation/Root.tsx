@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrandMark, Button } from '../components/ui';
 import { ensureAppSession, signOutUser } from '../lib/session';
 import { identify } from '../lib/analytics';
 import { fetchCoaches, fetchPartners } from '../lib/queries';
@@ -171,27 +172,24 @@ export function Root() {
   if (geoBlocked) return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top, paddingBottom: insets.bottom }}>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
-        <Text accessibilityRole="header" style={{ color: c.txt, fontSize: 22, textAlign: 'center', marginBottom: 12 }}>
+        {/* The two screens with no header, no tab bar and no way onward. The
+            mark is the only thing that says which app this is. */}
+        <BrandMark size={44} />
+        <Text accessibilityRole="header" style={{ color: c.txt, fontSize: 22, textAlign: 'center', marginTop: 18, marginBottom: 12 }}>
           BOOK'D is not available in your region yet
         </Text>
         <Text style={{ color: c.txt3, textAlign: 'center' }}>
           You're signed in. Access depends on the country your network connects from.
         </Text>
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Check again"
+          <Button label="Check again" icon="refresh-cw"
             onPress={() => {
               setProfileAttempt((attempt) => attempt + 1);
               retryPeople();
               setModuleAttempt((attempt) => attempt + 1);
-            }}
-            style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line }}>
-            <Text style={{ color: c.txt }}>Check again</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Sign out"
-            onPress={() => { void signOutUser().catch((error) => useStore.getState().set('writeError', errorMessage(error))); }}
-            style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line }}>
-            <Text style={{ color: c.txt }}>Sign out</Text>
-          </Pressable>
+            }} />
+          <Button label="Sign out" icon="log-out" tone="danger"
+            onPress={() => { void signOutUser().catch((error) => useStore.getState().set('writeError', errorMessage(error))); }} />
         </View>
       </View>
       <ErrorBanner />
@@ -201,10 +199,12 @@ export function Root() {
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={{ flex: 1, paddingTop: insets.top }}>
-        {profileError && <Pressable accessibilityRole="button" accessibilityLabel="Retry saving your signup profile"
-          onPress={() => setProfileAttempt(profileAttempt + 1)} style={{ minHeight: 44, padding: 12, backgroundColor: c.surface }}>
-          <Text style={{ color: c.danger }}>Profile setup could not finish: {profileError} Tap to retry.</Text>
-        </Pressable>}
+        {profileError && <View style={{ padding: 12, gap: 10, alignItems: 'flex-start', backgroundColor: c.surface }}>
+          <Text style={{ color: c.danger }}>Profile setup could not finish: {profileError}</Text>
+          <Button label="Try again" icon="refresh-cw" tone="danger"
+            accessibilityLabel="Retry saving your signup profile"
+            onPress={() => setProfileAttempt(profileAttempt + 1)} />
+        </View>}
         {/* Rendering is gated on the same server answer as the tab bar, so a
             stale `tab` value from a module withdrawn mid-session cannot keep
             the screen on screen. */}
@@ -221,7 +221,8 @@ export function Root() {
             blank screen that looks like a crash. */}
         {modulesLoaded && modules.length === 0 && tab !== 'profile' && (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
-            <Text style={{ color: c.txt, fontSize: 17, textAlign: 'center', marginBottom: 8 }}>
+            <BrandMark size={40} />
+            <Text style={{ color: c.txt, fontSize: 17, textAlign: 'center', marginTop: 16, marginBottom: 8 }}>
               Nothing to show yet
             </Text>
             <Text style={{ color: c.txt3, textAlign: 'center' }}>
@@ -233,16 +234,10 @@ export function Root() {
                 offered because it draws no header of its own and would be a
                 second trap. */}
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Check again"
-                onPress={() => setModuleAttempt(moduleAttempt + 1)}
-                style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line }}>
-                <Text style={{ color: c.txt }}>Check again</Text>
-              </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Sign out"
-                onPress={() => { void signOutUser(); }}
-                style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line }}>
-                <Text style={{ color: c.txt }}>Sign out</Text>
-              </Pressable>
+              <Button label="Check again" icon="refresh-cw"
+                onPress={() => setModuleAttempt(moduleAttempt + 1)} />
+              <Button label="Sign out" icon="log-out" tone="danger"
+                onPress={() => { void signOutUser(); }} />
             </View>
           </View>
         )}

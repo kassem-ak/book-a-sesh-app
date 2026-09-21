@@ -3,7 +3,9 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Certificates } from '../components/Certificates';
 import { SportsPicker } from '../components/SportsPicker';
-import { Avatar, Field, FormSheet, Row, SectionHeading, VoltButton } from '../components/ui';
+import {
+  Avatar, Button, Field, FormSheet, Row, SectionHeading, VoltButton,
+} from '../components/ui';
 import { pickAvatar, PickedAvatar, uploadAvatar } from '../lib/avatars';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { confirmsDeletion, deleteAccount, DELETE_WORD } from '../lib/session';
@@ -159,10 +161,9 @@ export function EditProfileOverlay() {
         {profile && <View pointerEvents={busy ? 'none' : 'auto'} accessibilityElementsHidden={busy} importantForAccessibility={busy ? 'no-hide-descendants' : 'auto'} style={{ gap: 16 }}>
           <Row gap={16}>
             <Avatar initials={initials(profile.name)} avatarUrl={photo?.uri ?? profile.avatarUrl} size={72} radius={20} />
-            <Pressable onPress={() => void choosePhoto()} disabled={picking || busy} accessibilityRole="button"
-              accessibilityLabel="Choose profile photo" accessibilityState={{ disabled: picking || busy, busy: picking }} style={{ minHeight: 44, justifyContent: 'center' }}>
-              <Text style={[t.label, { color: c.accent }]}>{picking ? 'Opening photos…' : 'Choose photo'}</Text>
-            </Pressable>
+            <Button label="Choose photo" icon="image" enabled={!picking && !busy}
+              busy={picking} busyLabel="Opening photos…"
+              accessibilityLabel="Choose profile photo" onPress={() => void choosePhoto()} />
           </Row>
           <Text style={[t.caption, { color: c.txt3 }]}>JPEG, PNG, WebP or HEIC · maximum 2 MiB. Your profile photo is public.</Text>
           <SectionHeading>Display name</SectionHeading>
@@ -213,11 +214,10 @@ export function EditProfileOverlay() {
           })}
           {locating && <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3 }]}>Checking your location…</Text>}
           {profile.sharesLocation && (
-            <Pressable onPress={() => void stopSharing()} disabled={locating || busy} accessibilityRole="button"
+            <Button label="Stop sharing and remove me from the map" icon="map-pin" tone="danger"
+              enabled={!locating && !busy}
               accessibilityLabel="Stop sharing your location and remove you from the map"
-              accessibilityState={{ disabled: locating || busy }} style={{ minHeight: 44, justifyContent: 'center' }}>
-              <Text style={[t.label, { color: c.danger }]}>Stop sharing and remove me from the map</Text>
-            </Pressable>
+              onPress={() => void stopSharing()} />
           )}
 
           <GroupRule label="What you do" />
@@ -249,13 +249,9 @@ export function EditProfileOverlay() {
           {/* The page carries the plain button; the sheet carries the warning
               and the word. A form asking you to type "delete" sitting open on a
               screen you came to edit your bio reads like a threat. */}
-          <Pressable accessibilityRole="button" accessibilityLabel="Delete account"
-            onPress={() => { setDeleteWord(''); setError(null); setConfirmingDelete(true); }}
-            disabled={busy || picking}
-            style={{ minHeight: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-              borderColor: c.line }}>
-            <Text style={[t.label, { color: c.danger }]}>Delete account</Text>
-          </Pressable>
+          <Button label="Delete account" icon="trash-2" tone="danger" height={48} full
+            enabled={!busy && !picking}
+            onPress={() => { setDeleteWord(''); setError(null); setConfirmingDelete(true); }} />
 
           <FormSheet
             visible={confirmingDelete}
@@ -263,17 +259,10 @@ export function EditProfileOverlay() {
             subtitle="This cannot be undone."
             onClose={() => { if (!deleting) setConfirmingDelete(false); }}
             footer={
-              <Pressable accessibilityRole="button"
+              <Button label="Delete my account" icon="trash-2" tone="danger" height={48} full
                 accessibilityLabel="Delete my account permanently"
-                accessibilityState={{ disabled: !confirmed || deleting, busy: deleting }}
-                onPress={() => void removeAccount()} disabled={!confirmed || deleting}
-                style={{ minHeight: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-                  borderColor: confirmed ? c.danger : c.line,
-                  backgroundColor: confirmed ? alpha(c.danger, 0.12) : 'transparent' }}>
-                <Text style={[t.label, { color: confirmed ? c.danger : c.txt3 }]}>
-                  {deleting ? 'Deleting…' : 'Delete my account'}
-                </Text>
-              </Pressable>
+                enabled={confirmed} busy={deleting} busyLabel="Deleting…"
+                onPress={() => void removeAccount()} />
             }
           >
             {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}

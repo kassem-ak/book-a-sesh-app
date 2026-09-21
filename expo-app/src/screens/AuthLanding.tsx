@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { BrandIcon, BrandMark, Field, Icon, Row } from '../components/ui';
+import { BrandIcon, BrandMark, Button, Field, Icon, Row } from '../components/ui';
 import { SSO_LABELS, SsoProvider, signInWithProvider } from '../lib/session';
 import { SportsPicker } from '../components/SportsPicker';
 import { saveSignupDraft } from '../lib/signup';
@@ -110,9 +110,8 @@ export function AuthLanding() {
             </Row>
             {error && <Text style={[t.bodySm, { color: c.danger, marginTop: 16 }]}>{error}</Text>}
             <Text style={[t.bodySm, { color: c.txt2, textAlign: 'center', marginTop: 20 }]}>Free for coaches and members</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Sign in or create account" onPress={() => { setAccountMode('in'); setAccount(true); }} style={{ minHeight: 44, justifyContent: 'center', marginTop: 12 }}>
-              <Text style={[t.labelSm, { color: c.txt2, textAlign: 'center' }]}>Sign in or create account</Text>
-            </Pressable>
+            <Button label="Sign in or create account" icon="log-in" full style={{ marginTop: 12 }}
+              onPress={() => { setAccountMode('in'); setAccount(true); }} />
           </>
         ) : step === 'role' ? (
           <>

@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sport } from '../lib/profiles';
 import { useTheme } from '../theme';
-import { Field, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
+import { Button, Field, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
 import { groupSports, useSports } from './useSports';
 
 // The catalogue lives in a modal, not on the page.
@@ -73,11 +73,8 @@ export function SportsPicker({ selected, onChange, coach = false }: {
                   <Text numberOfLines={1} style={[t.label, { flex: 1, color: c.txt }]}>{sport ? sport.name : 'Unavailable'}</Text>
                   {primary
                     ? <MicroBadge label="Primary" bg={c.volt} fg={c.ink} />
-                    : <Pressable accessibilityRole="button" accessibilityLabel={`Make ${sport ? sport.name : 'this'} primary`}
-                        onPress={() => promote(id)}
-                        style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 10 }}>
-                        <Text style={[t.labelSm, { color: c.accent }]}>Make primary</Text>
-                      </Pressable>}
+                    : <Button label="Make primary" icon="star" onPress={() => promote(id)}
+                        accessibilityLabel={`Make ${sport ? sport.name : 'this'} primary`} />}
                   <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${sport ? sport.name : 'this choice'}`}
                     onPress={() => drop(id)}
                     style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
