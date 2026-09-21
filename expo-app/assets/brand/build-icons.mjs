@@ -12,7 +12,7 @@
 //
 // Run from expo-app/. Re-run after editing BOOKD_app_icon.svg.
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
@@ -39,6 +39,9 @@ const BOX = { x0: RING.cx - RING.r - RING.width / 2, y0: RING.cy - RING.r - RING
               x1: 846.6, y1: RING.cy + RING.r + RING.width / 2 };
 const CENTRE = { x: (BOX.x0 + BOX.x1) / 2, y: (BOX.y0 + BOX.y1) / 2 };
 const SAFE = 0.72; // corner-to-centre 451px * 0.72 = 325 < the 341px safe radius
+// The notification icon is the opposite problem: Android draws it at 24dp in a
+// crowded status bar, so it fills its canvas instead of hiding inside a mask.
+const BLEED = (S / (BOX.x1 - BOX.x0)) * 0.95;
 
 const mark = (ring, swoosh, scale) => {
   const inner = `<circle cx="${RING.cx}" cy="${RING.cy}" r="${RING.r}" fill="none"`
@@ -59,7 +62,9 @@ const tile = (bg) => `<rect width="${S}" height="${S}" rx="${RADIUS}" ry="${RADI
 
 const png = async (name, body, size = S) => {
   const buf = await sharp(svg(body), { density: 384 }).resize(size, size).png().toBuffer();
-  writeFileSync(join(out, name), buf);
+  const target = join(out, name);
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, buf);
   console.log(`${name}  ${size}x${size}  ${(buf.length / 1024).toFixed(1)} kB`);
 };
 
@@ -85,7 +90,21 @@ await Promise.all([
   png('splash-icon-dark.png', mark('#fff', VOLT)),
   png('splash-icon-light.png', mark(SLATE, VOLT)),
 
+  // Android strips every colour out of a status-bar icon and draws the alpha
+  // channel in one tint, so this is white-on-transparent by necessity, not
+  // taste. It is its own file rather than the launcher's monochrome one: that
+  // one is 1024px and inset for the launcher mask, which at 24dp leaves a
+  // pinprick in the middle of an empty square.
+  png('notification-icon.png', mark('#fff', '#fff', BLEED), 96),
+
   // Browsers show the favicon on their own chrome, which is light as often as
   // it is dark, so it keeps its tile.
   png('favicon.png', tile(INK) + mark('#fff', VOLT), 196),
+
+  // The web app, installed. iOS ignores the manifest's icons and reads the
+  // apple-touch-icon link instead, and it does not round the corners itself, so
+  // all three keep the tile.
+  png('web/apple-touch-icon.png', tile(INK) + mark('#fff', VOLT), 180),
+  png('web/icon-192.png', tile(INK) + mark('#fff', VOLT), 192),
+  png('web/icon-512.png', tile(INK) + mark('#fff', VOLT), 512),
 ]);

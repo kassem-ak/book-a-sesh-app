@@ -47,6 +47,9 @@ jobs:
       # Pages reads it from the published artifact, and without it a deploy can
       # clear the custom-domain setting.
       - run: echo 'www.app-bookd.com' > dist/CNAME
+      # The head tags a web app needs cannot be written at build time without
+      # expo-router, so the export is patched instead. See the script.
+      - run: node assets/web/link-manifest.mjs
       - uses: actions/configure-pages@v5
         with:
           enablement: true
