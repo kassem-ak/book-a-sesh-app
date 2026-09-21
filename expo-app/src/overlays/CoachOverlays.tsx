@@ -12,6 +12,7 @@ import {
   decideCancellation, fetchCancellations, fetchClientPackages, PackageCancellation,
   PackageProgress, progressSummary, suggestedRefundCents,
 } from '../lib/packages';
+import { RefundNegotiation } from '../components/RefundNegotiation';
 import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
 import { initials } from '../state/models';
@@ -493,7 +494,6 @@ export function CoachPackagesOverlay() {
   // at the unused share of what was paid -- the arithmetic the coach would do
   // anyway -- and stays editable, because it is their money and their call.
   const [requests, setRequests] = useState<PackageCancellation[]>([]);
-  const [refunds, setRefunds] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -518,7 +518,10 @@ export function CoachPackagesOverlay() {
       ]);
       setPricing(current);
       setClients(sold);
-      setRequests(asked.filter((request) => request.status === 'requested'));
+      // 'offered' is still open -- the figure is being argued over.
+      setRequests(asked.filter(
+        (request) => request.status === 'requested' || request.status === 'offered',
+      ));
       setRate(current.rateCents ? money(current.rateCents) : '');
       setDrafts({});
     } catch (e) {
@@ -747,7 +750,6 @@ export function CoachPackagesOverlay() {
                     );
                     const sold = pricing?.packages.find((p) => p.id === pack.packageId);
                     const suggested = sold ? suggestedRefundCents(pack, sold.priceCents) : 0;
-                    const typed = refunds[key] ?? money(suggested);
                     return (
                       <Card key={key} style={{ padding: 14, gap: 10 }}>
                         <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -768,43 +770,22 @@ export function CoachPackagesOverlay() {
                             {request.reason ? (
                               <Text style={[t.bodySm, { color: c.txt2 }]}>“{request.reason}”</Text>
                             ) : null}
-                            <Text style={[t.caption, { color: c.txt3 }]}>
-                              How much are you giving back? BOOK’D records the figure — it does not move the money, so
-                              pay them however you normally would. {pack.remaining} of {pack.total} sessions are unused.
-                            </Text>
-                            <Row gap={10} style={{ alignItems: 'center' }}>
-                              <Text style={[t.price, { color: c.accent }]}>$</Text>
-                              <View style={{ flex: 1 }}>
-                                <MoneyField value={typed}
-                                  onChange={(next) => setRefunds((current) => ({ ...current, [key]: next }))}
-                                  label={`Amount to give back to ${pack.withName}`} placeholder="0" />
-                              </View>
-                            </Row>
-                            <Row gap={12}>
-                              <View style={{ flex: 1 }}>
-                                <VoltButton label="Approve" busy={busy} busyLabel="Saving…" enabled={!busy}
-                                  onPress={() => {
-                                    const cents = parseMoney(typed);
-                                    if (cents === null) {
-                                      setActionError('Enter an amount like 120 or 0.');
-                                      return;
-                                    }
-                                    run(async () => {
-                                      await decideCancellation(request.id, 'approved', cents);
-                                      track('package_cancellation_decided');
-                                    }, 'Could not approve that request.');
-                                  }} />
-                              </View>
-                              <Pressable accessibilityRole="button" disabled={busy}
-                                accessibilityLabel={`Decline the cancellation from ${pack.withName}`}
-                                onPress={() => run(
-                                  () => decideCancellation(request.id, 'rejected'),
-                                  'Could not decline that request.',
-                                )}
-                                style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' }}>
-                                <Text style={[t.label, { color: c.txt2 }]}>Decline</Text>
-                              </Pressable>
-                            </Row>
+                            {/* The same panel the client sees, from the
+                                other side. Two implementations of "what is on
+                                the table" would be two places for the figures
+                                to be presented differently. */}
+                            <RefundNegotiation request={request}
+                              suggestedCents={suggested}
+                              onSettled={load} />
+                            <Pressable accessibilityRole="button" disabled={busy}
+                              accessibilityLabel={`Decline the cancellation from ${pack.withName}`}
+                              onPress={() => run(
+                                () => decideCancellation(request.id, 'rejected'),
+                                'Could not decline that request.',
+                              )}
+                              style={{ minHeight: 44, justifyContent: 'center' }}>
+                              <Text style={[t.label, { color: c.txt2 }]}>Decline the cancellation</Text>
+                            </Pressable>
                           </View>
                         )}
                       </Card>

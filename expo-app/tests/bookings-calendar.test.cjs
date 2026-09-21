@@ -163,7 +163,12 @@ function calendarHelpers() {
       fetchMyPackageBalances: async () => [], formatCents: () => '', formatExpiry: () => null,
       formatSessionWhen: () => '',
     },
-    '../lib/packages': { fetchMyPackages: async () => [], progressSummary: () => '' },
+    '../lib/packages': {
+      fetchMyPackages: async () => [], progressSummary: () => '',
+      fetchCancellations: async () => [], requestCancellation: async () => {},
+      withdrawCancellation: async () => {}, suggestedRefundCents: () => 0,
+    },
+    '../components/RefundNegotiation': noop,
     '../state/models': { initials: () => '' },
     '../state/store': { useStore: () => ({}) },
     '../theme': { alpha: () => '', useTheme: () => ({ c: {}, t: {} }) },

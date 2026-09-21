@@ -150,7 +150,7 @@ export function progressSummary(progress: PackageProgress): string {
 // Every screen that shows that amount has to say the app is recording what two
 // people agreed rather than moving anybody's money.
 
-export type CancellationStatus = 'requested' | 'approved' | 'rejected' | 'withdrawn';
+export type CancellationStatus = 'requested' | 'offered' | 'approved' | 'rejected' | 'withdrawn';
 
 export type PackageCancellation = {
   id: string;
@@ -266,4 +266,80 @@ export async function decideCancellation(
 export function suggestedRefundCents(progress: PackageProgress, packPriceCents: number): number {
   if (progress.total <= 0) return 0;
   return Math.max(0, Math.round((packPriceCents * progress.remaining) / progress.total));
+}
+
+// ---- settling on the amount -------------------------------------------------
+//
+// A cancellation used to be answered once: the coach approved with a figure and
+// the client could take it or have asked for nothing. That is a verdict, not an
+// agreement -- and since the money moves directly between the two of them, an
+// agreement is what it has to be.
+//
+// Either side puts a figure on the table; the other accepts or counters. One
+// offer stands at a time, and whoever did not make it is the one who can accept
+// it, so nobody approves their own refund.
+
+export type RefundOffer = {
+  id: string;
+  requestId: string;
+  offeredBy: string;
+  amountCents: number;
+  note: string | null;
+  createdAt: string;
+  /** True when this account made it -- so the UI knows whose move it is. */
+  mine: boolean;
+};
+
+/** The exchange on one request, oldest first, so it reads like a conversation.
+ *
+ *  Ordered by `seq` rather than `created_at`: that column defaults to now(),
+ *  which is the transaction's start time, so two offers written in one
+ *  transaction tie and "the latest" becomes whichever came back first. */
+export async function fetchRefundOffers(requestId: string): Promise<RefundOffer[]> {
+  const me = await currentAppUserId();
+  const { data, error } = await supabase
+    .from('package_refund_offers')
+    .select('id, request_id, offered_by, amount_cents, note, created_at, seq')
+    .eq('request_id', requestId)
+    .order('seq');
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    requestId: String(row.request_id),
+    offeredBy: String(row.offered_by),
+    amountCents: Number(row.amount_cents) || 0,
+    note: (row.note as string) ?? null,
+    createdAt: String(row.created_at),
+    mine: row.offered_by === me,
+  }));
+}
+
+/** Put a figure on the table. Refused by the server if your own offer is
+ *  already standing -- offering twice in a row is not negotiating. */
+export async function offerRefund(requestId: string, cents: number, note?: string): Promise<void> {
+  await currentAppUserId();
+  if (!Number.isFinite(cents) || cents < 0) throw new Error('Offer an amount of 0 or more.');
+  const { error } = await supabase.rpc('offer_package_refund', {
+    p_request: requestId,
+    p_cents: Math.round(cents),
+    p_note: note?.trim() || null,
+  });
+  if (error) throw error;
+}
+
+/** Take the standing offer. Only the side that did not make it may. */
+export async function acceptRefund(requestId: string): Promise<void> {
+  await currentAppUserId();
+  const { error } = await supabase.rpc('accept_package_refund', { p_request: requestId });
+  if (error) throw error;
+}
+
+/** Whose move it is, for a request with offers on it.
+ *
+ *  Returns null when there is nothing to answer -- either no offer yet, or the
+ *  standing one is this account's own and they are waiting. */
+export function standingOffer(offers: RefundOffer[]): RefundOffer | null {
+  const last = offers[offers.length - 1];
+  if (!last) return null;
+  return last.mine ? null : last;
 }
