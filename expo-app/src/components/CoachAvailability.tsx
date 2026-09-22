@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { DatePickerSheet } from './DatePickerSheet';
-import { Field, Icon, Row, SectionHeading, VoltButton } from './ui';
+import { ConfirmSheet, Field, Icon, Row, SectionHeading, VoltButton } from './ui';
 import {
   addPeriod, Blackout, blackoutLabel, closeDate, daysInRange, fetchMyBlackouts,
   fetchMyWeek, groupWeek, maskTimeInput, MAX_PERIODS_PER_DAY, normaliseTimeInput, openDate,
@@ -100,6 +100,10 @@ export function CoachAvailability() {
   // Removing from a group removes from every day in it. The hours were added
   // across those days in one go, and taking them back one day at a time would
   // be a different gesture than the one that made them.
+  // Asked for when it spans more than one day: the grouped card reads like a
+  // single row, and the tap on it can take a week of working hours away.
+  const [dropping, setDropping] = useState<{ days: number[]; period: Period } | null>(null);
+
   const dropPeriod = (days: number[], period: Period) =>
     void run(async () => {
       for (const day of days) {
@@ -107,6 +111,7 @@ export function CoachAvailability() {
           (p) => p.startsAt !== period.startsAt || p.endsAt !== period.endsAt,
         ));
       }
+      setDropping(null);
     });
 
   const groups = week ? groupWeek(week) : [];
@@ -117,6 +122,20 @@ export function CoachAvailability() {
 
   return (
     <View style={{ gap: 16 }}>
+      <ConfirmSheet
+        visible={dropping !== null}
+        title="Remove these hours?"
+        body={dropping
+          ? `${periodLabel(dropping.period)} comes off every day in `
+            + `${groupLabel(dropping.days)} — ${dropping.days.length} days. `
+            + 'Sessions already booked in those hours are not affected.'
+          : ''}
+        confirmLabel="Remove them"
+        busy={busy}
+        busyLabel="Removing…"
+        onConfirm={() => { if (dropping) dropPeriod(dropping.days, dropping.period); }}
+        onCancel={() => setDropping(null)}
+      />
       <SectionHeading>When you coach</SectionHeading>
       <Text style={[t.bodySm, { color: c.txt2 }]}>
         Add the hours you work — one day, or a run of days at once. Up to {MAX_PERIODS_PER_DAY} periods a day, so a
@@ -150,7 +169,9 @@ export function CoachAvailability() {
                 <Text style={[t.body, { color: c.accent, flex: 1 }]}>{periodLabel(period)}</Text>
                 <Pressable accessibilityRole="button" disabled={busy}
                   accessibilityLabel={`Remove ${periodLabel(period)} on ${groupLabel(group.days)}`}
-                  onPress={() => dropPeriod(group.days, period)}
+                  onPress={() => (group.days.length > 1
+                    ? setDropping({ days: group.days, period })
+                    : dropPeriod(group.days, period))}
                   style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
                   <Icon name="trash-2" size={17} color={c.txt3} />
                 </Pressable>

@@ -1,7 +1,10 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Stars, StripedPlaceholder, VoltButton } from '../components/ui';
+import {
+  Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Stars,
+  StripedPlaceholder, VoltButton,
+} from '../components/ui';
 import { formatDistanceKm } from '../lib/geo';
 import * as D from '../state/sampleData';
 import { useStore } from '../state/store';
@@ -86,9 +89,18 @@ export function ShopStorefrontOverlay() {
                   <Text style={[t.labelSm, { color: c.txt, marginTop: 10 }]} numberOfLines={1}>{prod.name}</Text>
                   <Row style={{ marginTop: 8, justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={[t.priceSm, { color: c.accent }]}>${prod.price}</Text>
-                    <Pressable onPress={() => s.toggleCartItem(key, prod.price)} style={{ borderRadius: 999, backgroundColor: added ? c.volt : c.surface2, paddingHorizontal: 14, paddingVertical: 7 }}>
-                      <Text style={[t.caption, { fontFamily: t.labelSm.fontFamily, color: added ? c.ink : c.txt2 }]}>{added ? 'Added ✓' : 'Add'}</Text>
-                    </Pressable>
+                    {/* Was a 28pt pill with no role and no name: a screen
+                        reader heard "Add" and could not tell what of. */}
+                    <Button
+                      label={added ? 'Added' : 'Add'}
+                      icon={added ? 'check' : 'plus'}
+                      tone={added ? 'primary' : 'secondary'}
+                      height={40}
+                      accessibilityLabel={added
+                        ? `Remove ${prod.name} from your cart`
+                        : `Add ${prod.name} to your cart`}
+                      onPress={() => s.toggleCartItem(key, prod.price)}
+                    />
                   </Row>
                 </Card>
               </View>

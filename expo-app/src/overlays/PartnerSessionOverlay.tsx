@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Row, SectionHeading, VoltButton } from '../components/ui';
+import { Chip, Row, SectionHeading, VoltButton } from '../components/ui';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { proposePartnerSession } from '../lib/partners';
 import { bookableDays } from './BookingOverlay';
@@ -116,13 +116,8 @@ export function PartnerSessionOverlay() {
             {day.slots.map((option) => {
               const selected = chosenSlot === option;
               return (
-                <Pressable key={option} accessibilityRole="button" accessibilityState={{ selected }}
-                  onPress={() => setSlot(option)}
-                  style={{ borderRadius: 12, backgroundColor: selected ? c.volt : c.surface,
-                    borderColor: selected ? c.volt : c.line, borderWidth: 1,
-                    paddingHorizontal: 16, paddingVertical: 11 }}>
-                  <Text style={[t.labelSm, { color: selected ? c.ink : c.txt }]}>{option}</Text>
-                </Pressable>
+                <Chip key={option} label={option} active={selected}
+                  onPress={() => setSlot(option)} />
               );
             })}
           </Row>

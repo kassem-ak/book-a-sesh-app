@@ -2,7 +2,9 @@ import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'reac
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading } from '../components/ui';
+import {
+  Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading,
+} from '../components/ui';
 import { BookingStatus, bookingStatusLabel, currentAppUserId, formatCents } from '../lib/bookings';
 import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
@@ -207,25 +209,19 @@ export function CoachDayViewOverlay() {
                         <MicroBadge label={bookingStatusLabel(session.status)} bg={tint.bg} fg={tint.fg} />
                       </Row>
                       {canComplete(session) && (
-                        <Pressable
-                          onPress={() => setConfirmSession(session)}
-                          disabled={busyId === session.id}
-                          accessibilityRole="button"
+                        <Button
+                          label="Mark done"
+                          icon="check"
+                          tone="primary"
+                          height={44}
+                          full
+                          style={{ marginTop: 12 }}
+                          busy={busyId === session.id}
+                          busyLabel="Saving…"
+                          enabled={busyId !== session.id}
                           accessibilityLabel={`Mark the session with ${session.clientName} as completed`}
-                          accessibilityState={{ disabled: busyId === session.id }}
-                          style={{
-                            marginTop: 12,
-                            borderRadius: 11,
-                            backgroundColor: c.volt,
-                            paddingVertical: 10,
-                            alignItems: 'center',
-                            opacity: busyId === session.id ? 0.6 : 1,
-                          }}
-                        >
-                          <Text style={[t.labelSm, { fontFamily: t.microBadge.fontFamily, color: c.ink }]}>
-                            {busyId === session.id ? 'Saving…' : 'Mark done'}
-                          </Text>
-                        </Pressable>
+                          onPress={() => setConfirmSession(session)}
+                        />
                       )}
                     </Card>
                   );
@@ -239,23 +235,24 @@ export function CoachDayViewOverlay() {
         <View accessibilityViewIsModal style={{ flex: 1, backgroundColor: c.scrim, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           {confirmSession && (
             <Card style={{ width: '100%', maxWidth: 360, padding: 22 }}>
-              <Text accessibilityRole="header" style={[t.overlayTitle, { color: c.accent, marginBottom: 10 }]}>Hey Champ!</Text>
-              <Text style={[t.bodyLg, { color: c.txt }]}>Did you finish your {timeLabel(confirmSession)} session?</Text>
+              <Text accessibilityRole="header" style={[t.overlayTitle, { color: c.txt, marginBottom: 10 }]}>
+                Mark this session done?
+              </Text>
+              <Text style={[t.bodyLg, { color: c.txt2 }]}>
+                The {timeLabel(confirmSession)} session with {confirmSession.clientName} is recorded as
+                completed, and it comes off their package.
+              </Text>
               <Row gap={12} style={{ marginTop: 22 }}>
-                <Pressable
-                  onPress={() => complete(confirmSession)}
-                  disabled={busyId !== null}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Yes, mark the ${timeLabel(confirmSession)} session with ${confirmSession.clientName} as completed`}
-                  accessibilityState={{ disabled: busyId !== null, busy: busyId !== null }}
-                  style={{ flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center', opacity: busyId ? 0.6 : 1 }}
-                >
-                  <Text style={[t.label, { color: c.ink }]}>{busyId ? 'Saving…' : 'YES'}</Text>
-                </Pressable>
-                <Button label="Keep it" icon="x" style={{ flex: 1 }}
+                <Button label="Not yet" icon="x" style={{ flex: 1 }}
                   enabled={busyId === null}
                   accessibilityLabel="No, keep this session unchanged"
                   onPress={() => setConfirmSession(null)} />
+                <Button label="Mark done" icon="check" tone="primary" height={44}
+                  style={{ flex: 1 }}
+                  busy={busyId !== null} busyLabel="Saving…"
+                  enabled={busyId === null}
+                  accessibilityLabel={`Mark the ${timeLabel(confirmSession)} session with ${confirmSession.clientName} as completed`}
+                  onPress={() => complete(confirmSession)} />
               </Row>
             </Card>
           )}
@@ -274,24 +271,4 @@ function statusTint(status: BookingStatus, c: ReturnType<typeof useTheme>['c']) 
   return { bg: c.surface2, fg: c.txt2 };
 }
 
-function Note({ children }: { children: ReactNode }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ padding: 16 }}>
-      <Text style={[t.bodySm, { color: c.txt2 }]}>{children}</Text>
-    </Card>
-  );
-}
 
-function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
-      <Text style={[t.bodySm, { color: c.danger }]}>{message}</Text>
-      <Row style={{ marginTop: 12 }}>
-        <Button label="Try again" icon="refresh-cw" tone="danger" onPress={onRetry}
-          accessibilityLabel="Try loading sessions for this day again" style={{ marginTop: 12 }} />
-      </Row>
-    </Card>
-  );
-}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Sheet } from '../components/Sheet';
 import { Chip, Row, Segmented, SectionHeading, Toggle, VoltButton } from '../components/ui';
@@ -127,11 +127,40 @@ export function RsvpSheet() {
     }
   };
 
+  const [booked, setBooked] = useState(false);
   const confirm = () => {
-    void s.confirmRsvp();
+    void s.confirmRsvp().then((ok) => { if (ok) setBooked(true); });
   };
 
   const canConfirm = Boolean(subject) && (!perHour || Boolean(s.rsvpStartsAt));
+
+  if (booked) {
+    return (
+      <Sheet
+        title="Court reserved"
+        subtitle={venue ? venue.name : ''}
+        onClose={close}
+        footer={<VoltButton label="Done" icon="check" onPress={close} />}
+      >
+        <View style={{ gap: 10, paddingVertical: 4 }}>
+          <Text style={[t.bodyLg, { color: c.txt }]}>{target}</Text>
+          {startsAt && (
+            <Text style={[t.body, { color: c.txt2 }]}>
+              {startsAt.toLocaleString(undefined, {
+                weekday: 'long', day: 'numeric', month: 'long',
+                hour: 'numeric', minute: '2-digit',
+              })}
+              {perHour ? ` · ${hours} ${hours === 1 ? 'hour' : 'hours'}` : ''}
+            </Text>
+          )}
+          <Text style={[t.price, { color: c.accent }]}>{formatCents(total)}</Text>
+          <Text style={[t.caption, { color: c.txt3 }]}>
+            It is in My bookings now. The venue is paid at the door — BOOK’D does not move money.
+          </Text>
+        </View>
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet

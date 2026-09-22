@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
-  Avatar, Button, Card, Icon, MicroBadge, Row, StripedPlaceholder,
+  Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Note, Row, StatusLine,
+  StripedPlaceholder,
 } from '../components/ui';
 import { Venue } from '../lib/courts';
 import { formatDistanceKm, distanceKmBetween, getDevicePoint, GeoPoint } from '../lib/geo';
@@ -105,15 +106,6 @@ function HeaderIconButton({
   );
 }
 
-function Note({ children }: { children: React.ReactNode }) {
-  const { c, t } = useTheme();
-  return (
-    <Text accessibilityRole="text" style={[t.bodySm, { color: c.txt3, marginTop: 18 }]}>
-      {children}
-    </Text>
-  );
-}
-
 // ---- ALL Courts view -------------------------------------------------------
 function AllCourtsView({
   devicePoint,
@@ -127,6 +119,17 @@ function AllCourtsView({
   const loading = useStore((s) => s.venuesLoading);
   const error = useStore((s) => s.venuesError);
   const loadVenues = useStore((s) => s.loadVenues);
+  const [venueQuery, setVenueQuery] = useState('');
+  const [sport, setSport] = useState<string | null>(null);
+  const sports = [...new Set(venues.map((v) => v.sport).filter(Boolean))].sort();
+  // Name, city or sport -- the three things printed on the card the search
+  // box sits above.
+  const needle = venueQuery.trim().toLowerCase();
+  const shownVenues = venues
+    .filter((v) => (sport === null ? true : v.sport === sport))
+    .filter((v) => (needle
+      ? `${v.name} ${v.city} ${v.sport}`.toLowerCase().includes(needle)
+      : true));
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 26 }}>
@@ -154,36 +157,27 @@ function AllCourtsView({
           </Row>
         </Row>
 
-        <Row
-          style={{
-            backgroundColor: c.surface,
-            borderColor: c.line,
-            borderWidth: 1,
-            borderRadius: radii.input,
-            paddingHorizontal: 14,
-            paddingVertical: 13,
-          }}
-        >
-          <Text style={[t.label, { color: c.txt, flex: 1 }]}>All sports and hobbies</Text>
-          <Icon name="chevron-down" size={18} color={c.txt3} />
-        </Row>
-        <Row
-          style={{
-            marginTop: 10,
-            backgroundColor: c.surface,
-            borderColor: c.line,
-            borderWidth: 1,
-            borderRadius: radii.input,
-            paddingHorizontal: 14,
-            paddingVertical: 13,
-          }}
-          gap={10}
-        >
-          <Icon name="search" size={18} color={c.txt3} />
-          <Text style={[t.body, { color: c.txt3 }]}>Search venues, courts</Text>
-        </Row>
+        {/* Was a Row with a chevron and no handler -- it looked like the
+            filter it is now, and swallowed every tap. The sports come from the
+            venues themselves, so it never offers a filter that returns none. */}
+        {sports.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+            <Chip label="All sports" active={sport === null} onPress={() => setSport(null)} />
+            {sports.map((name) => (
+              <Chip key={name} label={name} active={sport === name}
+                onPress={() => setSport(sport === name ? null : name)} />
+            ))}
+          </ScrollView>
+        )}
+        {/* Was a Row dressed as a Field with nothing behind it: it looked
+            exactly like the search box on Discover and swallowed every tap. */}
+        <View style={{ marginTop: 10 }}>
+          <Field value={venueQuery} onChange={setVenueQuery}
+            placeholder="Search venues, courts" icon="search" />
+        </View>
 
-        {loading && venues.length === 0 && <Note>Loading venues…</Note>}
+        {loading && venues.length === 0 && <StatusLine marginTop={18}>Loading venues…</StatusLine>}
         {!loading && error && (
           <View style={{ marginTop: 18, gap: 10, alignItems: 'flex-start' }}>
             {/* The message is not a control. It used to be inside the tap
@@ -194,10 +188,15 @@ function AllCourtsView({
               accessibilityLabel="Retry loading venues" onPress={() => void loadVenues()} />
           </View>
         )}
-        {!loading && !error && venues.length === 0 && <Note>No venues listed yet.</Note>}
+        {!loading && !error && venues.length === 0 && <StatusLine marginTop={18}>No venues listed yet.</StatusLine>}
+        {!loading && !error && venues.length > 0 && shownVenues.length === 0 && (
+          <StatusLine marginTop={18}>
+            Nothing matches {needle ? `“${venueQuery.trim()}”` : 'that filter'}.
+          </StatusLine>
+        )}
 
         <View style={{ marginTop: 16, gap: spacing.listGap }}>
-          {venues.map((v) => {
+          {shownVenues.map((v) => {
             const open = v.status === 'open';
             const distance = formatDistanceKm(distanceKmBetween(devicePoint, v.point));
             return (
@@ -418,15 +417,10 @@ function VenueProfile({ venue, entryTab, onBack }: { venue: Venue; entryTab: Tab
                 ))}
               </View>
               {shown < photos.length && (
-                <Pressable
-                  onPress={() => setShown(shown + 6)}
-                  accessibilityRole="button"
+                <Button label="Load more" icon="chevron-down" full
+                  style={{ marginTop: 20 }}
                   accessibilityLabel="Load more photos"
-                  style={{ marginTop: 20, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Text style={[t.labelSm, { color: c.txt2 }]}>Load More</Text>
-                  <Icon name="chevron-down" size={18} color={c.txt3} />
-                </Pressable>
+                  onPress={() => setShown(shown + 6)} />
               )}
             </View>
           )}
@@ -452,22 +446,16 @@ function RsvpButton({
 }) {
   const { c, t } = useTheme();
   return (
-    <Pressable
-      onPress={open ? () => openRsvp(venueId, kind, id) : undefined}
-      accessibilityRole="button"
+    // An uppercase micro-badge pill before this, which reads as a status chip
+    // rather than the venue page's primary action.
+    <Button
+      label={open ? 'Reserve' : 'Closed'}
+      icon={open ? 'calendar' : 'slash'}
+      tone="primary"
+      height={44}
+      enabled={open}
       accessibilityLabel={open ? 'RSVP for ' + title : title + ' is closed and cannot be booked'}
-      accessibilityState={{ disabled: !open }}
-      hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
-      style={{
-        borderRadius: radii.pill,
-        backgroundColor: open ? c.volt : c.surface2,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-      }}
-    >
-      <Text style={[t.microBadge, { fontSize: 12, letterSpacing: 0.3, color: open ? c.ink : c.txt3 }]}>
-        {open ? 'RSVP' : 'CLOSED'}
-      </Text>
-    </Pressable>
+      onPress={() => openRsvp(venueId, kind, id)}
+    />
   );
 }

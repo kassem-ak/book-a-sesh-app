@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { FormSheet, IconButton, Row, VoltButton } from './ui';
 import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
@@ -14,6 +14,12 @@ import { alpha, useTheme } from '../theme';
 // "which weekday does the 1st fall on, and how many days are in the month", and
 // both come free from the Date constructor.
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+function readableDate(key: string) {
+  const [year, month, day] = key.split('-').map(Number);
+  if (!year || !month || !day) return key;
+  return `${day} ${MONTH_NAMES[month - 1]} ${year}`;
+}
 
 export function DatePickerSheet({
   visible,
@@ -48,6 +54,14 @@ export function DatePickerSheet({
 
   const step = (months: number) =>
     setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + months, 1));
+  // The chosen day is shown in the footer, so paging away from it is no longer
+  // a way to confirm something invisible -- but jumping back to it when the
+  // sheet reopens is still what someone expects.
+  useEffect(() => {
+    if (!visible || !selected) return;
+    const [year, month] = selected.split('-').map(Number);
+    if (year && month) setCursor(new Date(year, month - 1, 1));
+  }, [visible]);
   // There is no reason to close a date that has already happened, and letting
   // someone page backwards only to find every day disabled is a dead end.
   const atFirstMonth =
@@ -60,9 +74,14 @@ export function DatePickerSheet({
       subtitle={subtitle}
       onClose={() => { if (!busy) { setSelected(null); onClose(); } }}
       footer={
-        <VoltButton label={confirmLabel} busy={busy} busyLabel="Saving…"
-          enabled={Boolean(selected) && !busy}
-          onPress={() => { if (selected) onConfirm(selected); }} />
+        <View style={{ gap: 8 }}>
+          <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: selected ? c.txt : c.txt3 }]}>
+            {selected ? readableDate(selected) : 'Pick a day above.'}
+          </Text>
+          <VoltButton label={confirmLabel} icon="check" busy={busy} busyLabel="Saving…"
+            enabled={Boolean(selected) && !busy}
+            onPress={() => { if (selected) onConfirm(selected); }} />
+        </View>
       }
     >
       <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>

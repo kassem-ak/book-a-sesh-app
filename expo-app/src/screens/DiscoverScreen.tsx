@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  Avatar, Button, Card, Chip, Field, Icon, Row, SectionHeading, Segmented, Stars,
+  Avatar, Button, Card, Chip, Field, Icon, Note, Row, SectionHeading, Segmented, Stars,
+  StatusLine,
 } from '../components/ui';
 import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, parseGeoPoint } from '../lib/geo';
 import { track } from '../lib/analytics';
@@ -33,15 +34,6 @@ function personMetaLabel(p: Person, distanceLabel?: string | null) {
 function matchesSport(p: Person, sport: string) {
   if (sport === 'All') return true;
   return p.sport.toLowerCase().includes(sport.toLowerCase());
-}
-
-function Note({ children }: { children: React.ReactNode }) {
-  const { c, t } = useTheme();
-  return (
-    <Text accessibilityRole="text" style={[t.bodySm, { color: c.txt3, marginTop: 4 }]}>
-      {children}
-    </Text>
-  );
 }
 
 export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | null; onRetry?: () => void }) {
@@ -97,6 +89,17 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
   useEffect(() => {
     if (s.sortBy === 'distance' && distanceCapabilityKnown && !canSortByDistance) setStoreValue('sortBy', 'rating');
   }, [canSortByDistance, distanceCapabilityKnown, s.sortBy, setStoreValue]);
+
+  const sortOffered = isCoaches
+    ? ['rating', 'price', ...(canSortByDistance ? ['distance'] : [])]
+    : [...(canSortByDistance ? ['distance'] : [])];
+  useEffect(() => {
+    // Rating and Price disappear in Partners mode, but the stored key did not,
+    // so the list stayed sorted by a chip that was no longer on screen.
+    if (sortOffered.length > 0 && !sortOffered.includes(s.sortBy)) {
+      setStoreValue('sortBy', sortOffered[0]);
+    }
+  }, [sortOffered.join(','), s.sortBy, setStoreValue]);
 
   const activeSortBy = s.sortBy === 'distance' && !canSortByDistance ? null : s.sortBy;
   const featured = entries.filter((entry) => entry.person.boosted);
@@ -237,9 +240,20 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
         </Row>}
       </Row>
       {loadError ? <View accessibilityRole="alert">
-        <Note>{loadError}</Note>
+        <StatusLine>{loadError}</StatusLine>
         {onRetry && <Button label="Try again" icon="refresh-cw" tone="danger" onPress={onRetry} style={{ marginTop: 12 }} />}
-      </View> : entries.length === 0 && <Note>{emptyMessage}</Note>}
+      </View> : entries.length === 0 && (
+        <View style={{ gap: 12, alignItems: 'flex-start' }}>
+          <StatusLine>{emptyMessage}</StatusLine>
+          {/* Only reachable from onboarding before this, so a radius that
+              excluded everybody was permanent. */}
+          {s.loaded.people && base.length > 0 && s.searchRadius < 100 && (
+            <Button label="Search wider" icon="maximize-2"
+              accessibilityLabel={`Widen the search to ${Math.min(s.searchRadius * 2, 100)} km`}
+              onPress={() => setStoreValue('searchRadius', Math.min(s.searchRadius * 2, 100))} />
+          )}
+        </View>
+      )}
       <View style={{ gap: 12 }}>
         {rest.map(({ person, distanceLabel }) => <PersonCard key={person.id} p={person} distanceLabel={distanceLabel} onPress={() => s.openPerson(person.id)} />)}
       </View>

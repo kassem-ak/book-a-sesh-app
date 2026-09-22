@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Button, Card, Field, FormSheet, Icon, IconButton, Row, SectionHeading, VoltButton,
+  Button, Card, Chip, Field, FormSheet, Icon, IconButton, Row, SectionHeading, VoltButton,
 } from '../components/ui';
 import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { coachPackageOptions } from '../state/models';
@@ -11,7 +11,7 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import * as D from '../state/sampleData';
 import { fetchBlackouts } from '../lib/availability';
 import {
-  bookPackageSessions, fetchCancellations, fetchMyPackages, PackageCancellation,
+  bookPackageSessions, fetchCancellations, fetchMyPackages, isOpenRequest, PackageCancellation,
   PackageProgress, progressSummary, requestCancellation, SessionSlot,
 } from '../lib/packages';
 import { bookingDayLabel, errorMessage, SCHED_TIMES, scheduledFor, useStore } from '../state/store';
@@ -155,7 +155,9 @@ export function BookingOverlay() {
       (requests) => {
         if (!live) return;
         setOpenRequest(requests.find(
-          (request) => request.coachId === personId && request.status === 'requested',
+          // 'offered' is open too: a figure is on the table and the unused
+          // count is what it is a share of.
+          (request) => request.coachId === personId && isOpenRequest(request.status),
         ) ?? null);
       },
       () => { if (live) setOpenRequest(null); },
@@ -409,7 +411,10 @@ export function BookingOverlay() {
         </SectionHeading>
         <View style={{ gap: 10 }}>
           {pkgs.map((pk, i) => {
-            const sel = s.bookPkg === i;
+            // Collapsed to one pack, that pack is the selection -- bookPkg
+            // still indexes the full list, so comparing it here marked the
+            // only card on screen as unselected.
+            const sel = activePkg ? true : s.bookPkg === i;
             const mine = pk.packageId ? owned?.get(pk.packageId) : undefined;
             return (
               <Pressable key={pk.name} onPress={() => {
@@ -495,7 +500,7 @@ export function BookingOverlay() {
                     track('package_cancellation_requested');
                     const requests = await fetchCancellations();
                     setOpenRequest(requests.find(
-                      (request) => request.coachId === p.id && request.status === 'requested',
+                      (request) => request.coachId === p.id && isOpenRequest(request.status),
                     ) ?? null);
                     setAskingCancel(false);
                   } catch (error) {
@@ -674,8 +679,7 @@ export function BookingOverlay() {
             {(chosen ? chosen.slots : []).map((slot) => {
               const sel = multi && chosen ? chosenSlots[chosen.date] === slot : bookSlot === slot;
               return (
-                <Pressable key={slot} accessibilityRole="button" accessibilityState={{ selected: sel }}
-                  accessibilityLabel={slot}
+                <Chip key={slot} label={slot} active={sel}
                   onPress={() => {
                     if (multi && chosen) {
                       const already = chosen.date in chosenSlots;
@@ -691,11 +695,7 @@ export function BookingOverlay() {
                     }
                     s.set('bookSlot', slot);
                     setPickingTime(false);
-                  }}
-                  style={{ borderRadius: 12, backgroundColor: sel ? c.volt : c.surface,
-                    borderColor: sel ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 11 }}>
-                  <Text style={[t.labelSm, { color: sel ? c.ink : c.txt }]}>{slot}</Text>
-                </Pressable>
+                  }} />
               );
             })}
           </Row>

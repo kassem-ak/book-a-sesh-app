@@ -3,7 +3,9 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissingSubject, OverlayHeader } from '../components/Overlay';
 import { ScrollAwareFab, useScrollAwareFab } from '../components/ScrollAwareFab';
-import { Avatar, Card, Icon, MicroBadge, Row, StripedPlaceholder } from '../components/ui';
+import {
+  Avatar, Button, Card, Icon, MicroBadge, Row, StripedPlaceholder,
+} from '../components/ui';
 import { isMeetup } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -93,15 +95,9 @@ export function CommunityProfileOverlay() {
                 </Card>
               ))}
               {shownEvents < events.length && (
-                <Pressable
-                  onPress={() => setShownEvents(shownEvents + 3)}
-                  accessibilityRole="button"
+                <Button label="Load more" icon="chevron-down" full
                   accessibilityLabel="Load more events"
-                  style={{ alignItems: 'center', paddingVertical: 10 }}
-                >
-                  <Text style={[t.labelSm, { color: c.txt2 }]}>Load More</Text>
-                  <Icon name="chevron-down" size={18} color={c.txt3} />
-                </Pressable>
+                  onPress={() => setShownEvents(shownEvents + 3)} />
               )}
             </View>
           )}

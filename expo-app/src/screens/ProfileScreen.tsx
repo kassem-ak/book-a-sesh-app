@@ -101,15 +101,18 @@ export function ProfileScreen() {
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Coach tools</SectionHeading>
           <Card>
             <View style={{ padding: 15, gap: 13 }}>
-              <ToolRow title="Appointment requests" body="Review requests · record decisions" onPress={() => s.set('overlay', 'coachRequests')} />
-              <ToolRow title="Today's sessions" body="Day view - mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
+              {/* Each row carries its own glyph. Without one ToolRow falls
+                  back to a chevron, so the list a working coach uses every day
+                  was five identical badges with a chevron at each end. */}
+              <ToolRow icon="inbox" title="Appointment requests" body="Review requests · record decisions" onPress={() => s.set('overlay', 'coachRequests')} />
+              <ToolRow icon="sun" title="Today's sessions" body="Day view · mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
               {/* One row per decision, like the rows either side of them. These
                   were three sections of a single "Coaching settings" page --
                   what you teach, when you work and what you charge are made at
                   three different times and belong apart. */}
-              <ToolRow title="What you teach" body="Your subjects and experience" onPress={() => s.set('overlay', 'coachSubjects')} />
-              <ToolRow title="When you coach" body="Working hours · days off" onPress={() => s.set('overlay', 'coachHours')} />
-              <ToolRow title="Packages, pricing & promos" body="Set prices · answer cancellations" onPress={() => s.set('overlay', 'coachPackages')} />
+              <ToolRow icon="book-open" title="What you teach" body="Your subjects and experience" onPress={() => s.set('overlay', 'coachSubjects')} />
+              <ToolRow icon="calendar" title="When you coach" body="Working hours · days off" onPress={() => s.set('overlay', 'coachHours')} />
+              <ToolRow icon="tag" title="Packages, pricing & promos" body="Set prices · answer cancellations" onPress={() => s.set('overlay', 'coachPackages')} />
             </View>
           </Card>
         </>
@@ -184,24 +187,17 @@ export function ProfileScreen() {
           actor check rather than a UI-only gate. Nothing privileged is
           reachable from this build. */}
       <Card style={{ marginTop: 10, paddingHorizontal: 15 }}>
-        {/* My day view — coaches only */}
-        {isCoach && (
-          <>
-            <GroupRow
-              icon="sun"
-              title="My day view"
-              body="Sessions to run today · mark as done"
-              onPress={() => s.set('overlay', 'coachDayView')}
-            />
-            <RowDivider />
-          </>
-        )}
+        {/* "My day view" used to sit here too, opening the same overlay as
+            "Today's sessions" in Coach tools under a different name, filed
+            beside Sign out. One entry point, in the section that is for it. */}
         <>
           <>
             <GroupRow
               icon="log-out"
               title="Sign out"
-              body={`${s.authName ?? 'Signed in'} · ${s.authEmail}`}
+              // authEmail is nullable, and template-stringing it printed the
+              // literal word "null" for any account without one.
+              body={[s.authName, s.authEmail].filter(Boolean).join(' · ') || 'Signed in'}
               onPress={() => {
                 void signOutUser().catch((error) => {
                   track('write_failed', { error_code: analyticsErrorCode(error) });
