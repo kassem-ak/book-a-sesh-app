@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 import {
   Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Row, SectionHeading, Segmented, Stars,
-  StatusLine, TAP, TAP_SLOP,
+  StatusLine,
 } from '../components/ui';
 import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, mapPointToPercent, MapPoint, parseGeoPoint } from '../lib/geo';
 import { fetchShops } from '../lib/queries';
@@ -195,19 +195,9 @@ export function ShopScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>
-      {/* Courts, Community, Shop and Chat are siblings in the tab bar, so they
-          now open the same way: the title first, the supporting lines under it,
-          the view switch under those. The eyebrow above the title was the one
-          tab where the page name was not the first thing read. The title row
-          keeps a tap-target's height even with no actions beside it, so the
-          lines below land where the other tabs put them. */}
-      <Row style={{ minHeight: TAP }}>
-        <View style={{ flex: 1 }}>
-          <Text style={[t.pageTitle, { color: c.txt }]}>Shop</Text>
-        </View>
-      </Row>
-      <Text style={[t.bodySm, { color: c.txt2, marginTop: 14 }]}>Buy gear in-app from nearby partner stores.</Text>
-      <Text style={[t.bodySm, { color: c.txt3, marginTop: 4 }]}>Partner sports and hobby stores</Text>
+      <Text style={[t.bodySm, { color: c.txt3 }]}>Partner sports and hobby stores</Text>
+      <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Shop</Text>
+      <Text style={[t.body, { color: c.txt2, marginTop: 8 }]}>Buy gear in-app from nearby partner stores.</Text>
 
       <View style={{ marginTop: 18 }}>
         <Segmented
@@ -227,31 +217,33 @@ export function ShopScreen() {
         </View>
       )}
 
-      {/* The heading and the empty line sit outside the switch so that flipping
-          List to Map changes only the body underneath them. They used to be
-          inside each branch, which meant the heading vanished on Map and the
-          empty line moved -- the switch shifted the page under the thumb that
-          had just pressed it. The two empties still say which empty it is:
-          a store with no coordinates is missing from the map but not the
-          list. */}
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>{shopListHeading}</SectionHeading>
-      {shops.length === 0 && !loadError && (
-        <StatusLine>
-          {!s.loaded.shops
-            ? 'Loading stores…'
-            : s.shopView === 'map'
-              ? 'No partner stores have shared a location yet.'
-              : 'No partner stores listed yet.'}
-        </StatusLine>
-      )}
       {s.shopView === 'map' ? (
-        <ShopMap shops={shops} devicePoint={devicePoint ?? null} />
+        <>
+          <ShopMap shops={shops} devicePoint={devicePoint ?? null} />
+          {/* The map had no loading or empty state of its own: with no pins it
+              was a blank grid that looked the same as a working map of
+              nowhere. */}
+          {shops.length === 0 && !loadError && (
+            <StatusLine marginTop={12}>
+              {s.loaded.shops ? 'No partner stores have shared a location yet.' : 'Loading stores…'}
+            </StatusLine>
+          )}
+        </>
       ) : (
-        <View style={{ gap: 11 }}>
-          {shops.map((entry) => (
-            <ShopCard key={entry.shop.id} entry={entry} onPress={() => s.openShop(entry.shop.id)} />
-          ))}
-        </View>
+        <>
+          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>{shopListHeading}</SectionHeading>
+          {/* No sample-shop fallback any more, so say which empty this is. */}
+          {shops.length === 0 && !loadError && (
+            <StatusLine>
+              {s.loaded.shops ? 'No partner stores listed yet.' : 'Loading stores…'}
+            </StatusLine>
+          )}
+          <View style={{ gap: 11 }}>
+            {shops.map((entry) => (
+              <ShopCard key={entry.shop.id} entry={entry} onPress={() => s.openShop(entry.shop.id)} />
+            ))}
+          </View>
+        </>
       )}
 
       <Card style={{ marginTop: 22 }} background={alpha(c.volt, 0.08)} borderColor={alpha(c.volt, 0.25)}>
@@ -318,7 +310,7 @@ function ShopMap({ shops, devicePoint }: { shops: ShopEntry[]; devicePoint: GeoP
     .filter((entry) => entry.distanceKm !== null)
     .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0))[0];
   return (
-    <View>
+    <View style={{ marginTop: 14 }}>
       <View style={{ height: 520, borderRadius: 18, backgroundColor: c.mapBg, borderColor: c.line, borderWidth: 1, overflow: 'hidden' }}>
         <Svg style={{ position: 'absolute', width: '100%', height: '100%' }}>
           {[1, 2, 3, 4, 5].map((i) => (
@@ -336,7 +328,6 @@ function ShopMap({ shops, devicePoint }: { shops: ShopEntry[]; devicePoint: GeoP
               onPress={() => s.openShop(sh.id)}
               accessibilityRole="button"
               accessibilityLabel={`${sh.name} on map`}
-              hitSlop={TAP_SLOP}
               style={{ position: 'absolute', top: `${entry.mapPoint.top}%`, left: `${entry.mapPoint.left}%`, alignItems: 'center' }}
             >
               <Avatar initials={sh.initials} size={44} radius={13} bg={sh.tint} />

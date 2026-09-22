@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
-  Avatar, Button, Card, ErrorNote, IconButton, MicroBadge, Note, Row, SectionHeading, StatusLine,
-  StripedPlaceholder, TAP, TAP_SLOP,
+  Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, StatusLine,
+  StripedPlaceholder,
 } from '../components/ui';
 import { Community, CommunityRole, EventItem, EventSuggestion } from '../state/models';
 import { fetchCommunities, fetchEvents, fetchEventSuggestions, fetchMyCommunityMemberships } from '../lib/queries';
@@ -161,47 +161,38 @@ export function CommunityScreen() {
             onRetry={() => setReloads((n: number) => n + 1)} />
         </View>
       )}
-      {/* Courts, Community, Shop and Chat are siblings in the tab bar, so they
-          now open the same way: the title alone on the first line with the
-          screen's icon actions opposite it, and the supporting line under it.
-          The title row keeps a tap-target's height so that line lands at the
-          same place on every tab. */}
-      <Row style={{ minHeight: TAP }}>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flex: 1 }}>
           <Text style={[t.pageTitle, { color: c.txt }]}>Community</Text>
         </View>
-        <Row gap={8}>
-          {/* Board annotation: "My Communities" icon sits beside the +.
-              Delta section D → Community: it shows a volt dot when you have
-              crews. The dot is drawn over the button rather than inside it so
-              the button stays the shared one, and it takes no taps of its
-              own -- the whole 48dp square is the one target. */}
-          <View>
-            <IconButton
-              icon="users"
-              accessibilityLabel={hasCrews ? `My communities, ${s.joinedCommunities.length} joined` : 'My communities'}
-              onPress={() => s.set('overlay', 'myCommunities')}
+        {/* Board annotation: "My Communities" icon sits beside the volt +.
+            Delta section D → Community: it shows a volt dot when you have crews. */}
+        <Pressable
+          onPress={() => s.set('overlay', 'myCommunities')}
+          accessibilityRole="button"
+          accessibilityLabel={hasCrews ? `My communities, ${s.joinedCommunities.length} joined` : 'My communities'}
+          style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
+        >
+          <Icon name="users" size={26} color={c.accent} />
+          {hasCrews && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 13,
+                width: 9,
+                height: 9,
+                borderRadius: 999,
+                backgroundColor: c.volt,
+                borderColor: c.surface,
+                borderWidth: 1.5,
+              }}
             />
-            {hasCrews && (
-              <View
-                pointerEvents="none"
-                style={{
-                  position: 'absolute',
-                  top: 10,
-                  right: 10,
-                  width: 9,
-                  height: 9,
-                  borderRadius: 999,
-                  backgroundColor: c.volt,
-                  borderColor: c.surface,
-                  borderWidth: 1.5,
-                }}
-              />
-            )}
-          </View>
-          <IconButton icon="plus" accessibilityLabel="Start a community"
-            onPress={s.openStartCommunity} />
-        </Row>
+          )}
+        </Pressable>
+        <Pressable onPress={s.openStartCommunity} accessibilityRole="button" accessibilityLabel="Start a community" style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="plus" size={24} color={c.ink} />
+        </Pressable>
       </Row>
       <Text style={[t.bodySm, { color: c.txt2, marginTop: 14 }]}>Train with crews around you</Text>
 
@@ -268,7 +259,7 @@ function CommunityCard({ cm, joined, role, onOpen, onToggle }: { cm: Community; 
           <Text style={[t.caption, { color: c.accent, marginTop: 4 }]}>{cm.members} members</Text>
           <Text style={[t.caption, { color: c.txt3, marginTop: 2 }]} numberOfLines={1}>{cm.about}</Text>
         </View>
-        <Pressable onPress={onToggle} accessibilityRole="button" accessibilityLabel={`${joined ? 'Leave' : 'Join'} ${cm.sport}`} hitSlop={TAP_SLOP} style={{ minHeight: 44, justifyContent: 'center', borderRadius: 999, borderColor: c.line, borderWidth: 1, backgroundColor: joined ? 'transparent' : c.volt, paddingHorizontal: 16, paddingVertical: 9 }}>
+        <Pressable onPress={onToggle} accessibilityRole="button" accessibilityLabel={`${joined ? 'Leave' : 'Join'} ${cm.sport}`} style={{ minHeight: 44, justifyContent: 'center', borderRadius: 999, borderColor: c.line, borderWidth: 1, backgroundColor: joined ? 'transparent' : c.volt, paddingHorizontal: 16, paddingVertical: 9 }}>
           <Text style={[t.labelSm, { color: joined ? c.txt2 : c.ink }]}>{joined ? 'Joined' : 'Join'}</Text>
         </Pressable>
       </Row>

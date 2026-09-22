@@ -3,8 +3,8 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, ButtonTone, Card, ErrorNote, Field, FormSheet, Icon, IconButton, IconName,
-  MicroBadge, Note, Row, SectionHeading, Segmented, TAP_SLOP, VoltButton,
+  Avatar, Button, ButtonTone, Card, ErrorNote, Field, FormSheet, Icon, IconName, MicroBadge,
+  Note, Row, SectionHeading, Segmented, VoltButton,
 } from '../components/ui';
 import { RefundNegotiation } from '../components/RefundNegotiation';
 import {
@@ -341,14 +341,11 @@ function MonthCalendar({ sessions, confirmingId, cancellingId, onCancel, onKeep,
   return (
     <View>
       <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        {/* The same 48dp square as the month steppers in the booking calendar
-            and the date sheet. Written as labelled buttons here, they were the
-            only pair of arrows in the app that read as words. */}
-        <IconButton icon="chevron-left" accessibilityLabel="Previous month" onPress={() => step(-1)} />
+        <TextAction label="Prev" icon="chevron-left" accessibilityLabel="Previous month" onPress={() => step(-1)} />
         <Text style={[t.labelSm, { color: c.txt }]}>
           {MONTH_NAMES[cursor.getMonth()]} {cursor.getFullYear()}
         </Text>
-        <IconButton icon="chevron-right" accessibilityLabel="Next month" onPress={() => step(1)} />
+        <TextAction label="Next" icon="chevron-right" accessibilityLabel="Next month" onPress={() => step(1)} />
       </Row>
 
       <Row style={{ marginBottom: 6 }}>
@@ -368,9 +365,6 @@ function MonthCalendar({ sessions, confirmingId, cancellingId, onCancel, onKeep,
           const isToday = key === dayKey(today);
           return (
             <Pressable key={key} onPress={() => setSelected(key)} accessibilityRole="button"
-              // 46 tall and a seventh of the width: short of 48dp on both axes
-              // on a small phone, and these sit edge to edge with no gutter.
-              hitSlop={TAP_SLOP}
               accessibilityState={{ selected: isSelected }}
               accessibilityLabel={`${day} ${MONTH_NAMES[cursor.getMonth()]}, ${onThisDay.length} ${onThisDay.length === 1 ? 'session' : 'sessions'}`}
               style={{ width: `${100 / 7}%`, height: 46, alignItems: 'center', justifyContent: 'center' }}>

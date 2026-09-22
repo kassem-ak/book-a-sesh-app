@@ -89,58 +89,6 @@ export function Card({
   return <View style={[box, style]}>{children}</View>;
 }
 
-// ---- Where an action goes ----
-//
-// The rules the whole app follows, written here because they were being
-// decided screen by screen and no two screens agreed.
-//
-//   1. One primary per screen, and it lives in the ActionBar at the bottom.
-//      Bottom is where the thumb already is, and a fixed bar means the action
-//      does not scroll away from the content it acts on.
-//   2. Actions that belong to a row or a card sit in that row or card, never
-//      in the bar. The bar is for the screen's own verb.
-//   3. Destructive actions never sit beside the primary. They go at the end of
-//      the content, after everything they would destroy.
-//   4. The back or close control is top-left; anything else in the header is
-//      top-right and is an IconButton.
-//   5. Every target is at least 48dp -- Material's floor, not iOS's 44 -- with
-//      8dp between neighbours. Where the visible mark is smaller than that,
-//      hitSlop makes up the difference rather than the mark growing.
-export const TAP = 48;
-
-/** The 8dp of slop that takes a 44pt-tall control to Material's 48dp floor. */
-export const TAP_SLOP = { top: 2, bottom: 2, left: 2, right: 2 } as const;
-
-// The bar at the bottom of a screen or overlay that carries its primary
-// action.
-//
-// Fourteen of these were written by hand, and they disagreed: half drew a top
-// border and half did not, so on half the app the primary action floated over
-// scrolling content with nothing separating the two. The border is not
-// decoration -- it is the line that says this bar does not scroll.
-export function ActionBar({ children, note }: {
-  children: ReactNode;
-  /** A figure or a caveat that belongs with the action: a total, a count, the
-   *  line about BOOK'D not moving money. Above the action, never beside it. */
-  note?: ReactNode;
-}) {
-  const { c } = useTheme();
-  return (
-    <View style={{
-      backgroundColor: c.bg,
-      borderTopColor: c.line,
-      borderTopWidth: 1,
-      paddingHorizontal: 16,
-      paddingTop: 14,
-      paddingBottom: 16,
-      gap: 12,
-    }}>
-      {note}
-      {children}
-    </View>
-  );
-}
-
 // ---- Buttons ----
 //
 // Every action in the app is one of these. It used to be that only the primary
@@ -193,9 +141,8 @@ export function Button({
   const { c, t } = useTheme();
   const live = enabled && !busy;
   const primary = tone === 'primary';
-  // 52 for the CTA, 44 everywhere else. 44 is the visible height; hitSlop
-  // below takes the target itself to Material's 48dp floor, which is what a
-  // thumb actually needs.
+  // 52 for the CTA, 44 everywhere else -- 44 being the smallest target a thumb
+  // reliably hits, so nothing here goes under it.
   const box = height ?? (primary ? 52 : 44);
   const stretch = full || primary;
 
@@ -209,7 +156,6 @@ export function Button({
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: !live, busy }}
       onPress={live ? onPress : undefined}
-      hitSlop={box < TAP ? TAP_SLOP : undefined}
       style={[{
         height: box,
         minHeight: box,
@@ -284,7 +230,7 @@ export function IconButton({
   accessibilityLabel,
   tone = 'secondary',
   enabled = true,
-  size = TAP,
+  size = 44,
   style,
 }: {
   icon: IconName;
@@ -303,7 +249,6 @@ export function IconButton({
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !enabled }}
       onPress={enabled ? onPress : undefined}
-      hitSlop={size < TAP ? TAP_SLOP : undefined}
       style={[{
         width: size,
         height: size,
@@ -603,10 +548,11 @@ export function FormSheet({
         <View style={{ padding: 18, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.line2 }}>
           <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={[t.overlayTitle, { fontSize: 20, color: c.txt, flex: 1 }]}>{title}</Text>
-            {/* The third dismiss control in the app, and the only one that was
-                a bare glyph -- so the same gesture had a box on two layers and
-                nothing on the third. */}
-            <IconButton icon="x" accessibilityLabel="Close" onPress={onClose} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Close"
+              onPress={onClose}
+              style={{ minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
+              <Icon name="x" size={20} color={c.txt3} />
+            </Pressable>
           </Row>
           {subtitle ? (
             <Text style={[t.bodySm, { color: c.txt2, marginTop: 6 }]}>{subtitle}</Text>
@@ -632,16 +578,7 @@ export function FormSheet({
 }
 
 // ---- Choice chip (pill) ----
-export function Chip({ label, active, onPress, fill, accessibilityLabel }: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-  fill?: boolean;
-  /** When the visible word is not the whole question. A filter row of bare
-   *  sport names announces "Tennis, selected" and never says what is being
-   *  filtered. */
-  accessibilityLabel?: string;
-}) {
+export function Chip({ label, active, onPress, fill }: { label: string; active: boolean; onPress: () => void; fill?: boolean }) {
   const { c, t } = useTheme();
   return (
     <Pressable
@@ -649,9 +586,8 @@ export function Chip({ label, active, onPress, fill, accessibilityLabel }: {
       // A chip is a choice, not a command, so it reports selection rather than
       // leaving a screen reader to infer it from the fill.
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityLabel={label}
       accessibilityState={{ selected: active }}
-      hitSlop={TAP_SLOP}
       style={{
         flex: fill ? 1 : undefined,
         alignItems: fill ? 'center' : undefined,

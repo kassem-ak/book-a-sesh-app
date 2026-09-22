@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sport } from '../lib/profiles';
 import { useTheme } from '../theme';
-import { Button, Field, Icon, MicroBadge, Row, SectionHeading, TAP_SLOP, VoltButton } from './ui';
+import { Button, Field, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
 import { groupSports, useSports } from './useSports';
 
 // The catalogue lives in a modal, not on the page.
@@ -68,35 +68,27 @@ export function SportsPicker({ selected, onChange, coach = false }: {
             {selected.map((id, index) => {
               const sport = byId(id);
               const primary = index === 0;
-              const name = sport ? sport.name : 'this';
-              // The row is the control. A "Make primary" button on every row
-              // but the first turned a list of choices into a column of
-              // buttons, and on a narrow phone it took the width the sport's
-              // own name needed. Promoting is the only thing a chosen row can
-              // do, so the row does it and the badge says which one won.
               return (
-                <Pressable key={id}
-                  onPress={primary ? undefined : () => promote(id)}
-                  accessibilityRole={primary ? 'text' : 'button'}
-                  accessibilityLabel={primary ? `${name}, primary choice` : `Make ${name} primary`}
-                  style={{ borderTopWidth: index === 0 ? 0 : 1, borderTopColor: c.line2,
-                    backgroundColor: primary ? c.surface : 'transparent' }}>
-                  <Row gap={8} style={{ alignItems: 'center', minHeight: 52, paddingLeft: 12, paddingRight: 8 }}>
-                    <Icon name="star" size={16} color={primary ? c.accent : c.txt3} />
-                    <Text numberOfLines={1} style={[t.label, { flex: 1, color: c.txt }]}>{sport ? sport.name : 'Unavailable'}</Text>
-                    {primary ? <MicroBadge label="Primary" bg={c.volt} fg={c.ink} /> : null}
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${sport ? sport.name : 'this choice'}`}
-                      onPress={() => drop(id)} hitSlop={TAP_SLOP}
-                      style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon name="x" size={18} color={c.txt3} />
-                    </Pressable>
-                  </Row>
-                </Pressable>
+                <Row key={id} gap={8} style={{ alignItems: 'center', minHeight: 52, paddingLeft: 12, paddingRight: 8,
+                  backgroundColor: primary ? c.surface : 'transparent',
+                  borderTopWidth: index === 0 ? 0 : 1, borderTopColor: c.line2 }}>
+                  <Icon name="star" size={16} color={primary ? c.accent : c.txt3} />
+                  <Text numberOfLines={1} style={[t.label, { flex: 1, color: c.txt }]}>{sport ? sport.name : 'Unavailable'}</Text>
+                  {primary
+                    ? <MicroBadge label="Primary" bg={c.volt} fg={c.ink} />
+                    : <Button label="Make primary" icon="star" onPress={() => promote(id)}
+                        accessibilityLabel={`Make ${sport ? sport.name : 'this'} primary`} />}
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${sport ? sport.name : 'this choice'}`}
+                    onPress={() => drop(id)}
+                    style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="x" size={18} color={c.txt3} />
+                  </Pressable>
+                </Row>
               );
             })}
           </View>
           {selected.length > 1 && (
-            <Text style={[t.bodySm, { color: c.txt3 }]}>The starred choice is what people see first on your profile. Tap another to move it to the top.</Text>
+            <Text style={[t.bodySm, { color: c.txt3 }]}>The starred choice is what people see first on your profile.</Text>
           )}
         </View>
       )}

@@ -4,7 +4,7 @@ import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Certificates } from '../components/Certificates';
 import { SportsPicker } from '../components/SportsPicker';
 import {
-  ActionBar, Avatar, Button, Field, FormSheet, Row, SectionHeading, VoltButton,
+  Avatar, Button, Field, FormSheet, Row, SectionHeading, VoltButton,
 } from '../components/ui';
 import { pickAvatar, PickedAvatar, uploadAvatar } from '../lib/avatars';
 import { analyticsErrorCode, track } from '../lib/analytics';
@@ -151,17 +151,15 @@ export function EditProfileOverlay() {
   };
   return (
     <OverlayScaffold header={<OverlayHeader title="Edit profile" subtitle="Free for coaches and members" onBack={() => { if (!busy && !picking) s.closeOverlay(); }} />}
-      bottomBar={profile ? (
-        // The save failure is the bar's note, so it sits above the button that
-        // caused it rather than beside it. The copy at the top of the form
-        // stays for the load failure, which is a different thing.
-        <ActionBar note={error ? (
+      bottomBar={profile ? <View style={{ padding: 16, gap: 10 }}>
+        {/* Beside the button that caused it. The copy at the top of the form
+            stays for the load failure, which is a different thing. */}
+        {error && (
           <Text accessibilityRole="alert" accessibilityLiveRegion="assertive"
             style={[t.bodySm, { color: c.danger }]}>{error}</Text>
-        ) : undefined}>
-          <VoltButton label="Save profile" icon="check" busy={busy} busyLabel="Saving…" enabled={!!profile.name.trim() && !picking && !locating} onPress={() => void save()} />
-        </ActionBar>
-      ) : undefined}>
+        )}
+        <VoltButton label="Save profile" icon="check" busy={busy} busyLabel="Saving…" enabled={!!profile.name.trim() && !picking && !locating} onPress={() => void save()} />
+      </View> : undefined}>
       <View style={{ paddingHorizontal: 18, gap: 16 }}>
         {!profile && error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
         {!profile && (error ? <Button label="Try again" icon="refresh-cw" tone="danger"

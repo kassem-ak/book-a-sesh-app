@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, LayoutChangeEvent, PanResponder, Pressable, Text, View } from 'react-native';
 import { GeoPoint } from '../lib/geo';
-import { IconButton, TAP_SLOP } from './ui';
+import { IconButton } from './ui';
 import { useTheme } from '../theme';
 
 // A real slippy map, drawn from raster tiles with plain Views and Images.
@@ -191,12 +191,8 @@ export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
         <View key={marker.key} style={{ position: 'absolute', left, top, transform: [{ translateX: -22 }, { translateY: -22 }] }}>
           {marker.onPress
             ? (
-              // A marker draws at 44 and cannot grow -- two pins a street apart
-              // would start overlapping -- so the slop makes up the difference
-              // to the 48dp floor instead. This is the app's smallest target
-              // and the one a moving thumb aims at least accurately.
               <Pressable accessibilityRole="button" accessibilityLabel={marker.label}
-                hitSlop={TAP_SLOP} onPress={marker.onPress}>
+                onPress={marker.onPress}>
                 {marker.render()}
               </Pressable>
             )
@@ -204,10 +200,6 @@ export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
         </View>
       ))}
 
-      {/* Bottom right, where a thumb holding the phone already rests, and
-          inside the map's own box: whatever a screen stacks underneath -- the
-          card for a selected person, a bar -- takes its own height and these
-          ride up above it rather than being buried by it. */}
       <View style={{ position: 'absolute', right: 12, bottom: 34, gap: 8 }}>
         {onRecenter && (
           <IconButton icon="crosshair" accessibilityLabel="Centre the map on my location"

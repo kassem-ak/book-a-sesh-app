@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { CoachAvailability } from '../components/CoachAvailability';
 import { SportsPicker } from '../components/SportsPicker';
-import { ActionBar, Field, SectionHeading, VoltButton } from '../components/ui';
+import { Field, SectionHeading, VoltButton } from '../components/ui';
 import { CoachBasics, fetchCoachBasics, saveCoachBasics } from '../lib/coaching';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, useStore } from '../state/store';
@@ -57,24 +57,15 @@ export function CoachSubjectsOverlay() {
   };
 
   return (
-    <OverlayScaffold
-      header={<OverlayHeader title="What you teach" onBack={s.closeOverlay}
-        subtitle="Your subjects and experience" />}
-      // Saving is what this screen is for, so it sits in the bar rather than
-      // under the last field: the subjects picker is tall enough that the save
-      // used to scroll out of sight while someone was still choosing. The
-      // confirmation rides with it, because a line that says "Saved" a screen
-      // away from the button that did it is read as being about something else.
+    <OverlayScaffold header={<OverlayHeader title="What you teach" onBack={s.closeOverlay}
+      subtitle="Your subjects and experience" />}
+      // The sports picker above can run several screens long, so Save at the
+      // end of the content was never on screen with the fields it saves.
       bottomBar={basics ? (
-        <ActionBar note={saved ? (
-          <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.accent }]}>
-            Saved. Your public profile shows this now.
-          </Text>
-        ) : undefined}>
+        <View style={{ padding: 16, backgroundColor: c.bg }}>
           <VoltButton label="Save" busy={busy} busyLabel="Saving…" enabled={!busy} onPress={save} />
-        </ActionBar>
-      ) : undefined}
-    >
+        </View>
+      ) : undefined}>
       <View style={{ paddingHorizontal: 18, gap: 16 }}>
         {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
         {!basics && !error && (
@@ -101,6 +92,11 @@ export function CoachSubjectsOverlay() {
             label="Coach headline" placeholder="Strength coach, 6 years" />
           <Field value={basics.level} onChange={(level) => { setBasics({ ...basics, level }); setSaved(false); }}
             label="Your coaching level" placeholder="Level 3 certified · national squad" />
+          {saved && (
+            <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.accent }]}>
+              Saved. Your public profile shows this now.
+            </Text>
+          )}
         </>}
       </View>
     </OverlayScaffold>

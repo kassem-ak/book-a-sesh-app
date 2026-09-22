@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissingSubject, OverlayHeader } from '../components/Overlay';
 import { ScrollAwareFab, useScrollAwareFab } from '../components/ScrollAwareFab';
@@ -30,18 +30,14 @@ export function CommunityProfileOverlay() {
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.bg }}>
       <View style={{ paddingTop: insets.top }}>
-        {/* Editing belongs to the whole community, not to the line of the
-            identity card it used to hang off, where it was a bare 17pt pencil
-            wedged between the name and the verified tick. Header actions all
-            live on the right-hand side now. */}
-        <OverlayHeader
-          title={cm.sport}
-          onBack={s.closeOverlay}
+        <OverlayHeader title={cm.sport} onBack={s.closeOverlay}
+          // The edit control was threaded between the community name and its
+          // verified tick, inside the identity line. A screen's own action
+          // belongs in its header, not in the middle of its title.
           trailing={canManage ? (
             <IconButton icon="edit-2" accessibilityLabel="Edit community details"
               onPress={() => s.openEditCommunity()} />
-          ) : undefined}
-        />
+          ) : undefined} />
       </View>
 
       <ScrollView
