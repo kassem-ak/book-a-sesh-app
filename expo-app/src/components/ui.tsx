@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { avatarSize, radii, useTheme } from '../theme';
+import { alpha, avatarSize, radii, useTheme } from '../theme';
 
 export type IconName = React.ComponentProps<typeof Feather>['name'];
 
@@ -55,6 +55,7 @@ export function BrandMark({ size = 44, color }: { size?: number; color?: string 
 export function Card({
   children,
   onPress,
+  accessibilityLabel,
   background,
   borderColor,
   radius = radii.card,
@@ -62,6 +63,9 @@ export function Card({
 }: {
   children: ReactNode;
   onPress?: () => void;
+  /** Only meaningful with `onPress`. Without it a screen reader reads every
+   *  line inside the card and never says the card itself opens something. */
+  accessibilityLabel?: string;
   background?: string;
   borderColor?: string;
   radius?: number;
@@ -77,7 +81,8 @@ export function Card({
   };
   if (onPress)
     return (
-      <Pressable onPress={onPress} style={[box, style]}>
+      <Pressable onPress={onPress} accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel} style={[box, style]}>
         {children}
       </Pressable>
     );
@@ -196,6 +201,7 @@ export function VoltButton({
   busy = false,
   busyLabel = 'Processing...',
   icon,
+  accessibilityLabel,
 }: {
   label: string;
   onPress: () => void;
@@ -204,10 +210,12 @@ export function VoltButton({
   busy?: boolean;
   busyLabel?: string;
   icon?: IconName;
+  accessibilityLabel?: string;
 }) {
   return (
     <Button label={label} onPress={onPress} enabled={enabled} height={height}
-      busy={busy} busyLabel={busyLabel} icon={icon} tone="primary" />
+      busy={busy} busyLabel={busyLabel} icon={icon} tone="primary"
+      accessibilityLabel={accessibilityLabel} />
   );
 }
 
@@ -256,6 +264,103 @@ export function IconButton({
   );
 }
 
+// ---- What a screen says when it has nothing, or nothing worked ----
+//
+// Seven copies of Note and four of ErrorNote existed before this, one per
+// screen, which is why a failure looked different depending on where it
+// happened. They are the same two sentences everywhere, so they are one
+// component now.
+export function Note({ children }: { children: ReactNode }) {
+  const { c, t } = useTheme();
+  return (
+    <Card style={{ padding: 16 }}>
+      <Text style={[t.bodySm, { color: c.txt2 }]}>{children}</Text>
+    </Card>
+  );
+}
+
+// A failure is only worth showing if it comes with the way out of it. Every
+// caller passes the thing to run again -- there is no variant without one.
+export function ErrorNote({ message, onRetry, retryLabel = 'Retry' }: {
+  message: string;
+  onRetry: () => void;
+  /** What is being retried, for a screen reader. The visible word stays "Try
+   *  again" so the button reads the same everywhere. */
+  retryLabel?: string;
+}) {
+  const { c, t } = useTheme();
+  return (
+    <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
+      <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{message}</Text>
+      <Row style={{ marginTop: 12 }}>
+        <Button label="Try again" icon="refresh-cw" tone="danger"
+          accessibilityLabel={retryLabel} onPress={onRetry} />
+      </Row>
+    </Card>
+  );
+}
+
+// One muted line where a list is going to be: "Loading events…" and then
+// "No events scheduled yet." Three screens each had their own copy and none of
+// them announced the change, so the transition from loading to empty was
+// silent for anyone not looking at it.
+export function StatusLine({ children, marginTop = 4 }: { children: ReactNode; marginTop?: number }) {
+  const { c, t } = useTheme();
+  return (
+    <Text accessibilityRole="text" accessibilityLiveRegion="polite"
+      style={[t.bodySm, { color: c.txt3, marginTop }]}>
+      {children}
+    </Text>
+  );
+}
+
+// ---- Confirming something that cannot be taken back ----
+//
+// Deleting a certificate, dropping a week of working hours, accepting a refund
+// figure. The rule is that the sentence names the specific thing -- "Remove
+// 9:00 AM - 5:00 PM from Monday to Friday?" and not "Are you sure?" -- because
+// the second one is what people tap through without reading.
+export function ConfirmSheet({
+  visible,
+  title,
+  body,
+  confirmLabel,
+  confirmIcon = 'trash-2',
+  cancelLabel = 'Keep it',
+  busy = false,
+  busyLabel = 'Working…',
+  onConfirm,
+  onCancel,
+}: {
+  visible: boolean;
+  title: string;
+  body: string;
+  confirmLabel: string;
+  confirmIcon?: IconName;
+  cancelLabel?: string;
+  busy?: boolean;
+  busyLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const { c, t } = useTheme();
+  return (
+    <FormSheet visible={visible} title={title} onClose={onCancel}
+      footer={(
+        <Row gap={10}>
+          {/* Keeping is the safe option, so it is the one under the thumb
+              first and the one that is not tinted red. */}
+          <Button label={cancelLabel} icon="x" style={{ flex: 1 }} onPress={onCancel} />
+          <Button label={confirmLabel} icon={confirmIcon} tone="danger" style={{ flex: 1 }}
+            busy={busy} busyLabel={busyLabel} enabled={!busy}
+            onPress={onConfirm} />
+        </Row>
+      )}>
+      <Text style={[t.bodySm, { color: c.txt2 }]}>{body}</Text>
+    </FormSheet>
+  );
+}
+
 // ---- Micro badge ----
 export function MicroBadge({ label, bg, fg }: { label: string; bg: string; fg: string }) {
   const { t } = useTheme();
@@ -283,6 +388,7 @@ export function Avatar({
   size = avatarSize.list,
   radius = radii.avatar,
   fontSize = 18,
+  fg,
   bg,
 }: {
   initials: string;
@@ -291,9 +397,14 @@ export function Avatar({
   radius?: number;
   fontSize?: number;
   bg?: string;
+  /** Override only when the tile's background is not one of the theme's. */
+  fg?: string;
 }) {
   const { c, t } = useTheme();
   const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
+  // Not a literal: this used to be the dark palette's text colour frozen in
+  // place, so initials on a light tile were invisible.
+  const ink = fg ?? c.txt;
   return (
     <View
       style={{
@@ -308,7 +419,7 @@ export function Avatar({
       {avatarUrl && avatarUrl !== failedUrl
         ? <Image source={{ uri: avatarUrl }} onError={() => setFailedUrl(avatarUrl)}
             accessible={false} style={{ width: size, height: size, borderRadius: radius }} resizeMode="cover" />
-        : <Text style={[t.initials, { fontSize, color: '#F2F3F5' }]}>{initials}</Text>}
+        : <Text style={[t.initials, { fontSize, color: ink }]}>{initials}</Text>}
     </View>
   );
 }
@@ -375,7 +486,12 @@ export function Segmented({
           <Pressable
             key={o.key}
             onPress={() => onSelect(o.key)}
-            style={{ flex: 1, alignItems: 'center', paddingVertical: pad, borderRadius: inner, backgroundColor: active ? c.volt : 'transparent' }}
+            // A segment is one of a set, so it reports which one is taken
+            // rather than leaving the fill to say it.
+            accessibilityRole="tab"
+            accessibilityLabel={o.label}
+            accessibilityState={{ selected: active }}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingVertical: pad, borderRadius: inner, backgroundColor: active ? c.volt : 'transparent' }}
           >
             <Text numberOfLines={1} style={[t.label, { fontSize, color: active ? c.ink : c.txt2, alignSelf: 'stretch', textAlign: 'center' }]}>{o.label}</Text>
           </Pressable>
@@ -465,14 +581,24 @@ export function Chip({ label, active, onPress, fill }: { label: string; active: 
   return (
     <Pressable
       onPress={onPress}
+      // A chip is a choice, not a command, so it reports selection rather than
+      // leaving a screen reader to infer it from the fill.
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
       style={{
         flex: fill ? 1 : undefined,
         alignItems: fill ? 'center' : undefined,
+        justifyContent: 'center',
         borderRadius: 999,
         backgroundColor: active ? c.volt : c.surface,
         borderColor: active ? c.volt : c.line,
         borderWidth: 1,
         paddingHorizontal: 14,
+        // The floor every other control in the app clears. Chips are used as
+        // time slots and sort options, which are the two places a mis-tap costs
+        // the most.
+        minHeight: 44,
         paddingVertical: 9,
       }}
     >

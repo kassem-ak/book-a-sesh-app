@@ -3,7 +3,7 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Button, Card, Icon, MicroBadge, Row, SectionHeading, VoltButton,
+  Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, VoltButton,
 } from '../components/ui';
 import {
   DECISION_LABEL,
@@ -704,25 +704,6 @@ function EvidenceCard({ item }: { item: ReportEvidence }) {
   );
 }
 
-function Note({ children }: { children: ReactNode }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ padding: 16 }}>
-      <Text style={[t.bodySm, { color: c.txt2 }]}>{children}</Text>
-    </Card>
-  );
-}
-
-function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
-      <Text style={[t.bodySm, { color: c.danger }]}>{message}</Text>
-      <Button label="Try again" icon="refresh-cw" tone="danger" onPress={onRetry}
-        accessibilityLabel="Retry loading" style={{ marginTop: 12 }} />
-    </Card>
-  );
-}
 
 function Decision({ label, bg, fg, border, onPress, busy = false }: { label: string; bg: string; fg: string; border: string; onPress: () => void; busy?: boolean }) {
   const { t } = useTheme();

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading, Stars, VoltButton,
+  Avatar, Button, Card, Icon, IconButton, MicroBadge, Row, SectionHeading, Stars, VoltButton,
 } from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
 import { Certification, fetchCertifications } from '../lib/coaching';
@@ -80,24 +80,22 @@ export function PersonOverlay() {
           {/* Blocking someone removes the follow server-side, so offering to
               follow them here would be offering something the database
               refuses. */}
+          {/* Bare 22pt glyphs before this, 14pt apart: the two controls people
+              press most on a profile were half the 44pt floor. */}
           {!blocked && (
-            <Pressable
-              onPress={() => void s.toggleFollow(p.id)}
-              accessibilityRole="button"
+            <IconButton
+              icon={following ? 'user-check' : 'user-plus'}
               accessibilityLabel={following ? `Stop following ${p.name}` : `Follow ${p.name}`}
-              accessibilityState={{ selected: following, busy: s.writeBusy === 'follow' }}
-            >
-              <Icon name={following ? 'user-check' : 'user-plus'} size={22} color={following ? c.accent : c.txt2} />
-            </Pressable>
+              enabled={s.writeBusy !== `follow:${p.id}`}
+              onPress={() => void s.toggleFollow(p.id)}
+            />
           )}
-          <Pressable
-            onPress={messaging ? undefined : message}
-            accessibilityRole="button"
-            accessibilityLabel="Message this person"
-            accessibilityState={{ busy: messaging }}
-          >
-            <Icon name="message-square" size={22} color={c.txt2} />
-          </Pressable>
+          <IconButton
+            icon="message-square"
+            accessibilityLabel={`Message ${p.name}`}
+            enabled={!messaging}
+            onPress={message}
+          />
         </Row>
       } />}
       bottomBar={

@@ -2,7 +2,9 @@ import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'reac
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading } from '../components/ui';
+import {
+  Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading,
+} from '../components/ui';
 import { BookingStatus, bookingStatusLabel, currentAppUserId, formatCents } from '../lib/bookings';
 import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
@@ -274,24 +276,4 @@ function statusTint(status: BookingStatus, c: ReturnType<typeof useTheme>['c']) 
   return { bg: c.surface2, fg: c.txt2 };
 }
 
-function Note({ children }: { children: ReactNode }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ padding: 16 }}>
-      <Text style={[t.bodySm, { color: c.txt2 }]}>{children}</Text>
-    </Card>
-  );
-}
 
-function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
-      <Text style={[t.bodySm, { color: c.danger }]}>{message}</Text>
-      <Row style={{ marginTop: 12 }}>
-        <Button label="Try again" icon="refresh-cw" tone="danger" onPress={onRetry}
-          accessibilityLabel="Try loading sessions for this day again" style={{ marginTop: 12 }} />
-      </Row>
-    </Card>
-  );
-}

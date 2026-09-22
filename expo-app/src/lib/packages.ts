@@ -263,6 +263,32 @@ export async function decideCancellation(
  *  A suggestion, not a rule. It is the arithmetic the coach would do anyway,
  *  and having it in front of them beats a blank box -- but it is their money
  *  and their call, so the field stays editable. */
+/** What each of these packages sells for, by id.
+ *
+ *  The client's own screens know how many sessions are left but not what the
+ *  pack cost -- `package_progress` reports the counts and the coach's price
+ *  lives on `packages`, which the Discover list already reads. Without this the
+ *  client's half of a refund negotiation opened at $0 while the coach's opened
+ *  at the real figure. */
+export async function fetchPackagePrices(ids: string[]): Promise<Map<string, number>> {
+  const unique = [...new Set(ids)].filter(Boolean);
+  if (unique.length === 0) return new Map();
+  const { data, error } = await supabase
+    .from('packages').select('id, price_cents').in('id', unique);
+  if (error) throw error;
+  return new Map((data ?? []).map((row) => [row.id as string, (row.price_cents as number) ?? 0]));
+}
+
+/** Is this request still being argued over?
+ *
+ *  'offered' counts: a figure is on the table and the unused session count is
+ *  what that figure is a share of, so the pack has to stay frozen. The two
+ *  screens that freeze packs disagreed about this until they both called here.
+ */
+export function isOpenRequest(status: CancellationStatus): boolean {
+  return status === 'requested' || status === 'offered';
+}
+
 export function suggestedRefundCents(progress: PackageProgress, packPriceCents: number): number {
   if (progress.total <= 0) return 0;
   return Math.max(0, Math.round((packPriceCents * progress.remaining) / progress.total));

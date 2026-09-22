@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
-  Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading, StripedPlaceholder,
+  Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, StatusLine,
+  StripedPlaceholder,
 } from '../components/ui';
 import { Community, CommunityRole, EventItem, EventSuggestion } from '../state/models';
 import { fetchCommunities, fetchEvents, fetchEventSuggestions, fetchMyCommunityMemberships } from '../lib/queries';
@@ -91,15 +92,6 @@ const fromRemoteCommunity = (row: RemoteCommunity): Community => ({
   about: row.about ?? '',
   official: Boolean(row.official),
 });
-function Note({ children }: { children: React.ReactNode }) {
-  const { c, t } = useTheme();
-  return (
-    <Text accessibilityRole="text" style={[t.bodySm, { color: c.txt3, marginTop: 4 }]}>
-      {children}
-    </Text>
-  );
-}
-
 export function CommunityScreen() {
   const { c, t } = useTheme();
   const s = useStore();
@@ -113,9 +105,14 @@ export function CommunityScreen() {
   // `loaded` tells "the fetch has not finished" from "the server has none";
   // neither list falls back to invented rows any more.
   const loaded = s.loaded;
+  // An empty list and a failed fetch look identical in the store, so the
+  // failure has to be remembered here or the screen lies about being empty.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloads, setReloads] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setLoadError(null);
     fetchCommunities()
       .then(async (rows) => {
         if (!active) return;
@@ -135,14 +132,14 @@ export function CommunityScreen() {
         }
       })
       .catch(() => {
-        if (active) setRemoteCommunities([]);
+        if (active) { setRemoteCommunities([]); setLoadError('Could not load communities.'); }
       });
     fetchEvents()
       .then((rows) => {
         if (active) setRemoteEvents(Array.isArray(rows) ? rows.map((row) => fromRemoteEvent(row as RemoteEvent)) : []);
       })
       .catch(() => {
-        if (active) setRemoteEvents([]);
+        if (active) { setRemoteEvents([]); setLoadError('Could not load events.'); }
       });
     fetchEventSuggestions()
       .then((rows) => {
@@ -154,10 +151,16 @@ export function CommunityScreen() {
     return () => {
       active = false;
     };
-  }, [s.authEmail, setRemoteCommunities, setRemoteCommunityMemberships, setRemoteEvents, setRemoteEventSuggestions]);
+  }, [s.authEmail, reloads, setRemoteCommunities, setRemoteCommunityMemberships, setRemoteEvents, setRemoteEventSuggestions]);
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>
+      {loadError && (
+        <View style={{ marginBottom: 14 }}>
+          <ErrorNote message={loadError} retryLabel="Retry loading the community lists"
+            onRetry={() => setReloads((n: number) => n + 1)} />
+        </View>
+      )}
       <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flex: 1 }}>
           <Text style={[t.pageTitle, { color: c.txt }]}>Community</Text>
@@ -195,7 +198,7 @@ export function CommunityScreen() {
 
       <SectionHeading style={{ marginTop: 34, marginBottom: 11 }}>Happening soon</SectionHeading>
       {soon.length === 0 ? (
-        <Note>{loaded.events ? 'No events scheduled yet.' : 'Loading events…'}</Note>
+        <StatusLine>{loaded.events ? 'No events scheduled yet.' : 'Loading events…'}</StatusLine>
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 8 }}>
           {soon.map((ev) => (
@@ -209,7 +212,7 @@ export function CommunityScreen() {
         <Button label="Request a sport" icon="plus" onPress={s.openRequest} />
       </Row>
       {communities.length === 0 && (
-        <Note>{loaded.communities ? 'No communities yet.' : 'Loading communities…'}</Note>
+        <StatusLine>{loaded.communities ? 'No communities yet.' : 'Loading communities…'}</StatusLine>
       )}
       <View style={{ gap: 11 }}>
         {communities.map((cm) => (
