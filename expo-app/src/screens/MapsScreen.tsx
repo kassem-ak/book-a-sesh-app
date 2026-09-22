@@ -75,6 +75,8 @@ export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; 
     ...shown.map((person) => ({
       key: person.id,
       point: { latitude: person.latitude, longitude: person.longitude },
+      label: [person.name, person.role === 'coach' ? 'coach' : 'member', person.sport]
+        .filter(Boolean).join(', '),
       onPress: () => setSelected(person),
       render: () => (
         <View style={{ alignItems: 'center' }}>

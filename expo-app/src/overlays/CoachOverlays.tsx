@@ -3,7 +3,7 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading, VoltButton,
+  Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, VoltButton,
 } from '../components/ui';
 import { currentAppUserId, formatCents, formatExpiry } from '../lib/bookings';
 import {
@@ -981,24 +981,4 @@ function PromoCard({
   );
 }
 
-function Note({ children }: { children: ReactNode }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ padding: 16 }}>
-      <Text style={[t.bodySm, { color: c.txt2 }]}>{children}</Text>
-    </Card>
-  );
-}
 
-function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
-      <Text style={[t.bodySm, { color: c.danger }]}>{message}</Text>
-      <Row style={{ marginTop: 12 }}>
-        <Button label="Try again" icon="refresh-cw" tone="danger" onPress={onRetry}
-          accessibilityLabel="Try loading again" style={{ marginTop: 12 }} />
-      </Row>
-    </Card>
-  );
-}

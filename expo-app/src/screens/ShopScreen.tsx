@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 import {
-  Avatar, Button, Card, Icon, MicroBadge, Row, SectionHeading, Segmented, Stars,
+  Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Row, SectionHeading, Segmented, Stars,
+  StatusLine,
 } from '../components/ui';
 import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, mapPointToPercent, MapPoint, parseGeoPoint } from '../lib/geo';
 import { fetchShops } from '../lib/queries';
@@ -127,10 +128,15 @@ export function ShopScreen() {
   const s = useStore();
   const setRemoteShops = useStore((state) => state.setRemoteShops);
   const [remoteRows, setRemoteRows] = useState<RemoteShop[] | null>(null);
+  // An empty list marks the store loaded, so without this a failed fetch reads
+  // as "there are no partner stores" for the rest of the session.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloads, setReloads] = useState(0);
   const [devicePoint, setDevicePoint] = useState<GeoPoint | null | undefined>(undefined);
 
   useEffect(() => {
     let active = true;
+    setLoadError(null);
     fetchShopRows()
       .then((rows) => {
         if (active) setRemoteRows(rows);
@@ -139,12 +145,15 @@ export function ShopScreen() {
         if (active) {
           setRemoteRows([]);
           setRemoteShops([]);
+          // Without this the tab reads "No partner stores listed yet." for the
+          // rest of the session, with nothing to retry.
+          setLoadError('Could not load partner stores.');
         }
       });
     return () => {
       active = false;
     };
-  }, [setRemoteShops]);
+  }, [reloads, setRemoteShops]);
 
   const hasShopCoordinates = (remoteRows ?? []).some((row) => parseGeoPoint(row.location ?? row));
 
@@ -201,16 +210,33 @@ export function ShopScreen() {
         />
       </View>
 
+      {loadError && (
+        <View style={{ marginTop: 16 }}>
+          <ErrorNote message={loadError} retryLabel="Retry loading partner stores"
+            onRetry={() => setReloads((n) => n + 1)} />
+        </View>
+      )}
+
       {s.shopView === 'map' ? (
-        <ShopMap shops={shops} devicePoint={devicePoint ?? null} />
+        <>
+          <ShopMap shops={shops} devicePoint={devicePoint ?? null} />
+          {/* The map had no loading or empty state of its own: with no pins it
+              was a blank grid that looked the same as a working map of
+              nowhere. */}
+          {shops.length === 0 && !loadError && (
+            <StatusLine marginTop={12}>
+              {s.loaded.shops ? 'No partner stores have shared a location yet.' : 'Loading stores…'}
+            </StatusLine>
+          )}
+        </>
       ) : (
         <>
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>{shopListHeading}</SectionHeading>
           {/* No sample-shop fallback any more, so say which empty this is. */}
-          {shops.length === 0 && (
-            <Text accessibilityRole="text" style={[t.bodySm, { color: c.txt3 }]}>
+          {shops.length === 0 && !loadError && (
+            <StatusLine>
               {s.loaded.shops ? 'No partner stores listed yet.' : 'Loading stores…'}
-            </Text>
+            </StatusLine>
           )}
           <View style={{ gap: 11 }}>
             {shops.map((entry) => (

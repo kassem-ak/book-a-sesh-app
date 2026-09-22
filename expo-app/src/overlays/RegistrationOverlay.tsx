@@ -85,7 +85,10 @@ export function RegistrationOverlay() {
   const busy = s.writeBusy === 'shop-registration';
   const submitLabel = kind === 'shop' ? 'Send request to admins' : 'Keep request on this device';
 
+  const [error, setError] = React.useState<string | null>(null);
+
   const submit = () => {
+    setError(null);
     if (!canSend || busy) return;
     // Shops already have a persisted approvals path; reuse it so the request
     // lands in the admin queue instead of only living in this component.
@@ -97,9 +100,16 @@ export function RegistrationOverlay() {
       s.set('shopRegEmail', email.trim());
       s.set('shopRegMeans', channel);
       s.set('shopRegTime', bestTime.trim());
-      void s.submitShopRegistration().then(() => {
-        if (useStore.getState().shopRegDone) setSent(true);
-      });
+      void s.submitShopRegistration().then(
+        () => {
+          const after = useStore.getState();
+          if (after.shopRegDone) setSent(true);
+          // The store reports the failure on writeError; without reading it
+          // here the button simply came back to life and the request vanished.
+          else setError(after.writeError ?? 'Could not send that request. Try again.');
+        },
+        (e) => setError(e instanceof Error ? e.message : 'Could not send that request. Try again.'),
+      );
       return;
     }
     // This store is memory-only: other devices cannot review these requests,
@@ -120,18 +130,22 @@ export function RegistrationOverlay() {
     return (
       <OverlayScaffold header={<OverlayHeader title={copy.title} onBack={s.closeOverlay} />}>
         <View style={{ paddingHorizontal: 18, alignItems: 'center', paddingTop: 60 }}>
+          {/* The mark has to agree with the sentence under it. Only a shop
+              request actually goes anywhere; the other kinds live on this
+              device until the app restarts, and a volt tick claimed otherwise. */}
           <View
             style={{
               width: 74,
               height: 74,
               borderRadius: 999,
-              borderColor: c.volt,
+              borderColor: kind === 'shop' ? c.volt : c.line,
               borderWidth: 2,
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <Icon name="check" size={32} color={c.accent} />
+            <Icon name={kind === 'shop' ? 'check' : 'clock'} size={32}
+              color={kind === 'shop' ? c.accent : c.txt3} />
           </View>
           <Text style={[t.overlayTitle, { fontSize: 23, color: c.txt, marginTop: 20 }]}>{kind === 'shop' ? 'Request sent' : 'Request not sent'}</Text>
           <Text style={[t.bodyLg, { color: c.soft, marginTop: 9, textAlign: 'center', lineHeight: 22, maxWidth: 290 }]}>

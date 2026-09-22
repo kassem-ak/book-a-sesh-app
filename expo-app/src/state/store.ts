@@ -492,7 +492,9 @@ export interface SpotterState {
   loadVenues(): Promise<void>;
   refreshCourtReservations(): Promise<void>;
   rsvpTotal(): number;
-  confirmRsvp(): Promise<void>;
+  /** Resolves true when the reservation was written. The sheet keeps
+   *  itself open on true to show what was booked. */
+  confirmRsvp(): Promise<boolean>;
   openRegistration(kind: 'community' | 'venue' | 'shop'): void;
   recordRegistration(kind: string, name: string, meta: string): void;
   decideRegistration(id: string, decision: string): void;
@@ -1043,7 +1045,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   },
   toggleFollow: async (userId) => {
     const following = get().followedIds.includes(userId);
-    set({ writeBusy: 'follow', writeError: null });
+    set({ writeBusy: `follow:${userId}`, writeError: null });
     try {
       if (following) await unfollowPerson(userId);
       else await followPerson(userId);
@@ -1200,13 +1202,13 @@ export const useStore = create<SpotterState>((set, get) => ({
     const subject = rsvpSubject(st.venues, st.rsvpRef);
     if (!subject) {
       set({ sheet: null, writeError: 'That slot is unavailable right now.' });
-      return;
+      return false;
     }
     // reserve_court requires an instant; there is no safe default for "when",
     // so refuse rather than invent one.
     if (subject.perHour && !st.rsvpStartsAt) {
       set({ writeError: 'Pick a day and a start time first.' });
-      return;
+      return false;
     }
 
     set({ writeBusy: 'rsvp', writeError: null });
@@ -1228,14 +1230,22 @@ export const useStore = create<SpotterState>((set, get) => ({
       // The sheet stays open on failure so the user can change the time or the
       // court rather than losing what they picked.
       set(errorState(error));
-      return;
+      return false;
     }
 
-    set({ sheet: null, writeBusy: null });
+    // The sheet is left open on purpose: it swaps to a receipt naming what was
+    // booked. Closing here is what made a successful reservation indis-
+    // tinguishable from a dismissed one.
+    set({ writeBusy: null });
     await get().refreshCourtReservations();
     // "Add a coach" routes into the coach calendar; go through openBooking so a
     // previous confirmation screen is cleared first.
-    if (st.rsvpCoach) get().openBooking();
+    if (st.rsvpCoach) {
+      set({ sheet: null });
+      get().openBooking();
+      return true;
+    }
+    return true;
   },
 
   recordRegistration: (kind, name, meta) =>

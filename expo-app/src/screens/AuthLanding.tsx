@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { BrandIcon, BrandMark, Button, Field, Icon, Row } from '../components/ui';
+import {
+  BrandIcon, BrandMark, Button, Field, Icon, IconButton, Row, VoltButton,
+} from '../components/ui';
 import { SSO_LABELS, SsoProvider, signInWithProvider } from '../lib/session';
 import { SportsPicker } from '../components/SportsPicker';
 import { saveSignupDraft } from '../lib/signup';
@@ -32,12 +34,19 @@ export function AuthLanding() {
   const { height } = useWindowDimensions();
   const s = useStore();
   const [step, setStep] = useState<Step>('start');
+  const [savingDraft, setSavingDraft] = useState(false);
+  // Back exists on every step but the first. Without it a mis-tapped role or a
+  // typo'd email was unrecoverable, and there is no navigator above this
+  // screen to supply one.
+  const goBack = () => setStep((current) => STEPS[Math.max(STEPS.indexOf(current) - 1, 0)]);
   const [account, setAccount] = useState(false);
   const [accountMode, setAccountMode] = useState<'in' | 'up'>('in');
   const [ssoBusy, setSsoBusy] = useState(false);
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [kind, setKind] = useState<'coach' | 'trainee'>('trainee');
+  // No default: this sets the account type, and a pre-filled answer is one
+  // nobody made.
+  const [kind, setKind] = useState<'coach' | 'trainee' | null>(null);
   const [seek, setSeek] = useState(s.authSeek);
   const [loc, setLoc] = useState(s.authLoc);
   const radius = s.searchRadius;
@@ -115,6 +124,7 @@ export function AuthLanding() {
           </>
         ) : step === 'role' ? (
           <>
+            <StepBack onPress={goBack} />
             <Text style={[t.bodySm, { color: c.txt2 }]}>What</Text>
             <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Are you?</Text>
             <Row style={{ marginTop: 62, justifyContent: 'center' }} gap={12}>
@@ -122,7 +132,9 @@ export function AuthLanding() {
               <RolePill label="Trainee/Student" active={kind === 'trainee'} onPress={() => setKind('trainee')} />
             </Row>
             <View style={{ height: 54 }} />
-            <NextButton label="NEXT" accessibilityLabel="Next, choose sports and hobbies" onPress={() => {
+            <NextButton label="NEXT" accessibilityLabel="Next, choose sports and hobbies"
+              enabled={kind !== null} onPress={() => {
+              if (!kind) return;
               s.set('signupIntent', kind);
               track('onboarding_role_chosen', { role: kind });
               s.set('mode', kind === 'coach' ? 'partners' : 'coaches');
@@ -131,16 +143,25 @@ export function AuthLanding() {
           </>
         ) : step === 'interests' ? (
           <View style={{ gap: 24 }}>
+            <StepBack onPress={goBack} />
             <Text style={[t.pageTitle, { color: c.txt }]}>{kind === 'coach' ? 'What do you teach?' : 'Your interests'}</Text>
             <SportsPicker selected={s.signupSports} onChange={(ids) => s.set('signupSports', ids)} coach={kind === 'coach'} />
             {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
-            <NextButton label={s.signupSports.length ? 'NEXT' : 'SKIP FOR NOW'} accessibilityLabel="Continue to your area" onPress={() => {
-              void saveSignupDraft({ role: kind === 'coach' ? 'coach' : 'member', sportIds: s.signupSports })
-                .then(() => setStep('where')).catch(() => setError('Could not keep your choices. Please try again.'));
-            }} />
+            <NextButton label={s.signupSports.length ? 'NEXT' : 'SKIP FOR NOW'}
+              accessibilityLabel="Continue to your area"
+              busy={savingDraft} enabled={!savingDraft}
+              onPress={() => {
+                setSavingDraft(true);
+                setError(null);
+                void saveSignupDraft({ role: kind === 'coach' ? 'coach' : 'member', sportIds: s.signupSports })
+                  .then(() => setStep('where'))
+                  .catch(() => setError('Could not keep your choices. Please try again.'))
+                  .finally(() => setSavingDraft(false));
+              }} />
           </View>
         ) : (
           <>
+            <StepBack onPress={goBack} />
             <Text style={[t.bodySm, { color: c.txt2 }]}>Hey Champ -</Text>
             <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Add an area label</Text>
             <LocationField value={loc} onChange={setLoc} />
@@ -207,38 +228,33 @@ function ProgressDots({ count, index, bottom }: { count: number; index: number; 
 }
 
 // Centered volt NEXT button from the board.
-function NextButton({
-  label,
-  accessibilityLabel,
-  onPress,
-}: {
+// The gate's primary action, and a back control for every step after the
+// first. NextButton used to be hand-rolled -- its own radius, a border on a
+// volt fill, a fixed width, 44 high where a primary is 52, and no disabled or
+// busy state at all -- which is how the interests step ended up firing a
+// network write on every tap.
+function NextButton({ label, accessibilityLabel, onPress, enabled = true, busy = false }: {
   label: string;
   accessibilityLabel: string;
   onPress: () => void;
+  enabled?: boolean;
+  busy?: boolean;
 }) {
-  const { c, t } = useTheme();
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      style={{
-        minHeight: 44,
-        width: 206,
-        alignSelf: 'center',
-        borderRadius: 11,
-        borderColor: c.line,
-        borderWidth: 1,
-        backgroundColor: c.volt,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-      }}
-    >
-      <Text numberOfLines={1} style={[t.label, { color: c.ink, flexShrink: 0, paddingRight: 2 }]}>{label}</Text>
-      <View style={{ position: 'absolute', right: 10 }}><Icon name="chevron-right" size={20} color={c.ink} /></View>
-    </Pressable>
+    <View style={{ alignItems: 'center' }}>
+      <View style={{ width: 206, maxWidth: '100%' }}>
+        <VoltButton label={label} accessibilityLabel={accessibilityLabel}
+          enabled={enabled} busy={busy} busyLabel="Saving…" onPress={onPress} />
+      </View>
+    </View>
+  );
+}
+
+function StepBack({ onPress }: { onPress: () => void }) {
+  return (
+    <View style={{ alignItems: 'flex-start', marginBottom: 14 }}>
+      <IconButton icon="arrow-left" accessibilityLabel="Back a step" onPress={onPress} />
+    </View>
   );
 }
 

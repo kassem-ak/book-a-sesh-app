@@ -52,7 +52,10 @@ export function SportsPicker({ selected, onChange, coach = false }: {
       {loading && <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3 }]}>Loading sports and hobbies…</Text>}
       {error && <>
         <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>Sports and hobbies could not load. You can retry or continue without choosing.</Text>
-        <VoltButton label="Retry sports and hobbies" onPress={retry} />
+        {/* Not volt: this sat directly above the screen's own CTA, so the
+            recovery action outshouted the thing the screen is for. */}
+        <Button label="Try again" icon="refresh-cw" tone="danger"
+          accessibilityLabel="Retry loading sports and hobbies" onPress={retry} />
       </>}
 
       {/* Chosen first, in order, because the order is the meaning: the top one

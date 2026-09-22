@@ -91,6 +91,10 @@ export type MapMarker = {
   point: GeoPoint;
   render: () => React.ReactNode;
   onPress?: () => void;
+  /** Required whenever the pin is pressable. The marker draws an avatar, so
+   *  without this a screen reader announced two initials and nothing else --
+   *  no name, no role, no sport. */
+  label?: string;
 };
 
 export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
@@ -186,7 +190,12 @@ export function TileMap({ center, markers, initialZoom = 13, onRecenter }: {
       {placed.map(({ marker, left, top }) => (
         <View key={marker.key} style={{ position: 'absolute', left, top, transform: [{ translateX: -22 }, { translateY: -22 }] }}>
           {marker.onPress
-            ? <Pressable accessibilityRole="button" onPress={marker.onPress}>{marker.render()}</Pressable>
+            ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={marker.label}
+                onPress={marker.onPress}>
+                {marker.render()}
+              </Pressable>
+            )
             : marker.render()}
         </View>
       ))}

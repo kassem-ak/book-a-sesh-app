@@ -74,7 +74,7 @@ export function CircleOverlay() {
               label="Following"
               icon="check"
               accessibilityLabel={`Stop following ${person.name}`}
-              busy={s.writeBusy === 'follow'}
+              busy={s.writeBusy === `follow:${person.id}`}
               busyLabel="Saving…"
               onPress={() => void s.toggleFollow(person.id)}
             />

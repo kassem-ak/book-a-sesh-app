@@ -3,8 +3,8 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, ButtonTone, Card, Field, FormSheet, IconName, MicroBadge, Row, SectionHeading,
-  Segmented, VoltButton,
+  Avatar, Button, ButtonTone, Card, ErrorNote, Field, FormSheet, Icon, IconName, MicroBadge,
+  Note, Row, SectionHeading, Segmented, VoltButton,
 } from '../components/ui';
 import { RefundNegotiation } from '../components/RefundNegotiation';
 import {
@@ -25,7 +25,7 @@ import {
 } from '../lib/bookings';
 import { dateKey as dayKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import {
-  fetchCancellations, fetchMyPackages, PackageCancellation, PackageProgress,
+  fetchCancellations, fetchMyPackages, fetchPackagePrices, PackageCancellation, PackageProgress,
   progressSummary, requestCancellation, suggestedRefundCents, withdrawCancellation,
 } from '../lib/packages';
 import { initials } from '../state/models';
@@ -45,6 +45,7 @@ export function BookingsOverlay() {
   // Cancellation requests, keyed by package. A pack has at most one open
   // request -- the database has a partial unique index saying so.
   const [cancels, setCancels] = useState<Map<string, PackageCancellation>>(new Map());
+  const [prices, setPrices] = useState<Map<string, number>>(new Map());
   const [asking, setAsking] = useState<PackageProgress | null>(null);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
@@ -73,11 +74,20 @@ export function BookingsOverlay() {
         if (!latest.has(request.packageId)) latest.set(request.packageId, request);
       }
       setCancels(latest);
+      // Second round trip because the price is only needed once the packs are
+      // known. A failure here leaves the refund box empty rather than wrong,
+      // which is the better of the two.
+      try {
+        setPrices(await fetchPackagePrices(packs.map((pack) => pack.packageId)));
+      } catch {
+        setPrices(new Map());
+      }
     } catch (e) {
       setBookings(EMPTY);
       setPackages([]);
       setProgress([]);
       setCancels(new Map());
+      setPrices(new Map());
       setError(e instanceof Error ? e.message : 'Could not load your bookings.');
     } finally {
       setLoading(false);
@@ -141,6 +151,14 @@ export function BookingsOverlay() {
 
         {!loading && error && <ErrorNote message={error} onRetry={load} />}
 
+        {/* Above the view switch, not inside one branch: a cancel started in
+            the calendar used to fail into a message only the list could show. */}
+        {actionError && (
+          <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger, marginBottom: 10 }]}>
+            {actionError}
+          </Text>
+        )}
+
         {!loading && !error && hasSessions && (
           <View style={{ marginBottom: 16 }}>
             <Segmented
@@ -154,7 +172,11 @@ export function BookingsOverlay() {
         {!loading && !error && view === 'calendar' && (
           <MonthCalendar
             sessions={[...bookings.upcoming, ...bookings.past]}
+            confirmingId={confirmingId}
+            cancellingId={cancellingId}
             onCancel={(b) => { setActionError(null); setConfirmingId(b.id); }}
+            onKeep={() => setConfirmingId(null)}
+            onConfirmCancel={(b) => void cancelSession(b)}
           />
         )}
 
@@ -170,6 +192,11 @@ export function BookingsOverlay() {
                     // over, and the pack is what the argument is about.
                     const open = request?.status === 'requested' || request?.status === 'offered';
                     const cancelled = request?.status === 'approved';
+                    // Taking a request back, or having it declined, has to
+                    // leave you able to ask again. Gating the ask on "a request
+                    // exists at all" meant one withdrawal removed the button for
+                    // good, with nothing on the card to say why.
+                    const settled = request?.status === 'withdrawn' || request?.status === 'rejected';
                     return (
                       <ProgressCard key={pack.packageId} pack={pack} withLabel={`with ${pack.withName}`}
                         request={request}
@@ -178,11 +205,12 @@ export function BookingsOverlay() {
                         // the coach is still deciding.
                         onBook={pack.remaining > 0 && !open && !cancelled
                           ? () => s.openPackBooking(pack.coachId) : undefined}
-                        onAskCancel={pack.remaining > 0 && !request
+                        onAskCancel={pack.remaining > 0 && (!request || settled)
                           ? () => { setReason(''); setActionError(null); setAsking(pack); } : undefined}
-                        onWithdraw={open || request?.status === 'offered'
+                        onWithdraw={open
                           ? () => void run(() => withdrawCancellation(request!.id),
                               'Could not take that request back.') : undefined}
+                        priceCents={prices.get(pack.packageId) ?? 0}
                         onSettled={() => void load()}
                       />
                     );
@@ -203,9 +231,6 @@ export function BookingsOverlay() {
             <SectionHeading style={{ marginTop: progress.length > 0 || packages.length > 0 ? 22 : 0, marginBottom: 11 }}>
               Upcoming
             </SectionHeading>
-            {actionError && (
-              <Text style={[t.bodySm, { color: c.danger, marginBottom: 10 }]}>{actionError}</Text>
-            )}
             <View style={{ gap: 10 }}>
               {bookings.upcoming.length === 0 ? (
                 <Note>{hasSessions ? 'Nothing coming up.' : 'No sessions booked yet'}</Note>
@@ -294,7 +319,14 @@ export function byDay(sessions: MyBooking[]): Map<string, MyBooking[]> {
 // Monday-first, matching monthCells and coach_availability.weekday.
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-function MonthCalendar({ sessions, onCancel }: { sessions: MyBooking[]; onCancel: (b: MyBooking) => void }) {
+function MonthCalendar({ sessions, confirmingId, cancellingId, onCancel, onKeep, onConfirmCancel }: {
+  sessions: MyBooking[];
+  confirmingId: string | null;
+  cancellingId: string | null;
+  onCancel: (b: MyBooking) => void;
+  onKeep: () => void;
+  onConfirmCancel: (b: MyBooking) => void;
+}) {
   const { c, t } = useTheme();
   const today = new Date();
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
@@ -375,7 +407,11 @@ function MonthCalendar({ sessions, onCancel }: { sessions: MyBooking[]; onCancel
             .sort((a, b) => Date.parse(a.scheduledFor) - Date.parse(b.scheduledFor))
             .map((session) => (
               <SessionCard key={session.id} booking={session}
-                onAskCancel={canCancel(session.status) ? () => onCancel(session) : undefined} />
+                confirming={confirmingId === session.id}
+                busy={cancellingId === session.id}
+                onAskCancel={canCancel(session.status) ? () => onCancel(session) : undefined}
+                onKeep={onKeep}
+                onConfirmCancel={() => onConfirmCancel(session)} />
             ))}
       </View>
     </View>
@@ -393,8 +429,11 @@ function selectedLabel(key: string) {
 // Four numbers rather than one bar: "3 of 10 used" cannot tell somebody whether
 // the other seven are bookable now or already spoken for, and that is the only
 // question a person opening this card is asking.
-export function ProgressCard({ pack, withLabel, onBook, request, onAskCancel, onWithdraw, onSettled }: {
+export function ProgressCard({ pack, withLabel, onBook, request, priceCents = 0, onAskCancel, onWithdraw, onSettled }: {
   pack: PackageProgress; withLabel: string;
+  /** What the pack sold for. The opening refund figure is the unused share of
+   *  it, so a missing price opens the box empty rather than at zero. */
+  priceCents?: number;
   /** Absent when the pack has nothing left -- a card that looks tappable and
    *  leads to a screen that cannot book anything is worse than a flat one. */
   onBook?: () => void;
@@ -425,10 +464,17 @@ export function ProgressCard({ pack, withLabel, onBook, request, onAskCancel, on
       </View>
       <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
         <Text style={[t.caption, { color: c.txt2 }]}>{progressSummary(pack)}</Text>
-        {onBook && <Text style={[t.label, { color: c.accent }]}>Book a session</Text>}
+        {/* The whole card is the button -- this is the label that says so,
+            not a second control inside the first one. */}
+        {onBook && (
+          <Row gap={4} style={{ alignItems: 'center' }}>
+            <Text style={[t.label, { color: c.accent }]}>Book a session</Text>
+            <Icon name="chevron-right" size={16} color={c.accent} />
+          </Row>
+        )}
       </Row>
 
-      {request && request.status !== 'withdrawn' && (
+      {request && (
         <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: c.line2 }}>
           {(request.status === 'requested' || request.status === 'offered') && (
             <>
@@ -445,10 +491,17 @@ export function ProgressCard({ pack, withLabel, onBook, request, onAskCancel, on
               </Row>
               {onSettled && (
                 <RefundNegotiation request={request}
-                  suggestedCents={suggestedRefundCents(pack, 0)}
+                  suggestedCents={suggestedRefundCents(pack, priceCents)}
                   onSettled={onSettled} />
               )}
             </>
+          )}
+          {/* Said out loud rather than by the panel disappearing, which read
+              as the app forgetting the request had been made. */}
+          {request.status === 'withdrawn' && (
+            <Text style={[t.bodySm, { color: c.txt2 }]}>
+              You took that cancellation request back. Ask again whenever you like.
+            </Text>
           )}
           {request.status === 'approved' && (
             <>
@@ -638,26 +691,6 @@ function TextAction({
   );
 }
 
-function Note({ children }: { children: ReactNode }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ padding: 16 }}>
-      <Text style={[t.bodySm, { color: c.txt2 }]}>{children}</Text>
-    </Card>
-  );
-}
-
-function ErrorNote({ message, onRetry }: { message: string; onRetry: () => void }) {
-  const { c, t } = useTheme();
-  return (
-    <Card style={{ padding: 16 }} background={alpha(c.danger, 0.05)} borderColor={alpha(c.danger, 0.28)}>
-      <Text style={[t.bodySm, { color: c.danger }]}>{message}</Text>
-      <Row style={{ marginTop: 12 }}>
-        <TextAction label="Try again" icon="refresh-cw" tone="danger" accessibilityLabel="Retry loading your bookings" onPress={onRetry} />
-      </Row>
-    </Card>
-  );
-}
 
 // What kind of session it is, in colour AND in words.
 //

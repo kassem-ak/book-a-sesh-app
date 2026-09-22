@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Segmented,
@@ -94,9 +94,20 @@ export function EventDetailOverlay() {
       header={<OverlayHeader title={ev.type} onBack={() => s.set('overlay', s.returnTo)} />}
       bottomBar={
         <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
-          <Pressable onPress={() => s.toggleGoing(ev.id)} style={{ height: 52, borderRadius: 15, backgroundColor: going ? c.surface2 : c.volt, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={[t.overlayTitle, { fontSize: 16, color: going ? c.txt2 : c.ink }]}>{going ? "You're going" : "I'm going"}</Text>
-          </Pressable>
+          {/* A byte-for-byte copy of VoltButton with no accessibilityRole --
+              the most important control in the overlay was invisible to
+              assistive tech. */}
+          <Button
+            label={going ? "You're going" : "I'm going"}
+            icon={going ? 'check' : 'user-plus'}
+            tone={going ? 'secondary' : 'primary'}
+            full
+            height={52}
+            accessibilityLabel={going
+              ? `You are going to ${ev.title}. Press to change your mind.`
+              : `Say you are going to ${ev.title}`}
+            onPress={() => s.toggleGoing(ev.id)}
+          />
         </View>
       }
     >
@@ -171,7 +182,8 @@ export function CommunityEditOverlay() {
   if (!s.canModerateCommunity(s.communityId)) {
     return (
       <OverlayScaffold header={<OverlayHeader title="Edit details" onBack={() => s.set('overlay', 'community')} />}>
-        <SuccessBody title="Request required" body="Only community admins and moderators can edit these details." />
+        <SuccessBody tone="refused" title="You cannot edit this"
+          body="Only this community's admins and moderators can change these details. Ask one of them." />
       </OverlayScaffold>
     );
   }
@@ -302,12 +314,23 @@ function RoleBadge({ role }: { role: CommunityRole }) {
   return <MicroBadge label={roleLabel[role]} bg={elevated ? alpha(c.amber, 0.2) : c.surface2} fg={elevated ? c.amberText : c.txt2} />;
 }
 
-function SuccessBody({ title, body }: { title: string; body: string }) {
+// `tone` exists because this was being used for a permission refusal: a 74pt
+// volt tick above the words "Only admins can edit this", which is the shape of
+// a success and reads as one.
+function SuccessBody({ title, body, tone = 'done' }: {
+  title: string;
+  body: string;
+  tone?: 'done' | 'refused';
+}) {
   const { c, t } = useTheme();
+  const refused = tone === 'refused';
   return (
     <View style={{ paddingHorizontal: 18, alignItems: 'center', paddingTop: 70 }}>
-      <View style={{ width: 74, height: 74, borderRadius: 999, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="check" size={34} color={c.ink} />
+      <View style={{ width: 74, height: 74, borderRadius: 999,
+        backgroundColor: refused ? 'transparent' : c.volt,
+        borderColor: refused ? c.line : 'transparent', borderWidth: refused ? 2 : 0,
+        alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={refused ? 'lock' : 'check'} size={34} color={refused ? c.txt3 : c.ink} />
       </View>
       <Text style={[t.overlayTitle, { fontSize: 24, color: c.txt, marginTop: 18 }]}>{title}</Text>
       <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>{body}</Text>

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
-import { Button, Field, FormSheet, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
+import {
+  Button, ConfirmSheet, Field, FormSheet, Icon, MicroBadge, Row, SectionHeading, VoltButton,
+} from './ui';
 import { PickedAvatar } from '../lib/avatars';
 import {
   addCertification, Certification, fetchCertifications, pickCertificateImage, removeCertification,
@@ -69,11 +71,17 @@ export function Certificates({ coachId }: { coachId: string }) {
     } finally { setBusy(false); }
   };
 
+  // Asked for first. This deletes the uploaded file as well as the row, and
+  // nothing in the app can put either back -- while "Mark done", which is
+  // reversible, already asks.
+  const [dropping, setDropping] = useState<Certification | null>(null);
+
   const drop = async (cert: Certification) => {
     setBusy(true);
     setError(null);
     try {
       await removeCertification(cert.id, cert.fileUrl);
+      setDropping(null);
       setAttempt(attempt + 1);
     } catch (e) { setError(errorMessage(e)); }
     finally { setBusy(false); }
@@ -81,6 +89,19 @@ export function Certificates({ coachId }: { coachId: string }) {
 
   return (
     <View style={{ gap: 16 }}>
+      <ConfirmSheet
+        visible={dropping !== null}
+        title="Remove this certificate?"
+        body={dropping
+          ? `${dropping.name} and the photo you uploaded with it are deleted for good. `
+            + 'You would have to upload it again to get it back.'
+          : ''}
+        confirmLabel="Remove it"
+        busy={busy}
+        busyLabel="Removing…"
+        onConfirm={() => { if (dropping) void drop(dropping); }}
+        onCancel={() => setDropping(null)}
+      />
       <SectionHeading>Your certificates</SectionHeading>
       {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
       <Text style={[t.bodySm, { color: c.txt2 }]}>
@@ -117,7 +138,7 @@ export function Certificates({ coachId }: { coachId: string }) {
               fg={cert.status === 'approved' ? c.ink : c.txt2}
             />
             <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${cert.name}`}
-              onPress={() => void drop(cert)} disabled={busy}
+              onPress={() => setDropping(cert)} disabled={busy}
               style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="trash-2" size={18} color={c.txt3} />
             </Pressable>

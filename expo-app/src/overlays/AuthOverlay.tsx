@@ -140,11 +140,17 @@ export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { on
       <SectionHeading style={{ marginBottom: 11 }}>Password</SectionHeading>
       <Field value={password} onChange={setPassword} placeholder="6+ characters" secure icon="lock" />
 
-      {error && <Text style={[t.bodySm, { color: c.danger, marginTop: 14 }]}>{error}</Text>}
+      {error && (
+        <Text accessibilityRole="alert" accessibilityLiveRegion="assertive"
+          style={[t.bodySm, { color: c.danger, marginTop: 14 }]}>{error}</Text>
+      )}
 
       <View style={{ height: 22 }} />
       <VoltButton
-        label={busy ? 'Please wait…' : mode === 'in' ? 'Sign in' : 'Create account'}
+        label={mode === 'in' ? 'Sign in' : 'Create account'}
+        icon={mode === 'in' ? 'log-in' : 'user-plus'}
+        busy={busy}
+        busyLabel="Please wait…"
         enabled={canSubmit}
         onPress={submit}
       />
