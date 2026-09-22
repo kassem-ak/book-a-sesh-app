@@ -5,7 +5,9 @@ import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading,
 } from '../components/ui';
-import { BookingStatus, bookingStatusLabel, currentAppUserId, formatCents } from '../lib/bookings';
+import {
+  BookingStatus, bookingStatusLabel, confirmFulfilled, currentAppUserId, formatCents,
+} from '../lib/bookings';
 import { ensureAppSession } from '../lib/session';
 import { supabase } from '../lib/supabase';
 import { initials } from '../state/models';
@@ -77,17 +79,11 @@ async function fetchDay(date: Date): Promise<DaySession[]> {
  * RLS turns a forbidden update into a silent zero-row success, and `.single()`
  * turns that into an error rather than a tick over nothing.
  */
-async function markCompleted(bookingId: string): Promise<BookingStatus> {
-  await ensureAppSession();
-  const { data, error } = await supabase
-    .from('bookings')
-    .update({ status: 'completed' })
-    .eq('id', bookingId)
-    .select('id, status')
-    .single();
-  if (error) throw error;
-  return (data as { status: BookingStatus }).status;
-}
+// The coach used to write `completed` straight onto the row, alone. They are
+// the one party to a session who gains by saying it happened, which is the
+// wrong person to ask on their own -- so this stamps the coach's side and the
+// server moves the session to completed only once the client has stamped
+// theirs too.
 
 // Only a session that has actually started and is still live can be closed out.
 const canComplete = (session: DaySession) =>
@@ -142,7 +138,7 @@ export function CoachDayViewOverlay() {
     setBusyId(session.id);
     setActionError(null);
     try {
-      await markCompleted(session.id);
+      await confirmFulfilled(session.id);
       await load();
     } catch (e) {
       track('write_failed', { error_code: analyticsErrorCode(e) });
@@ -210,7 +206,7 @@ export function CoachDayViewOverlay() {
                       </Row>
                       {canComplete(session) && (
                         <Button
-                          label="Mark done"
+                          label="It happened"
                           icon="check"
                           tone="primary"
                           height={44}
@@ -219,7 +215,7 @@ export function CoachDayViewOverlay() {
                           busy={busyId === session.id}
                           busyLabel="Saving…"
                           enabled={busyId !== session.id}
-                          accessibilityLabel={`Mark the session with ${session.clientName} as completed`}
+                          accessibilityLabel={`Confirm the session with ${session.clientName} happened`}
                           onPress={() => setConfirmSession(session)}
                         />
                       )}
@@ -236,22 +232,22 @@ export function CoachDayViewOverlay() {
           {confirmSession && (
             <Card style={{ width: '100%', maxWidth: 360, padding: 22 }}>
               <Text accessibilityRole="header" style={[t.overlayTitle, { color: c.txt, marginBottom: 10 }]}>
-                Mark this session done?
+                Did this session happen?
               </Text>
               <Text style={[t.bodyLg, { color: c.txt2 }]}>
-                The {timeLabel(confirmSession)} session with {confirmSession.clientName} is recorded as
-                completed, and it comes off their package.
+                You are saying the {timeLabel(confirmSession)} session with {confirmSession.clientName}
+                {' '}took place. It only comes off their package once they confirm it too.
               </Text>
               <Row gap={12} style={{ marginTop: 22 }}>
                 <Button label="Not yet" icon="x" style={{ flex: 1 }}
                   enabled={busyId === null}
                   accessibilityLabel="No, keep this session unchanged"
                   onPress={() => setConfirmSession(null)} />
-                <Button label="Mark done" icon="check" tone="primary" height={44}
+                <Button label="It happened" icon="check" tone="primary" height={44}
                   style={{ flex: 1 }}
                   busy={busyId !== null} busyLabel="Saving…"
                   enabled={busyId === null}
-                  accessibilityLabel={`Mark the ${timeLabel(confirmSession)} session with ${confirmSession.clientName} as completed`}
+                  accessibilityLabel={`Confirm the ${timeLabel(confirmSession)} session with ${confirmSession.clientName} happened`}
                   onPress={() => complete(confirmSession)} />
               </Row>
             </Card>

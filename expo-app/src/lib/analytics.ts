@@ -35,6 +35,7 @@ export type AnalyticsEvent =
   | 'became_coach'
   | 'package_booking_opened'
   | 'package_cancellation_requested'
+  | 'package_cancelled_unused'
   | 'package_cancellation_decided'
   | 'package_refund_offered'
   | 'coach_basics_saved'

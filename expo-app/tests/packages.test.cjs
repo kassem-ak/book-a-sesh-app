@@ -44,6 +44,10 @@ function harness({ progress = [], names = [] } = {}) {
   const dependencies = {
     './supabase': { supabase },
     './session': { currentAppUserId: async () => ME },
+    // The app can ship ahead of its migration, so the readiness flag is a
+    // real dependency of what these functions decide. True here: these tests
+    // are about the behaviour once the migration has landed.
+    './schema': { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} },
   };
   const filename = join(__dirname, '../src/lib/packages.ts');
   const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
@@ -281,7 +285,10 @@ function offersHarness(rows) {
   }).outputText;
   const exports = {};
   runInNewContext(code, { exports, require: (id) => (
-    id === './supabase' ? { supabase } : { currentAppUserId: async () => ME }
+    id === './supabase' ? { supabase }
+      : id === './schema'
+        ? { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} }
+        : { currentAppUserId: async () => ME }
   ), URL, Response, Headers, Promise, Array, Object, JSON, Number, String, Map, Set }, { filename });
   return { module: exports, calls };
 }
@@ -353,4 +360,42 @@ test('accepting names only the request -- the server decides which offer that is
   // Sending an amount would let a stale screen accept a figure that is no
   // longer on the table.
   assert.equal(JSON.stringify(rpc.body), JSON.stringify({ p_request: 'req-1' }));
+});
+
+// ---- what a cancellation costs ---------------------------------------------
+//
+// The pivot is whether a single session on the pack was confirmed by BOTH
+// parties. Nothing confirmed means nothing was delivered, so the pack comes
+// back in full and nobody negotiates. The server enforces this too -- the
+// client's screen must not be the thing deciding what a refund is worth -- but
+// the screen still has to route to the right one.
+
+const progress = (over) => ({
+  packageId: 'pk1', clientId: ME, coachId: COACH, withName: 'Coach',
+  total: 5, pending: 0, booked: 0, taken: 0, awaitingConfirmation: 0, remaining: 5,
+  ...over,
+});
+
+test('a pack nobody has had a session out of is given back, not negotiated', () => {
+  const { hasFulfilledSession } = offersHarness([]).module;
+  assert.equal(hasFulfilledSession(progress()), false);
+  // Booked and still ahead: the slot is spoken for, but nothing happened yet.
+  assert.equal(hasFulfilledSession(progress({ booked: 2, remaining: 3 })), false);
+  // Its time has passed and neither side has said it took place. Still nothing
+  // delivered as far as the app can tell, so still a free cancellation.
+  assert.equal(hasFulfilledSession(progress({ awaitingConfirmation: 1, remaining: 4 })), false);
+});
+
+test('one session both of you confirmed turns it into a negotiation', () => {
+  const { hasFulfilledSession } = offersHarness([]).module;
+  assert.equal(hasFulfilledSession(progress({ taken: 1, remaining: 4 })), true);
+});
+
+test('giving back an unused pack names the coach and the package, nothing else', async () => {
+  const h = offersHarness([]);
+  await h.module.cancelUnusedPackage(COACH, 'pk1');
+  const rpc = h.calls.find((c) => c.path.endsWith('/rpc/cancel_unused_package'));
+  // No amount is sent: the price is the coach's, and a client that could name
+  // its own refund would be naming it.
+  assert.equal(JSON.stringify(rpc.body), JSON.stringify({ p_coach: COACH, p_package: 'pk1' }));
 });
