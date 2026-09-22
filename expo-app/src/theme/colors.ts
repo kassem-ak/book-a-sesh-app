@@ -93,3 +93,30 @@ export function alpha(hex: string, a: number): string {
   const b = parseInt(h.slice(4, 6), 16);
   return `rgba(${r},${g},${b},${a})`;
 }
+
+// The loading screen's own surface, from the BOOKD loader handoff.
+//
+// Its own token set rather than the app palette's, because the tile it frames
+// is near-black: the dark loader sits on #1A1F24 precisely so the tile still
+// reads against it, which the app's own #0D0E11 background would not do.
+//
+// Lime never appears as text or a thin stroke on the light surface -- the
+// contrast is not there -- so the light theme's accent letter is ink.
+export const loader = {
+  dark: {
+    bg: '#1A1F24',
+    word: '#F4F0E6',
+    wordAccent: '#C8FF3D',
+    track: '#2A2521',
+    bar: '#C8FF3D',
+    meta: '#6E665C',
+  },
+  light: {
+    bg: '#F7F8F5',
+    word: '#0B0E11',
+    wordAccent: '#0B0E11',
+    track: '#DCE0DA',
+    bar: '#36454F',
+    meta: '#5E6A72',
+  },
+} as const;
