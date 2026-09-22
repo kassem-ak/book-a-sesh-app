@@ -3,7 +3,8 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, ButtonTone, Card, ErrorNote, Field, FormSheet, Icon, IconName, MicroBadge,
+  Avatar, Button, ButtonTone, Card, ConfirmSheet, ErrorNote, Field, FormSheet, Icon, IconName,
+  MicroBadge,
   Note, Row, SectionHeading, Segmented, VoltButton,
 } from '../components/ui';
 import { RefundNegotiation } from '../components/RefundNegotiation';
@@ -14,9 +15,11 @@ import {
   PackageBalance,
   SessionKind,
   acceptSession,
+  awaitsConfirmation,
   bookingStatusLabel,
   canCancel,
   cancelSession,
+  confirmFulfilled,
   fetchMyBookings,
   fetchMyPackageBalances,
   formatCents,
@@ -25,7 +28,8 @@ import {
 } from '../lib/bookings';
 import { dateKey as dayKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import {
-  fetchCancellations, fetchMyPackages, fetchPackagePrices, PackageCancellation, PackageProgress,
+  cancelUnusedPackage, fetchCancellations, fetchMyPackages, fetchPackagePrices,
+  hasFulfilledSession, PackageCancellation, PackageProgress,
   progressSummary, requestCancellation, suggestedRefundCents, withdrawCancellation,
 } from '../lib/packages';
 import { initials } from '../state/models';
@@ -47,6 +51,12 @@ export function BookingsOverlay() {
   const [cancels, setCancels] = useState<Map<string, PackageCancellation>>(new Map());
   const [prices, setPrices] = useState<Map<string, number>>(new Map());
   const [asking, setAsking] = useState<PackageProgress | null>(null);
+  // Nothing on a pack is spent until both sides say the session happened, so
+  // the prompt to say so lives beside the session itself.
+  const [confirmingDone, setConfirmingDone] = useState<string | null>(null);
+  // A pack with nothing confirmed comes back in full and needs no coach: the
+  // only question is whether this person meant to press it.
+  const [givingBack, setGivingBack] = useState<PackageProgress | null>(null);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -205,8 +215,16 @@ export function BookingsOverlay() {
                         // the coach is still deciding.
                         onBook={pack.remaining > 0 && !open && !cancelled
                           ? () => s.openPackBooking(pack.coachId) : undefined}
+                        // Nothing confirmed means nothing delivered: the pack
+                        // comes back in full and there is no figure to argue
+                        // over, so that path asks this person only. One
+                        // confirmed session and it is a negotiation.
                         onAskCancel={pack.remaining > 0 && (!request || settled)
-                          ? () => { setReason(''); setActionError(null); setAsking(pack); } : undefined}
+                          ? () => {
+                            setActionError(null);
+                            if (hasFulfilledSession(pack)) { setReason(''); setAsking(pack); }
+                            else setGivingBack(pack);
+                          } : undefined}
                         onWithdraw={open
                           ? () => void run(() => withdrawCancellation(request!.id),
                               'Could not take that request back.') : undefined}
@@ -258,13 +276,46 @@ export function BookingsOverlay() {
                 <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Past</SectionHeading>
                 <View style={{ gap: 10 }}>
                   {bookings.past.map((b) => (
-                    <SessionCard key={b.id} booking={b} />
+                    <SessionCard key={b.id} booking={b}
+                    busy={confirmingDone === b.id}
+                    onConfirmDone={awaitsConfirmation(b)
+                      ? () => void run(async () => {
+                          setConfirmingDone(b.id);
+                          try { await confirmFulfilled(b.id); } finally { setConfirmingDone(null); }
+                        }, 'Could not confirm that session.')
+                      : undefined} />
                   ))}
                 </View>
               </>
             )}
           </>
         )}
+        <ConfirmSheet
+          visible={Boolean(givingBack)}
+          title="Cancel this package?"
+          body={givingBack
+            ? `Neither of you has confirmed a session out of this ${givingBack.total}-session pack, `
+              + `so it is cancelled in full and ${formatCents(prices.get(givingBack.packageId) ?? 0)} `
+              + `goes back to you. ${givingBack.withName.split(' ')[0]} pays you directly — `
+              + 'BOOK’D records the amount and does not move the money.'
+            : ''}
+          confirmLabel="Cancel the package"
+          confirmIcon="x-circle"
+          cancelLabel="Keep it"
+          busy={cancellingId === givingBack?.packageId}
+          busyLabel="Cancelling…"
+          onCancel={() => setGivingBack(null)}
+          onConfirm={() => {
+            const pack = givingBack;
+            if (!pack) return;
+            void run(async () => {
+              await cancelUnusedPackage(pack.coachId, pack.packageId);
+              track('package_cancelled_unused');
+              setGivingBack(null);
+            }, 'Could not cancel that package.');
+          }}
+        />
+
         <FormSheet
           visible={Boolean(asking)}
           title="Request cancellation"
@@ -579,6 +630,7 @@ function SessionCard({
   onKeep,
   onConfirmCancel,
   onAccept,
+  onConfirmDone,
 }: {
   booking: MyBooking;
   confirming?: boolean;
@@ -587,6 +639,9 @@ function SessionCard({
   onKeep?: () => void;
   onConfirmCancel?: () => void;
   onAccept?: () => void;
+  /** Present only on a session whose time has passed and which is still
+   *  waiting to be confirmed by this account. */
+  onConfirmDone?: () => void;
 }) {
   const { c, t } = useTheme();
   const badge = statusTint(booking.status, c);
@@ -606,6 +661,28 @@ function SessionCard({
           <MicroBadge label={bookingStatusLabel(booking.status)} bg={badge.bg} fg={badge.fg} />
         </Row>
       </Row>
+
+      {/* Its time has passed and it is still open, so the only thing left to
+          settle is whether it actually happened. Both of you have to say so --
+          the coach is the one party who gains by saying it did. */}
+      {onConfirmDone && (
+        <View style={{ marginTop: 10, gap: 8 }}>
+          <Text style={[t.caption, { color: c.txt2 }]}>
+            {booking.coachConfirmed
+              ? `${booking.withName.split(' ')[0]} says this session happened.`
+              : 'Did this session happen?'}
+          </Text>
+          <Button label="It happened" icon="check" tone="primary" height={44}
+            busy={busy} busyLabel="Confirming…" enabled={!busy}
+            accessibilityLabel={`Confirm the session with ${booking.withName} happened`}
+            onPress={onConfirmDone} />
+        </View>
+      )}
+      {booking.clientConfirmed && !booking.coachConfirmed && (
+        <Text style={[t.caption, { color: c.txt3, marginTop: 10 }]}>
+          You said this happened. Waiting on {booking.withName.split(' ')[0]}.
+        </Text>
+      )}
 
       {booking.needsAnswer && onAccept && (
         <Row style={{ marginTop: 10, justifyContent: 'space-between' }} gap={10}>

@@ -27,8 +27,10 @@ export type PackageProgress = {
   pending: number;
   /** Confirmed and still ahead. */
   booked: number;
-  /** Completed, or confirmed and already in the past. */
+  /** Confirmed by both of you. Nothing else counts as had.  */
   taken: number;
+  /** Its time has passed and neither of you has said it happened yet. */
+  awaitingConfirmation: number;
   remaining: number;
 };
 
@@ -41,7 +43,7 @@ export type SessionSlot = {
   label: string;
 };
 
-const PROGRESS_COLUMNS = 'package_id, client_id, coach_id, total, pending, booked, taken, remaining';
+const PROGRESS_COLUMNS = 'package_id, client_id, coach_id, total, pending, booked, taken, awaiting_confirmation, remaining';
 
 type ProgressRow = {
   package_id: string;
@@ -51,6 +53,7 @@ type ProgressRow = {
   pending: number;
   booked: number;
   taken: number;
+  awaiting_confirmation: number | null;
   remaining: number;
 };
 
@@ -63,6 +66,7 @@ const toProgress = (row: ProgressRow, withName: string): PackageProgress => ({
   pending: row.pending,
   booked: row.booked,
   taken: row.taken,
+  awaitingConfirmation: row.awaiting_confirmation ?? 0,
   remaining: row.remaining,
 });
 
@@ -287,6 +291,30 @@ export async function fetchPackagePrices(ids: string[]): Promise<Map<string, num
  */
 export function isOpenRequest(status: CancellationStatus): boolean {
   return status === 'requested' || status === 'offered';
+}
+
+/** Has any session on this pack been confirmed by both parties?
+ *
+ *  The pivot for what a cancellation costs. Nothing confirmed means nothing was
+ *  delivered, so the pack comes back in full and there is nothing to negotiate.
+ *  One confirmed session and the two of them have to agree on a figure. */
+export function hasFulfilledSession(progress: PackageProgress): boolean {
+  return progress.taken > 0;
+}
+
+/** Give back a pack nobody has had a session out of.
+ *
+ *  No request and no offer: the server refuses if a single session on the pack
+ *  was confirmed by both sides, so the client's screen is not the thing
+ *  deciding what a refund is worth. */
+export async function cancelUnusedPackage(coachId: string, packageId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('cancel_unused_package', {
+    p_coach: coachId,
+    p_package: packageId,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row?.refund_cents as number) ?? 0;
 }
 
 export function suggestedRefundCents(progress: PackageProgress, packPriceCents: number): number {

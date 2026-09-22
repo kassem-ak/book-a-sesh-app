@@ -31,7 +31,22 @@ export type MyBooking = {
   totalCents: number;
   /** True only for a partner invitation waiting on this account. */
   needsAnswer: boolean;
+  /** Did the coach say this happened? */
+  coachConfirmed: boolean;
+  /** Did the client? A session is only `completed` once both have, because the
+   *  coach is the one party who gains by saying it happened. */
+  clientConfirmed: boolean;
 };
+
+/** A session whose time has passed and which is still waiting on somebody to
+ *  say it took place. Partner sessions are free and settle nothing, so they
+ *  are never asked about. */
+export function awaitsConfirmation(booking: MyBooking, now = Date.now()): boolean {
+  if (booking.kind !== 'coach') return false;
+  if (booking.status !== 'pending' && booking.status !== 'confirmed') return false;
+  const startsAt = Date.parse(booking.scheduledFor);
+  return !Number.isNaN(startsAt) && startsAt <= now;
+}
 
 export type PackageBalance = {
   id: string;
@@ -61,6 +76,8 @@ type BookingRow = {
   slot_label: string | null;
   status: BookingStatus;
   total_cents: number | null;
+  coach_confirmed_at: string | null;
+  client_confirmed_at: string | null;
   coach?: Related<CoachName>;
 };
 
@@ -139,6 +156,8 @@ function toBooking(row: BookingRow): MyBooking {
     status: row.status,
     totalCents: row.total_cents ?? 0,
     needsAnswer: false,
+    coachConfirmed: row.coach_confirmed_at !== null,
+    clientConfirmed: row.client_confirmed_at !== null,
   };
 }
 
@@ -169,6 +188,8 @@ function toPartnerBooking(session: PartnerSession): MyBooking {
     // like a price someone forgot to set.
     totalCents: 0,
     needsAnswer: session.status === 'proposed' && !session.mine,
+    coachConfirmed: false,
+    clientConfirmed: false,
   };
 }
 
@@ -188,7 +209,7 @@ export async function fetchMyBookings(): Promise<MyBookings> {
   const { data, error } = await supabase
     .from('bookings')
     // users exposes only the non-sensitive columns; asking for more is refused.
-    .select('id, coach_id, scheduled_for, slot_label, status, total_cents, coach:users!bookings_coach_id_fkey(name)')
+    .select('id, coach_id, scheduled_for, slot_label, status, total_cents, coach_confirmed_at, client_confirmed_at, coach:users!bookings_coach_id_fkey(name)')
     .eq('client_id', clientId)
     .order('scheduled_for', { ascending: false });
   if (error) throw error;
@@ -228,6 +249,17 @@ export async function fetchMyBookings(): Promise<MyBookings> {
  *  One entry point so the card does not have to know that a coach booking is a
  *  column update guarded by a trigger and a partner session is an RPC that
  *  decides who may say what. */
+/** Say this session happened.
+ *
+ *  One call for either side: the server works out which stamp is yours from
+ *  who is asking, and moves the session to `completed` only when both stamps
+ *  are on it. Nothing here can confirm on somebody else's behalf. */
+export async function confirmFulfilled(bookingId: string): Promise<void> {
+  await ensureAppSession();
+  const { error } = await supabase.rpc('confirm_session_fulfilled', { p_booking: bookingId });
+  if (error) throw error;
+}
+
 export async function cancelSession(booking: MyBooking): Promise<void> {
   if (booking.kind === 'partner') {
     await decidePartnerSession(booking.id, booking.needsAnswer ? 'declined' : 'cancelled');
