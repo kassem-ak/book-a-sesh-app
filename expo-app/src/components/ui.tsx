@@ -179,10 +179,12 @@ export function Button({
         style={[primary ? t.overlayTitle : t.label, {
           fontSize: primary ? 16 : 14,
           color: fg,
-          // Only the stretched ones need centring; a hugging button is already
-          // as wide as its label, and stretching the Text inside it pushes the
-          // icon off to the far edge.
-          ...(stretch && !icon ? { alignSelf: 'stretch' as const, textAlign: 'center' as const } : null),
+          // flex, not alignSelf: 'stretch'. The container is a row, so stretch
+          // sizes the Text vertically as well and the label rides the top edge
+          // of a 52pt button. flex gives the same full width -- which is what
+          // Android needs, since it clips shrink-to-fit Text in a custom font
+          // -- without touching the cross axis.
+          ...(stretch && !icon ? { flex: 1, textAlign: 'center' as const } : null),
         }]}
       >
         {busy ? busyLabel : label}
