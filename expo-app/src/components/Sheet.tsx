@@ -2,7 +2,7 @@ import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { Animated, LayoutChangeEvent, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { motion, radii, useTheme } from '../theme';
-import { Icon } from './ui';
+import { IconButton } from './ui';
 
 // Bottom-sheet presentation layer — the second of the prototype's two layers
 // (`sheet`: story, hours, pkg, myComm, admin). Distinct from OverlayScaffold:
@@ -89,24 +89,7 @@ export function Sheet({
               <Text style={[t.bodySm, { color: c.txt2, marginTop: 3, fontSize: 12.5 }]}>{subtitle}</Text>
             ) : null}
           </View>
-          <Pressable
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 11,
-              backgroundColor: c.surface,
-              borderColor: c.line,
-              borderWidth: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Icon name="x" size={16} color={c.txt2} />
-          </Pressable>
+          <IconButton icon="x" accessibilityLabel="Close" onPress={onClose} />
         </View>
 
         {children ? (

@@ -603,11 +603,10 @@ export function FormSheet({
         <View style={{ padding: 18, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.line2 }}>
           <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={[t.overlayTitle, { fontSize: 20, color: c.txt, flex: 1 }]}>{title}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close"
-              onPress={onClose}
-              style={{ minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
-              <Icon name="x" size={20} color={c.txt3} />
-            </Pressable>
+            {/* The third dismiss control in the app, and the only one that was
+                a bare glyph -- so the same gesture had a box on two layers and
+                nothing on the third. */}
+            <IconButton icon="x" accessibilityLabel="Close" onPress={onClose} />
           </Row>
           {subtitle ? (
             <Text style={[t.bodySm, { color: c.txt2, marginTop: 6 }]}>{subtitle}</Text>
