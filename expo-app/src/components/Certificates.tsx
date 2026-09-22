@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import {
-  Button, ConfirmSheet, Field, FormSheet, Icon, MicroBadge, Row, SectionHeading, VoltButton,
+  Button, ConfirmSheet, Field, FormSheet, Icon, MicroBadge, Row, SectionHeading, TAP_SLOP, VoltButton,
 } from './ui';
 import { PickedAvatar } from '../lib/avatars';
 import {
@@ -138,7 +138,7 @@ export function Certificates({ coachId }: { coachId: string }) {
               fg={cert.status === 'approved' ? c.ink : c.txt2}
             />
             <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${cert.name}`}
-              onPress={() => setDropping(cert)} disabled={busy}
+              onPress={() => setDropping(cert)} disabled={busy} hitSlop={TAP_SLOP}
               style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="trash-2" size={18} color={c.txt3} />
             </Pressable>
@@ -148,8 +148,13 @@ export function Certificates({ coachId }: { coachId: string }) {
 
       {/* The form is a detour, not part of the page. Inline, four fields and a
           photo picker sat under the list whether or not anyone was adding
-          anything, pushing everything below them down. */}
-      <VoltButton label="Add a certificate" enabled={!busy} onPress={() => { setError(null); setAdding(true); }} />
+          anything, pushing everything below them down.
+
+          Secondary, because this block is a section of Edit profile and that
+          screen's primary is "Save profile" in its bar. Volt here put a second
+          one-thing-this-screen-is-for button halfway up the scroll. */}
+      <Button label="Add a certificate" icon="plus" full enabled={!busy}
+        onPress={() => { setError(null); setAdding(true); }} />
 
       <FormSheet
         visible={adding}

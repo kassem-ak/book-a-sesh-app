@@ -3,7 +3,8 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, VoltButton,
+  ActionBar, Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading,
+  TAP_SLOP, VoltButton,
 } from '../components/ui';
 import { currentAppUserId, formatCents, formatExpiry } from '../lib/bookings';
 import {
@@ -272,7 +273,11 @@ export function CoachRequestsOverlay() {
   };
 
   return (
-    <OverlayScaffold header={<OverlayHeader title="Appointment requests" onBack={s.closeOverlay} />}>
+    // Every action here belongs to one request, one client pack or one trainee,
+    // so there is no screen verb and no bar: each decision stays on the card it
+    // is about. The subtitle is the line the Coach tools row already uses.
+    <OverlayScaffold header={<OverlayHeader title="Appointment requests" onBack={s.closeOverlay}
+      subtitle="Review requests · record decisions" />}>
       <View style={{ paddingHorizontal: 18 }}>
         {loading && <Note>Loading your requests…</Note>}
         {!loading && error && <ErrorNote message={error} onRetry={load} />}
@@ -595,7 +600,27 @@ export function CoachPackagesOverlay() {
   };
 
   return (
-    <OverlayScaffold header={<OverlayHeader title="Packages, pricing & promos" onBack={s.closeOverlay} />}>
+    <OverlayScaffold
+      header={<OverlayHeader title="Packages, pricing & promos" onBack={s.closeOverlay}
+        subtitle="Set prices · answer cancellations" />}
+      // Four volt buttons used to compete down this scroll -- the rate, each
+      // package row, the new package, the promo code -- and none of them read
+      // as the one the screen was for. The rate is: it is what Discover shows
+      // and what the Book button quotes, and it is the only write here that is
+      // about the coach rather than about one row. So it is the primary, it is
+      // in the bar, and everything else is secondary and stays with the form or
+      // the row it writes.
+      bottomBar={!loading && !error && pricing ? (
+        <ActionBar note={saved ? (
+          <Text accessibilityLiveRegion="polite"
+            style={[t.bodySm, { color: c.accent }]}>{saved}</Text>
+        ) : undefined}>
+          <VoltButton label="Save rate" icon="check" enabled={!busy && rateDirty}
+            busy={busy} busyLabel="Saving…" onPress={saveRate}
+            accessibilityLabel="Save your rate per session" />
+        </ActionBar>
+      ) : undefined}
+    >
       <View style={{ paddingHorizontal: 18 }}>
         {loading && <Note>Loading your packages…</Note>}
         {!loading && error && <ErrorNote message={error} onRetry={load} />}
@@ -613,17 +638,7 @@ export function CoachPackagesOverlay() {
               <View style={{ flex: 1 }}>
                 <MoneyField value={rate} onChange={setRate} label="Price per session" placeholder="45" />
               </View>
-              {/* This is the number Discover shows and the Book button quotes,
-                  so it is a primary -- it used to be the quietest control on a
-                  page whose other three saves were all volt. */}
-              <VoltButton label="Save" icon="check" height={44} enabled={!busy && rateDirty}
-                busy={busy} busyLabel="Saving…" onPress={saveRate}
-                accessibilityLabel="Save your rate per session" />
             </Row>
-            {saved && (
-              <Text accessibilityLiveRegion="polite"
-                style={[t.bodySm, { color: c.accent, marginTop: 8 }]}>{saved}</Text>
-            )}
             <Text style={[t.bodySm, { color: c.txt3, marginTop: 8 }]}>
               Leave it at 0 and BOOK’D quotes nothing rather than guessing a figure for you.
             </Text>
@@ -653,9 +668,15 @@ export function CoachPackagesOverlay() {
                           disabled={busy} accessibilityRole="button"
                           accessibilityLabel={`Remove the ${pkg.sessions}-session package`}
                           accessibilityState={{ disabled: busy }}
-                          style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: c.surface2,
+                          hitSlop={TAP_SLOP}
+                          style={{ width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
+                          {/* The mark stays 26; the box around it is what grew,
+                              because a 26pt target next to two money fields is
+                              a mis-tap that deletes a package. */}
+                          <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: c.surface2,
                             alignItems: 'center', justifyContent: 'center' }}>
-                          <Icon name="x" size={14} color={c.txt2} />
+                            <Icon name="x" size={14} color={c.txt2} />
+                          </View>
                         </Pressable>
                       </Row>
                       <Row gap={10} style={{ alignItems: 'center' }}>
@@ -674,8 +695,9 @@ export function CoachPackagesOverlay() {
                       {dirty && (
                         <Row gap={12}>
                           <View style={{ flex: 1 }}>
-                            <VoltButton label="Save package" busy={busy} busyLabel="Saving…"
-                              enabled={!busy} onPress={() => savePkg(pkg)} />
+                            <Button label="Save package" icon="check" full busy={busy} busyLabel="Saving…"
+                              enabled={!busy} accessibilityLabel={`Save the ${pkg.sessions}-session package`}
+                              onPress={() => savePkg(pkg)} />
                           </View>
                           <Button label="Undo" icon="rotate-ccw" enabled={!busy}
                             accessibilityLabel="Discard these changes"
@@ -711,7 +733,7 @@ export function CoachPackagesOverlay() {
                     ${perSession(newSessions, newPrice)} per session
                   </Text>
                 )}
-                <VoltButton label="Add package" busy={busy} busyLabel="Saving…"
+                <Button label="Add package" icon="plus" full busy={busy} busyLabel="Saving…"
                   enabled={newSessions.trim() !== '' && newPrice.trim() !== '' && !busy}
                   onPress={addPackage} />
               </Card>
@@ -795,7 +817,8 @@ export function CoachPackagesOverlay() {
               <Text style={[t.price, { color: c.accent }]}>%</Text>
             </Row>
             <View style={{ marginTop: 12 }}>
-              <VoltButton label="Add promo code" enabled={promoCode.trim().length > 2 && promoPct.trim() !== '' && !busy}
+              <Button label="Add promo code" icon="plus" full
+                enabled={promoCode.trim().length > 2 && promoPct.trim() !== '' && !busy}
                 busy={busy} busyLabel="Saving…" onPress={addCode} />
             </View>
 
@@ -851,82 +874,6 @@ function MoneyField({ value, onChange, label, placeholder }: {
   );
 }
 
-function Stepper({ icon, label, onPress }: { icon: 'minus' | 'plus'; label: string; onPress: () => void }) {
-  const { c } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={{
-        width: 32,
-        height: 32,
-        borderRadius: 10,
-        backgroundColor: c.surface2,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Icon name={icon} size={14} color={c.txt2} />
-    </Pressable>
-  );
-}
-
-function PkgStepper({
-  value,
-  unit,
-  name,
-  accent,
-  disabled = false,
-  onMinus,
-  onPlus,
-}: {
-  value: string;
-  unit: string;
-  name: string;
-  accent?: boolean;
-  disabled?: boolean;
-  onMinus: () => void;
-  onPlus: () => void;
-}) {
-  const { c, t } = useTheme();
-  const box = {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
-    backgroundColor: c.bg,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    opacity: disabled ? 0.5 : 1,
-  };
-  return (
-    <Row style={{ flex: 1, borderRadius: 12, backgroundColor: c.surface2, paddingHorizontal: 8, paddingVertical: 7 }} gap={0}>
-      <Pressable
-        onPress={disabled ? undefined : onMinus}
-        accessibilityRole="button"
-        accessibilityLabel={`Decrease ${unit} for ${name}`}
-        accessibilityState={{ disabled }}
-        style={box}
-      >
-        <Icon name="minus" size={12} color={c.txt2} />
-      </Pressable>
-      <View style={{ flex: 1, alignItems: 'center' }}>
-        <Text style={[t.priceSm, { color: accent ? c.accent : c.txt }]}>{value}</Text>
-        <Text style={[t.caption, { fontSize: 10, color: c.txt3 }]}>{unit}</Text>
-      </View>
-      <Pressable
-        onPress={disabled ? undefined : onPlus}
-        accessibilityRole="button"
-        accessibilityLabel={`Increase ${unit} for ${name}`}
-        accessibilityState={{ disabled }}
-        style={box}
-      >
-        <Icon name="plus" size={12} color={c.txt2} />
-      </Pressable>
-    </Row>
-  );
-}
-
 function PromoCard({
   code,
   sub,
@@ -955,17 +902,23 @@ function PromoCard({
           accessibilityRole="button"
           accessibilityLabel={removeLabel}
           accessibilityState={{ disabled }}
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 13,
-            backgroundColor: c.surface2,
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: disabled ? 0.5 : 1,
-          }}
+          hitSlop={TAP_SLOP}
+          style={{ width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' }}
         >
-          <Icon name="x" size={12} color={c.txt2} />
+          {/* Same as the package remove: the mark is 26, the target is not. */}
+          <View
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 13,
+              backgroundColor: c.surface2,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: disabled ? 0.5 : 1,
+            }}
+          >
+            <Icon name="x" size={12} color={c.txt2} />
+          </View>
         </Pressable>
       </Row>
     </Card>

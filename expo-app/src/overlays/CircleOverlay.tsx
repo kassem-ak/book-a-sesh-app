@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Button, MicroBadge, Row, VoltButton } from '../components/ui';
+import { Avatar, Button, ErrorNote, MicroBadge, Row } from '../components/ui';
 import { CirclePerson, fetchCircle } from '../lib/social';
 import { initials } from '../state/models';
 import { errorMessage, useStore } from '../state/store';
@@ -33,10 +33,13 @@ export function CircleOverlay() {
       people === null ? undefined : `${people.length} ${people.length === 1 ? 'person' : 'people'}`
     } onBack={s.closeOverlay} />}>
       <View style={{ paddingHorizontal: 18, gap: 12 }}>
-        {error && <>
-          <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>
-          <VoltButton label="Try again" onPress={() => setAttempt(attempt + 1)} />
-        </>}
+        {/* The retry used to be a full-width primary sitting loose in the
+            list, which read as the thing this screen is for. It belongs to the
+            failure, so it sits inside the failure. */}
+        {error && (
+          <ErrorNote message={error} retryLabel="Retry loading your circle"
+            onRetry={() => setAttempt(attempt + 1)} />
+        )}
 
         {people === null && !error && (
           <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3 }]}>Loading your circle…</Text>

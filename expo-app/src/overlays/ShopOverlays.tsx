@@ -2,8 +2,8 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Stars,
-  StripedPlaceholder, VoltButton,
+  ActionBar, Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Stars,
+  StripedPlaceholder, TAP_SLOP, VoltButton,
 } from '../components/ui';
 import { formatDistanceKm } from '../lib/geo';
 import * as D from '../state/sampleData';
@@ -37,15 +37,27 @@ export function ShopStorefrontOverlay() {
       header={<OverlayHeader title="Partner store" onBack={s.closeOverlay} />}
       bottomBar={
         count > 0 ? (
-          <View style={{ padding: 16, backgroundColor: c.bg }}>
+          // What is in the basket is a figure, not part of the verb. It used to
+          // be crammed into the button's own label, which made the store's one
+          // action the longest string on the screen and left it re-flowing
+          // every time somebody added a racket.
+          <ActionBar note={
+            <Row style={{ justifyContent: 'space-between' }}>
+              <Text style={[t.bodySm, { color: c.txt2 }]}>
+                {count} item{count > 1 ? 's' : ''}
+              </Text>
+              <Text style={[t.price, { fontSize: 18, color: c.accent }]}>${s.cartTotal()}</Text>
+            </Row>
+          }>
             <VoltButton
               height={56}
-              label={`Checkout · ${count} item${count > 1 ? 's' : ''} · $${s.cartTotal()}`}
+              label="Checkout"
+              accessibilityLabel={`Checkout · ${count} item${count > 1 ? 's' : ''} · $${s.cartTotal()}`}
               onPress={s.checkoutCart}
               busy={s.writeBusy === 'checkout'}
               busyLabel="Placing order..."
             />
-          </View>
+          </ActionBar>
         ) : undefined
       }
     >
@@ -90,11 +102,14 @@ export function ShopStorefrontOverlay() {
                   <Row style={{ marginTop: 8, justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={[t.priceSm, { color: c.accent }]}>${prod.price}</Text>
                     {/* Was a 28pt pill with no role and no name: a screen
-                        reader heard "Add" and could not tell what of. */}
+                        reader heard "Add" and could not tell what of. Adding to
+                        the basket is the card's action, not the store's, so it
+                        stays a secondary -- the added state is carried by the
+                        tick and the word, and the one volt button on the screen
+                        remains Checkout. */}
                     <Button
                       label={added ? 'Added' : 'Add'}
                       icon={added ? 'check' : 'plus'}
-                      tone={added ? 'primary' : 'secondary'}
                       height={40}
                       accessibilityLabel={added
                         ? `Remove ${prod.name} from your cart`
@@ -141,29 +156,41 @@ export function ShopRegisterOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Be a Shop" onBack={s.closeOverlay} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label="Send request to admins" enabled={canSubmit} onPress={submit} /></View>}
+      bottomBar={<ActionBar><VoltButton label="Send request to admins" enabled={canSubmit} onPress={submit} /></ActionBar>}
     >
       <View style={{ paddingHorizontal: 18 }}>
         <SectionHeading style={{ marginBottom: 11 }}>Shop name</SectionHeading>
         <Field value={s.shopRegName} onChange={(v) => s.set('shopRegName', v)} placeholder="Your store name" />
 
         <SectionHeading style={{ marginTop: 20, marginBottom: 11 }}>Category</SectionHeading>
-        <Pressable onPress={() => s.set('shopRegCatMenu', !s.shopRegCatMenu)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13 }}>
-          <Text style={[t.body, { color: s.shopRegCat ? c.txt : c.txt3, flex: 1 }]}>{s.shopRegCat ?? 'Select a category'}</Text>
-          <Icon name={s.shopRegCatMenu ? 'chevron-up' : 'chevron-down'} size={18} color={c.txt3} />
-        </Pressable>
-        {s.shopRegCatMenu && (
-          <Card style={{ marginTop: 8, padding: 6 }}>
-            {D.shopCategories.map((cat) => (
-              <Pressable key={cat} accessibilityRole="menuitem"
-                accessibilityLabel={cat}
-                onPress={() => { s.set('shopRegCat', cat); s.set('shopRegCatMenu', false); }}
-                style={{ paddingVertical: 11, paddingHorizontal: 10, minHeight: 44, justifyContent: 'center' }}>
-                <Text style={[t.label, { color: c.txt }]}>{cat}</Text>
-              </Pressable>
-            ))}
-          </Card>
-        )}
+        {/* Trigger and list are one block, so the list opens against the
+            control that opened it and pushes the rest of the form down rather
+            than floating over it -- a floating menu inside the overlay's
+            scroll view is the one that gets clipped. */}
+        <View>
+          <Pressable onPress={() => s.set('shopRegCatMenu', !s.shopRegCatMenu)}
+            accessibilityRole="button"
+            accessibilityLabel={`Category: ${s.shopRegCat ?? 'none chosen'}. Choose a category`}
+            accessibilityState={{ expanded: s.shopRegCatMenu }}
+            style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13 }}>
+            <Text style={[t.body, { color: s.shopRegCat ? c.txt : c.txt3, flex: 1 }]}>{s.shopRegCat ?? 'Select a category'}</Text>
+            <Icon name={s.shopRegCatMenu ? 'chevron-up' : 'chevron-down'} size={18} color={c.txt3} />
+          </Pressable>
+          {s.shopRegCatMenu && (
+            <Card style={{ marginTop: 6, padding: 6 }}>
+              {D.shopCategories.map((cat) => (
+                <Pressable key={cat} accessibilityRole="menuitem"
+                  accessibilityLabel={cat}
+                  accessibilityState={{ selected: s.shopRegCat === cat }}
+                  hitSlop={TAP_SLOP}
+                  onPress={() => { s.set('shopRegCat', cat); s.set('shopRegCatMenu', false); }}
+                  style={{ paddingVertical: 11, paddingHorizontal: 10, minHeight: 44, justifyContent: 'center' }}>
+                  <Text style={[t.label, { color: c.txt }]}>{cat}</Text>
+                </Pressable>
+              ))}
+            </Card>
+          )}
+        </View>
         {s.shopRegCat === 'Other' && (
           <View style={{ marginTop: 10 }}>
             <Field value={s.shopRegCatOther} onChange={(v) => s.set('shopRegCatOther', v)} placeholder="What your shop sells" />

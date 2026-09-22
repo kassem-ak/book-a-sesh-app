@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
-  Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Note, Row, StatusLine,
-  StripedPlaceholder,
+  Avatar, Button, Card, Chip, Field, IconButton, MicroBadge, Note, Row, StatusLine,
+  StripedPlaceholder, TAP, TAP_SLOP,
 } from '../components/ui';
 import { Venue } from '../lib/courts';
 import { formatDistanceKm, distanceKmBetween, getDevicePoint, GeoPoint } from '../lib/geo';
@@ -26,8 +26,6 @@ const TABS: [Tab, string][] = [
   ['events', 'Events'],
   ['gallery', 'Gallery'],
 ];
-
-const TAP = { top: 8, bottom: 8, left: 8, right: 8 };
 
 // Court / tournament RSVP. The store resolves the subject from the loaded
 // venues and refuses to open when it cannot be priced or the venue is closed.
@@ -71,41 +69,6 @@ export function CourtsScreen() {
   return <VenueProfile venue={venue} entryTab={entryTab} onBack={() => setVenueId(null)} />;
 }
 
-// Small 40px surface icon button shared by both headers.
-function HeaderIconButton({
-  icon,
-  label,
-  onPress,
-  volt,
-}: {
-  icon: React.ComponentProps<typeof Icon>['name'];
-  label: string;
-  onPress: () => void;
-  volt?: boolean;
-}) {
-  const { c } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      hitSlop={TAP}
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: 13,
-        backgroundColor: volt ? c.volt : c.surface,
-        borderColor: volt ? c.volt : c.line,
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Icon name={icon} size={volt ? 18 : 19} color={volt ? c.ink : c.txt} />
-    </Pressable>
-  );
-}
-
 // ---- ALL Courts view -------------------------------------------------------
 function AllCourtsView({
   devicePoint,
@@ -133,46 +96,52 @@ function AllCourtsView({
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 26 }}>
-      <View style={{ paddingHorizontal: spacing.screen, paddingTop: 20 }}>
-        <Row style={{ marginBottom: 16 }}>
+      <View style={{ paddingHorizontal: spacing.screen, paddingTop: 8 }}>
+        {/* Courts, Community, Shop and Chat are siblings in the tab bar, so
+            they now open the same way: the title alone on the first line with
+            the screen's icon actions opposite it, the supporting line under
+            it, and the filters under that. The title row keeps a tap-target's
+            height even where there are no actions, so the line below it lands
+            at the same place on every tab. */}
+        <Row style={{ minHeight: TAP }}>
           <View style={{ flex: 1 }}>
             <Text style={[t.pageTitle, { color: c.txt }]}>Courts</Text>
-            <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>Book courts, join tournaments</Text>
           </View>
-          <Row gap={9}>
+          <Row gap={8}>
             {venues.length > 0 && (
-              <HeaderIconButton
+              <IconButton
                 icon="image"
-                label="Browse venue galleries"
+                accessibilityLabel="Browse venue galleries"
                 onPress={() => onOpen(venues[0].id, 'gallery')}
               />
             )}
             {/* Venue registration reuses the shared registration form (handoff
                 v2 section 9), opened with regKind = 'venue'. */}
-            <HeaderIconButton
+            <IconButton
               icon="plus"
-              label="Register a venue"
+              accessibilityLabel="Register a venue"
               onPress={() => useStore.getState().openRegistration('venue')}
             />
           </Row>
         </Row>
+        <Text style={[t.bodySm, { color: c.txt2, marginTop: 14 }]}>Book courts, join tournaments</Text>
 
         {/* Was a Row with a chevron and no handler -- it looked like the
             filter it is now, and swallowed every tap. The sports come from the
             venues themselves, so it never offers a filter that returns none. */}
-        {sports.length > 1 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
-            <Chip label="All sports" active={sport === null} onPress={() => setSport(null)} />
-            {sports.map((name) => (
-              <Chip key={name} label={name} active={sport === name}
-                onPress={() => setSport(sport === name ? null : name)} />
-            ))}
-          </ScrollView>
-        )}
-        {/* Was a Row dressed as a Field with nothing behind it: it looked
-            exactly like the search box on Discover and swallowed every tap. */}
-        <View style={{ marginTop: 10 }}>
+        <View style={{ marginTop: 18, gap: 10 }}>
+          {sports.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+              <Chip label="All sports" active={sport === null} onPress={() => setSport(null)} />
+              {sports.map((name) => (
+                <Chip key={name} label={name} active={sport === name}
+                  onPress={() => setSport(sport === name ? null : name)} />
+              ))}
+            </ScrollView>
+          )}
+          {/* Was a Row dressed as a Field with nothing behind it: it looked
+              exactly like the search box on Discover and swallowed every tap. */}
           <Field value={venueQuery} onChange={setVenueQuery}
             placeholder="Search venues, courts" icon="search" />
         </View>
@@ -256,28 +225,12 @@ function VenueProfile({ venue, entryTab, onBack }: { venue: Venue; entryTab: Tab
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 26 }}>
-        {/* v2 top bar: back · "Courts" · gallery icon · volt + */}
+        {/* Back on the left, everything else on the right, the same way every
+            overlay header in the app is built. */}
         <Row style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14 }} gap={10}>
-          <Pressable
-            onPress={onBack}
-            accessibilityRole="button"
-            accessibilityLabel="Back to courts"
-            hitSlop={TAP}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 13,
-              backgroundColor: c.surface,
-              borderColor: c.line,
-              borderWidth: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Icon name="chevron-left" size={20} color={c.txt} />
-          </Pressable>
+          <IconButton icon="chevron-left" accessibilityLabel="Back to courts" onPress={onBack} />
           <Text style={[t.overlayTitle, { color: c.txt, flex: 1 }]}>Courts</Text>
-          <HeaderIconButton icon="image" label="Open the gallery tab" onPress={() => setTab('gallery')} />
+          <IconButton icon="image" accessibilityLabel="Open the gallery tab" onPress={() => setTab('gallery')} />
         </Row>
 
         <StripedPlaceholder caption={v.name} height={176} radius={0} />
@@ -331,6 +284,7 @@ function VenueProfile({ venue, entryTab, onBack }: { venue: Venue; entryTab: Tab
                 accessibilityRole="tab"
                 accessibilityLabel={label + ' tab'}
                 accessibilityState={{ selected: tab === k }}
+                hitSlop={TAP_SLOP}
                 style={{
                   minHeight: 44,
                   justifyContent: 'center',

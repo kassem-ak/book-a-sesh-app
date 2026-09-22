@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Card, Chip, Field, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
+import { ActionBar, Card, Chip, Field, Icon, Row, SectionHeading, VoltButton } from '../components/ui';
 import * as D from '../state/sampleData';
 import { isExplicit, useStore } from '../state/store';
 import { useTheme } from '../theme';
@@ -128,7 +128,13 @@ export function RegistrationOverlay() {
 
   if (sent) {
     return (
-      <OverlayScaffold header={<OverlayHeader title={copy.title} onBack={s.closeOverlay} />}>
+      <OverlayScaffold
+        header={<OverlayHeader title={copy.title} onBack={s.closeOverlay} />}
+        // Done was a 260px-wide button parked at the end of the confirmation
+        // text. It is the only thing left to do on this screen, so it belongs
+        // in the bar with every other screen's verb.
+        bottomBar={<ActionBar><VoltButton label="Done" accessibilityLabel="Done, close registration" onPress={s.closeOverlay} /></ActionBar>}
+      >
         <View style={{ paddingHorizontal: 18, alignItems: 'center', paddingTop: 60 }}>
           {/* The mark has to agree with the sentence under it. Only a shop
               request actually goes anywhere; the other kinds live on this
@@ -156,11 +162,6 @@ export function RegistrationOverlay() {
               ? 'Tracked as an admin approval item.'
               : 'It will be lost when the app restarts. Admins on other devices cannot see it.'}
           </Text>
-          <View style={{ width: '100%', maxWidth: 260, marginTop: 26 }}>
-            <TapTarget label="Done, close registration" onPress={s.closeOverlay}>
-              <VoltButton label="Done" onPress={s.closeOverlay} height={50} />
-            </TapTarget>
-          </View>
         </View>
       </OverlayScaffold>
     );
@@ -170,11 +171,10 @@ export function RegistrationOverlay() {
     <OverlayScaffold
       header={<OverlayHeader title={copy.title} onBack={s.closeOverlay} />}
       bottomBar={
-        <View style={{ padding: 16, backgroundColor: c.bg }}>
-          <TapTarget label={submitLabel} onPress={submit} disabled={!canSend || busy}>
-            <VoltButton label={busy ? 'Sending…' : submitLabel} enabled={canSend && !busy} onPress={submit} />
-          </TapTarget>
-        </View>
+        <ActionBar>
+          <VoltButton label={submitLabel} accessibilityLabel={submitLabel}
+            busy={busy} busyLabel="Sending…" enabled={canSend && !busy} onPress={submit} />
+        </ActionBar>
       }
     >
       <View style={{ paddingHorizontal: 18 }}>
@@ -288,10 +288,11 @@ export function RegistrationOverlay() {
   );
 }
 
-// `Chip` and `VoltButton` are owned by another agent and expose no a11y props,
-// so we wrap them: the wrapper carries the role/label and guarantees the 44px
-// target, and its descendants are hidden from the a11y tree to avoid a double
-// announcement. Both layers call the same idempotent handler.
+// Only the chips need this now. A `Chip` takes no accessible name of its own,
+// so "YES" and "Email" would be read out with nothing to say yes or email
+// about; the wrapper supplies the sentence and hides the chip beneath it from
+// the a11y tree so it is not announced twice. The buttons no longer need it --
+// they take their own label and clear 48dp unaided.
 function TapTarget({
   label,
   onPress,

@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Button, Card, Chip, Field, FormSheet, Icon, IconButton, Row, SectionHeading, VoltButton,
+  ActionBar, Button, Card, Chip, Field, FormSheet, Icon, IconButton, Row, SectionHeading,
+  TAP_SLOP, VoltButton,
 } from '../components/ui';
 import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { coachPackageOptions } from '../state/models';
@@ -309,7 +310,13 @@ export function BookingOverlay() {
 
   if (s.booked) {
     return (
-      <OverlayScaffold header={<OverlayHeader title="Booking confirmed" onBack={s.closeOverlay} />}>
+      <OverlayScaffold
+        header={<OverlayHeader title="Booking confirmed" onBack={s.closeOverlay} />}
+        // Still the screen's one verb, so it sits in the bar. Inline it rode
+        // under a block of text whose height depends on the pack name and the
+        // coach's, and on a short phone that put it below the fold.
+        bottomBar={<ActionBar><VoltButton label="View in bookings" onPress={s.goToBookings} /></ActionBar>}
+      >
         <View style={{ paddingHorizontal: 18, alignItems: 'center', paddingTop: 60 }}>
           <View style={{ width: 74, height: 74, borderRadius: 999, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="check" size={34} color={c.ink} />
@@ -328,10 +335,6 @@ export function BookingOverlay() {
                   : `Agree the price with ${p.name.split(' ')[0]} directly — BOOK'D does not take payment.`}
             </Text>
           )}
-          <View style={{ height: 24 }} />
-          <View style={{ width: '100%' }}>
-            <VoltButton label="View in bookings" onPress={s.goToBookings} />
-          </View>
         </View>
       </OverlayScaffold>
     );
@@ -341,27 +344,39 @@ export function BookingOverlay() {
     <OverlayScaffold
       header={<OverlayHeader title="Book a session" onBack={s.backToPerson} subtitle={p.name} />}
       bottomBar={
-        <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
-          <Row style={{ justifyContent: 'space-between', marginBottom: 2 }}>
-            <Text style={[t.body, { color: c.txt2 }]}>{redeeming ? 'Due now' : 'Total'}</Text>
-            <Text style={[t.price, { color: c.accent }]}>{priceLabel}</Text>
-          </Row>
-          <Text style={[t.caption, { color: c.txt3, marginBottom: 12 }]}>
-            {!usageKnown
-              ? usageLoading ? 'Checking your pack balance…' : 'Could not check your pack balance. You can still book.'
-              : exhausted
-                ? 'Every session in this pack has been used. Pick another option.'
-                : redeeming
-                  ? `Covered by your pack — nothing extra to pay for this booking. ${remaining} of ${total} sessions left in this pack.`
-                  : dueNow > 0
-                    ? "Payable to the coach at your session — BOOK'D does not take payment."
-                    : "This coach has not set a price. Agree it with them directly — BOOK'D does not take payment."}
-          </Text>
-          {bookingError && (
-            <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger, marginBottom: 10 }]}>
-              {bookingError}
+        <ActionBar note={
+          <View style={{ gap: 2 }}>
+            {/* The day and the time scroll away behind the calendar, so the
+                bar repeats them: what is being committed reads in the same
+                glance as the button that commits it. The multi-session case
+                says its own count on the button and does not need the echo. */}
+            {!multi && bookDate && bookSlot && (
+              <Text style={[t.bodySm, { color: c.txt }]}>
+                {bookingDayLabel(bookDate)} · {bookSlot}
+              </Text>
+            )}
+            <Row style={{ justifyContent: 'space-between' }}>
+              <Text style={[t.body, { color: c.txt2 }]}>{redeeming ? 'Due now' : 'Total'}</Text>
+              <Text style={[t.price, { color: c.accent }]}>{priceLabel}</Text>
+            </Row>
+            <Text style={[t.caption, { color: c.txt3 }]}>
+              {!usageKnown
+                ? usageLoading ? 'Checking your pack balance…' : 'Could not check your pack balance. You can still book.'
+                : exhausted
+                  ? 'Every session in this pack has been used. Pick another option.'
+                  : redeeming
+                    ? `Covered by your pack — nothing extra to pay for this booking. ${remaining} of ${total} sessions left in this pack.`
+                    : dueNow > 0
+                      ? "Payable to the coach at your session — BOOK'D does not take payment."
+                      : "This coach has not set a price. Agree it with them directly — BOOK'D does not take payment."}
             </Text>
-          )}
+            {bookingError && (
+              <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger, marginTop: 8 }]}>
+                {bookingError}
+              </Text>
+            )}
+          </View>
+        }>
           <VoltButton
             label={openRequest
               ? 'Cancellation pending'
@@ -399,7 +414,7 @@ export function BookingOverlay() {
               });
             }}
           />
-        </View>
+        </ActionBar>
       }
     >
       <View style={{ paddingHorizontal: 18 }}>
@@ -463,20 +478,17 @@ export function BookingOverlay() {
           })}
         </View>
 
-        {activePkg && (
-          openRequest ? (
-            <View style={{ marginTop: 12, borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 14 }}>
-              <Text style={[t.labelSm, { color: c.txt }]}>Cancellation asked for</Text>
-              <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
-                Waiting on {p.name.split(' ')[0]}. Your pack is on hold until it is settled — take the request back in
-                My bookings if you want to keep using it.
-              </Text>
-            </View>
-          ) : (
-            <Button label="Request cancellation" icon="x-circle" tone="danger" style={{ marginTop: 12 }}
-              accessibilityLabel="Request cancellation of this package"
-              onPress={() => { setCancelReason(''); setBookingError(null); setAskingCancel(true); }} />
-          )
+        {/* The notice stays with the pack because it is what the pack's state
+            is; the button that asks for the cancellation has moved to the foot
+            of the screen, after everything it would undo. */}
+        {activePkg && openRequest && (
+          <View style={{ marginTop: 12, borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 14 }}>
+            <Text style={[t.labelSm, { color: c.txt }]}>Cancellation asked for</Text>
+            <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
+              Waiting on {p.name.split(' ')[0]}. Your pack is on hold until it is settled — take the request back in
+              My bookings if you want to keep using it.
+            </Text>
+          </View>
         )}
 
         <FormSheet
@@ -570,6 +582,9 @@ export function BookingOverlay() {
                       if (entry && !entry.slots.includes(bookSlot ?? '')) s.set('bookSlot', entry.slots[0]);
                       setPickingTime(true);
                     }}
+                    // A seventh of the content width is under 48dp on any phone
+                    // narrower than a Pixel, and this cell opens the time sheet.
+                    hitSlop={TAP_SLOP}
                     accessibilityRole="button"
                     accessibilityState={{ selected: sel, disabled: !open }}
                     accessibilityLabel={entry
@@ -608,15 +623,9 @@ export function BookingOverlay() {
 
             {multi ? (
               <View style={{ marginTop: 14, gap: 10 }}>
-                <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={[t.labelSm, { color: c.txt }]}>
-                    {picked.length} of {allowance} chosen
-                  </Text>
-                  {picked.length > 0 && (
-                    <Button label="Clear" icon="x" accessibilityLabel="Clear the sessions you picked"
-                      onPress={() => { setChosenSlots({}); setBookingError(null); }} />
-                  )}
-                </Row>
+                <Text style={[t.labelSm, { color: c.txt }]}>
+                  {picked.length} of {allowance} chosen
+                </Text>
                 {/* Every session the pack still has, so nobody has to count
                     the pack down themselves. They do not have to book them
                     all now -- what is left stays on the pack. */}
@@ -637,11 +646,20 @@ export function BookingOverlay() {
                         delete next[date];
                         return next;
                       })}
+                      hitSlop={TAP_SLOP}
                       style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
                       <Icon name="x" size={17} color={c.txt3} />
                     </Pressable>
                   </Row>
                 ))}
+                {/* After the list, not above it: emptying the list is the last
+                    thing you would want, and beside the count it was one slip
+                    away from the row that adds to it. */}
+                {picked.length > 0 && (
+                  <Button label="Clear" icon="x" tone="danger"
+                    accessibilityLabel="Clear the sessions you picked"
+                    onPress={() => { setChosenSlots({}); setBookingError(null); }} />
+                )}
               </View>
             ) : bookDate && bookSlot ? (
               <Pressable accessibilityRole="button" accessibilityLabel="Change the time"
@@ -667,6 +685,15 @@ export function BookingOverlay() {
               </Text>
             )}
           </>
+        )}
+
+        {/* Last thing on the screen, well clear of the volt button in the bar.
+            Asking to cancel the pack undoes the sessions above it, so it reads
+            after them rather than above the calendar they are picked from. */}
+        {activePkg && !openRequest && (
+          <Button label="Request cancellation" icon="x-circle" tone="danger" style={{ marginTop: 24 }}
+            accessibilityLabel="Request cancellation of this package"
+            onPress={() => { setCancelReason(''); setBookingError(null); setAskingCancel(true); }} />
         )}
 
         <FormSheet

@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Segmented,
+  ActionBar, Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Segmented,
   StripedPlaceholder, VoltButton,
 } from '../components/ui';
 import { CommunityRole, EventSuggestion, isMeetup } from '../state/models';
@@ -93,7 +93,9 @@ export function EventDetailOverlay() {
     <OverlayScaffold
       header={<OverlayHeader title={ev.type} onBack={() => s.set('overlay', s.returnTo)} />}
       bottomBar={
-        <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
+        <ActionBar note={
+          <Text style={[t.caption, { color: c.txt3 }]}>{ev.attendees} going</Text>
+        }>
           {/* A byte-for-byte copy of VoltButton with no accessibilityRole --
               the most important control in the overlay was invisible to
               assistive tech. */}
@@ -108,7 +110,7 @@ export function EventDetailOverlay() {
               : `Say you are going to ${ev.title}`}
             onPress={() => s.toggleGoing(ev.id)}
           />
-        </View>
+        </ActionBar>
       }
     >
       <View style={{ paddingHorizontal: 18 }}>
@@ -129,7 +131,6 @@ export function EventDetailOverlay() {
 }
 
 export function CreateEventOverlay() {
-  const { c, t } = useTheme();
   const s = useStore();
   const blocked = isExplicit(s.newTitle);
   const named = s.newTitle.trim().length > 0 && s.newLoc.trim().length > 0;
@@ -145,7 +146,7 @@ export function CreateEventOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Create event" onBack={() => s.set('overlay', 'community')} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Edit blocked content to continue' : canCreate ? 'Create event' : 'Add a title and a place'} enabled={canCreate} onPress={s.submitEvent} /></View>}
+      bottomBar={<ActionBar><VoltButton label={blocked ? 'Edit blocked content to continue' : canCreate ? 'Create event' : 'Add a title and a place'} enabled={canCreate} onPress={s.submitEvent} /></ActionBar>}
     >
       <EventForm blocked={blocked} blockedCopy="Contains blocked content. Edit it to continue; nothing has been sent for review." />
     </OverlayScaffold>
@@ -153,7 +154,6 @@ export function CreateEventOverlay() {
 }
 
 export function EventSuggestionOverlay() {
-  const { c } = useTheme();
   const s = useStore();
   const blocked = isExplicit(s.newTitle);
   const canSend = s.newTitle.trim().length > 0 && s.newLoc.trim().length > 0 && !blocked;
@@ -167,7 +167,7 @@ export function EventSuggestionOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Suggest event" onBack={() => s.set('overlay', 'community')} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Edit blocked content to continue' : canSend ? 'Send suggestion' : 'Add a title and a place'} enabled={canSend} onPress={s.submitEventSuggestion} /></View>}
+      bottomBar={<ActionBar><VoltButton label={blocked ? 'Edit blocked content to continue' : canSend ? 'Send suggestion' : 'Add a title and a place'} enabled={canSend} onPress={s.submitEventSuggestion} /></ActionBar>}
     >
       <EventForm blocked={blocked} blockedCopy="Contains blocked content. Edit it to continue; nothing has been sent for review." />
     </OverlayScaffold>
@@ -190,7 +190,7 @@ export function CommunityEditOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Edit details" onBack={() => s.set('overlay', 'community')} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Edit blocked content to continue' : canSave ? 'Save details' : 'Add details first'} enabled={canSave} onPress={s.saveCommunityContent} /></View>}
+      bottomBar={<ActionBar><VoltButton label={blocked ? 'Edit blocked content to continue' : canSave ? 'Save details' : 'Add details first'} enabled={canSave} onPress={s.saveCommunityContent} /></ActionBar>}
     >
       <View style={{ paddingHorizontal: 18 }}>
         <SectionHeading style={{ marginBottom: 11 }}>About</SectionHeading>
@@ -202,7 +202,6 @@ export function CommunityEditOverlay() {
 }
 
 export function StartCommunityOverlay() {
-  const { c, t } = useTheme();
   const s = useStore();
   const blocked = isExplicit(s.commName);
   const canCreate = s.commName.trim().length > 0 && !blocked;
@@ -216,7 +215,7 @@ export function StartCommunityOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Start community" onBack={s.closeOverlay} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Edit blocked content to continue' : canCreate ? 'Create community' : 'Name it first'} enabled={canCreate} onPress={s.submitCommunity} /></View>}
+      bottomBar={<ActionBar><VoltButton label={blocked ? 'Edit blocked content to continue' : canCreate ? 'Create community' : 'Name it first'} enabled={canCreate} onPress={s.submitCommunity} /></ActionBar>}
     >
       <View style={{ paddingHorizontal: 18 }}>
         <SectionHeading style={{ marginBottom: 11 }}>Community name</SectionHeading>
@@ -233,7 +232,6 @@ export function StartCommunityOverlay() {
 }
 
 export function RequestOverlay() {
-  const { c } = useTheme();
   const s = useStore();
   const blocked = isExplicit(s.reqName);
   const canSend = s.reqName.trim().length > 0 && !blocked;
@@ -247,7 +245,7 @@ export function RequestOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Request a sport" onBack={s.closeOverlay} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={canSend ? 'Send request to admins' : 'Name it first'} enabled={canSend} onPress={s.submitRequest} /></View>}
+      bottomBar={<ActionBar><VoltButton label={canSend ? 'Send request to admins' : 'Name it first'} enabled={canSend} onPress={s.submitRequest} /></ActionBar>}
     >
       <View style={{ paddingHorizontal: 18 }}>
         <SectionHeading style={{ marginBottom: 11 }}>Type</SectionHeading>
