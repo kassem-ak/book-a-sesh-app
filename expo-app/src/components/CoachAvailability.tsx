@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { DatePickerSheet } from './DatePickerSheet';
-import { Button, ConfirmSheet, Field, Icon, Row, SectionHeading, TAP_SLOP, VoltButton } from './ui';
+import { ConfirmSheet, Field, Icon, Row, SectionHeading, VoltButton } from './ui';
 import {
   addPeriod, Blackout, blackoutLabel, closeDate, daysInRange, fetchMyBlackouts,
   fetchMyWeek, groupWeek, maskTimeInput, MAX_PERIODS_PER_DAY, normaliseTimeInput, openDate,
@@ -18,25 +18,13 @@ import { alpha, useTheme } from '../theme';
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-// Which control a write belongs to. Three, not one: this screen is taller than
-// a phone, so both "something is happening" and "that did not work" have to say
-// where, or they say it beside the wrong control.
-type Scope = 'hours' | 'addHours' | 'daysOff';
-
 export function CoachAvailability() {
   const { c, t } = useTheme();
   const s = useStore();
   const [week, setWeek] = useState<Week | null>(null);
   const [blackouts, setBlackouts] = useState<Blackout[]>([]);
-  // Which half of the screen is writing, not whether anything is. One flag put
-  // the Add-hours button at the top into "Saving…" while a day off was being
-  // deleted at the bottom, which reads as the wrong thing being saved.
-  const [busy, setBusy] = useState<Scope | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Days off are the last thing on a long scroll, so a failure reported in the
-  // slot above the hours list renders offscreen and the tap looks inert. Each
-  // half reports its own failures where the tap happened.
-  const [daysOffError, setDaysOffError] = useState<string | null>(null);
 
   // The form adds hours to one day or to a run of days at once. Most coaches
   // work the same hours Monday to Friday, and setting that five times was five
@@ -67,19 +55,16 @@ export function CoachAvailability() {
   // Every write re-reads. Patching local state optimistically would let the
   // screen show an opening the server refused, and a schedule that lies is
   // worse than one that is briefly a beat behind.
-  const run = async (scope: Scope, write: () => Promise<void>) => {
-    const report = scope === 'hours' ? setError
-      : scope === 'addHours' ? setFormError
-      : setDaysOffError;
-    setBusy(scope);
-    report(null);
+  const run = async (write: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
     try {
       await write();
       await load();
     } catch (e) {
       track('write_failed', { error_code: analyticsErrorCode(e) });
-      report(errorMessage(e));
-    } finally { setBusy(null); }
+      setError(errorMessage(e));
+    } finally { setBusy(false); }
   };
 
   const periodsOn = (weekday: number) => periodsFromSlots(week?.[weekday] ?? []);
@@ -104,7 +89,7 @@ export function CoachAvailability() {
     }
 
     setFormError(null);
-    void run('addHours', async () => {
+    void run(async () => {
       for (const day of targetDays) {
         await saveDayPeriods(day, addPeriod(periodsOn(day), parsed.period));
       }
@@ -120,7 +105,7 @@ export function CoachAvailability() {
   const [dropping, setDropping] = useState<{ days: number[]; period: Period } | null>(null);
 
   const dropPeriod = (days: number[], period: Period) =>
-    void run('hours', async () => {
+    void run(async () => {
       for (const day of days) {
         await saveDayPeriods(day, periodsOn(day).filter(
           (p) => p.startsAt !== period.startsAt || p.endsAt !== period.endsAt,
@@ -146,7 +131,7 @@ export function CoachAvailability() {
             + 'Sessions already booked in those hours are not affected.'
           : ''}
         confirmLabel="Remove them"
-        busy={busy === 'hours'}
+        busy={busy}
         busyLabel="Removing…"
         onConfirm={() => { if (dropping) dropPeriod(dropping.days, dropping.period); }}
         onCancel={() => setDropping(null)}
@@ -182,12 +167,11 @@ export function CoachAvailability() {
             {group.periods.map((period) => (
               <Row key={`${period.startsAt}-${period.endsAt}`} gap={10} style={{ alignItems: 'center' }}>
                 <Text style={[t.body, { color: c.accent, flex: 1 }]}>{periodLabel(period)}</Text>
-                <Pressable accessibilityRole="button" disabled={busy === 'hours'}
+                <Pressable accessibilityRole="button" disabled={busy}
                   accessibilityLabel={`Remove ${periodLabel(period)} on ${groupLabel(group.days)}`}
                   onPress={() => (group.days.length > 1
                     ? setDropping({ days: group.days, period })
                     : dropPeriod(group.days, period))}
-                  hitSlop={TAP_SLOP}
                   style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
                   <Icon name="trash-2" size={17} color={c.txt3} />
                 </Pressable>
@@ -235,7 +219,7 @@ export function CoachAvailability() {
             label={spanDays
               ? `Add hours · ${DAY_NAMES[fromDay]} to ${DAY_NAMES[toDay]}`
               : `Add hours · ${DAY_NAMES[fromDay]}`}
-            busy={busy === 'addHours'} busyLabel="Saving…" enabled={busy === null} onPress={addHours} />
+            busy={busy} busyLabel="Saving…" enabled={!busy} onPress={addHours} />
         </View>
 
         <Text style={[t.caption, { color: c.txt3 }]}>
@@ -258,35 +242,27 @@ export function CoachAvailability() {
               <Text style={[t.name, { color: c.txt }]}>{blackoutLabel(entry.date)}</Text>
               {entry.reason ? <Text style={[t.bodySm, { color: c.txt2 }]}>{entry.reason}</Text> : null}
             </View>
-            <Pressable accessibilityRole="button" disabled={busy === 'daysOff'}
+            <Pressable accessibilityRole="button" disabled={busy}
               accessibilityLabel={`Reopen ${blackoutLabel(entry.date)}`}
-              onPress={() => void run('daysOff', () => openDate(entry.date))}
-              hitSlop={TAP_SLOP}
+              onPress={() => void run(() => openDate(entry.date))}
               style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="trash-2" size={18} color={c.txt3} />
             </Pressable>
           </Row>
         ))}
 
-        {daysOffError && (
-          <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{daysOffError}</Text>
-        )}
-
-        {/* Secondary, because the hours above are what this screen is for: a
-            day off is the exception you file against them. Two volt buttons on
-            one scroll made the exception look like the point. */}
-        <Button label="Add a day off" icon="calendar" full enabled={busy !== 'daysOff'}
-          onPress={() => { setReason(''); setDaysOffError(null); setPicking(true); }} />
+        <VoltButton label="Add a day off" enabled={!busy}
+          onPress={() => { setReason(''); setError(null); setPicking(true); }} />
 
         <DatePickerSheet
           visible={picking}
           title="Add a day off"
           subtitle="Nobody can book you on this date, whatever your weekly hours say."
           confirmLabel="Close this date"
-          busy={busy === 'daysOff'}
+          busy={busy}
           taken={blackouts.map((b) => b.date)}
           onClose={() => setPicking(false)}
-          onConfirm={(date) => void run('daysOff', async () => {
+          onConfirm={(date) => void run(async () => {
             await closeDate(date, reason);
             track('coach_day_off_added');
             setPicking(false);

@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import {
-  ActionBar, BrandIcon, BrandMark, Button, Field, Icon, IconButton, Row, TAP_SLOP, VoltButton,
+  BrandIcon, BrandMark, Button, Field, Icon, IconButton, Row, VoltButton,
 } from '../components/ui';
 import { SSO_LABELS, SsoProvider, signInWithProvider } from '../lib/session';
 import { SportsPicker } from '../components/SportsPicker';
@@ -27,12 +27,6 @@ import { useTheme } from '../theme';
 // Shown until a registered account signs in. It is the only way into the app.
 type Step = 'start' | 'role' | 'interests' | 'where';
 const STEPS: Step[] = ['start', 'role', 'interests', 'where'];
-
-// The account screen is the fifth of five, but it is not a `Step`: it is a
-// separate flag because it is also reachable straight off the start step. The
-// progress dots have to count it anyway -- a run of four filled dots on the
-// area step told someone they were finished when a whole screen was left.
-const STEP_COUNT = STEPS.length + 1;
 
 export function AuthLanding() {
   const { c, t } = useTheme();
@@ -77,94 +71,22 @@ export function AuthLanding() {
     catch (err) { setError(err instanceof Error ? err.message : 'Sign-in failed. Try email instead.'); }
     finally { setSsoBusy(false); }
   };
-
-  // The gate's primary, chosen here and rendered once in the bar below, rather
-  // than by each step in its own content. Inline it was centred at a fixed
-  // 206px, and on the interests step that put it underneath a sports list long
-  // enough to scroll the commit away from the choices it commits.
-  const primary: { label: string; a11y: string; enabled?: boolean; busy?: boolean; onPress: () => void } =
-    step === 'start'
-      ? {
-          label: 'NEXT',
-          a11y: 'Next, choose what you are',
-          onPress: () => {
-            // The search field lives on the area step now; writing the key here
-            // anyway keeps whatever the store already held from being dropped.
-            s.set('authSeek', seek.trim());
-            setStep('role');
-          },
-        }
-      : step === 'role'
-      ? {
-          label: 'NEXT',
-          a11y: 'Next, choose sports and hobbies',
-          enabled: kind !== null,
-          onPress: () => {
-            if (!kind) return;
-            s.set('signupIntent', kind);
-            track('onboarding_role_chosen', { role: kind });
-            s.set('mode', kind === 'coach' ? 'partners' : 'coaches');
-            setStep('interests');
-          },
-        }
-      : step === 'interests'
-      ? {
-          label: s.signupSports.length ? 'NEXT' : 'SKIP FOR NOW',
-          a11y: 'Continue to your area',
-          enabled: !savingDraft,
-          busy: savingDraft,
-          onPress: () => {
-            setSavingDraft(true);
-            setError(null);
-            void saveSignupDraft({ role: kind === 'coach' ? 'coach' : 'member', sportIds: s.signupSports })
-              .then(() => setStep('where'))
-              .catch(() => setError('Could not keep your choices. Please try again.'))
-              .finally(() => setSavingDraft(false));
-          },
-        }
-      : {
-          label: 'CREATE ACCOUNT',
-          a11y: 'Continue to create your free account',
-          onPress: () => {
-            s.set('authLoc', loc.trim());
-            s.set('authSeek', seek.trim());
-            s.set('discSearch', seek.trim());
-            setAccountMode('up');
-            setAccount(true);
-          },
-        };
-
-  const dots = <ProgressDots count={STEP_COUNT} index={account ? STEPS.length : STEPS.indexOf(step)} />;
-
-  // The account screen owns its own scroll and bar because its primary is the
-  // form's submit, which only the form knows the state of.
-  if (account)
-    return (
-      <View style={{ flex: 1, backgroundColor: c.bg }}>
-        <AnimatedGradient />
-        <View style={{ paddingTop: insets.top + 26, paddingHorizontal: 26 }}>
-          <StepBack label="Back to getting started" onPress={() => setAccount(false)} />
-          <Text style={[t.pageTitle, { color: c.txt, marginBottom: 6 }]}>Account</Text>
-        </View>
-        <AuthForm
-          initialEmail={email}
-          initialMode={accountMode}
-          onDone={() => setAccount(false)}
-          note={dots}
-          onEditChoices={() => { setAccount(false); setStep('role'); }}
-        />
-      </View>
-    );
-
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <AnimatedGradient />
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingTop: step === 'interests' ? insets.top + 26 : Math.max(insets.top + 50, height * 0.32), paddingBottom: 26, paddingHorizontal: 26 }}
+        contentContainerStyle={{ paddingTop: account || step === 'interests' ? insets.top + 26 : Math.max(insets.top + 50, height * 0.32), paddingBottom: insets.bottom + 74, paddingHorizontal: 26 }}
         keyboardShouldPersistTaps="handled"
       >
-        {step === 'start' ? (
+        {account ? (
+          <>
+            <Pressable onPress={() => setAccount(false)} accessibilityRole="button" accessibilityLabel="Back to getting started" style={{ minHeight: 44, justifyContent: 'center', marginBottom: 18 }}>
+              <Icon name="arrow-left" size={22} color={c.txt} />
+            </Pressable>
+            <Text style={[t.pageTitle, { color: c.txt, marginBottom: 22 }]}>Account</Text>
+            <AuthForm initialEmail={email} initialMode={accountMode} onDone={() => setAccount(false)} />
+          </>
+        ) : step === 'start' ? (
           <>
             {/* The mark they just tapped, on the first thing they see. */}
             <BrandMark size={40} />
@@ -172,19 +94,18 @@ export function AuthLanding() {
             <Text style={[t.bodySm, { color: c.txt2 }]}>Let&apos;s</Text>
             <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Get Started</Text>
             <View style={{ height: 22 }} />
-            {/* The only thing step one asks for. The search words used to sit
-                under it, which put a query box in front of someone before
-                anything on screen had said what would be searched; they are on
-                the area step now, beside the distance that scopes them. */}
             <Field value={email} onChange={setEmail} placeholder="Email" keyboardType="email-address" icon="at-sign" />
-            {/* Below this line is every other way in. The step's own route is
-                the button pinned in the bar; these are alternatives, and
-                putting them after a rule is what says so without a word. */}
-            <View style={{ height: 1, backgroundColor: c.line, marginTop: 28, marginBottom: 24 }} />
+            <View style={{ height: 12 }} />
+            <Field value={seek} onChange={setSeek} placeholder="Search Coach, Mentor" icon="search" />
+            <View style={{ height: 28 }} />
+            <NextButton label="NEXT" accessibilityLabel="Next, choose what you are" onPress={() => {
+              s.set('authSeek', seek.trim());
+              setStep('role');
+            }} />
             {/* All four providers ship: Apple is not optional -- the App Store
                 requires Sign in with Apple wherever other third-party sign-in
                 is offered. */}
-            <Row gap={20} style={{ justifyContent: 'center' }}>
+            <Row gap={20} style={{ justifyContent: 'center', marginTop: 27 }}>
               {([
                 ['facebook', 'facebook'],
                 ['google', 'google'],
@@ -210,6 +131,15 @@ export function AuthLanding() {
               <RolePill label="Coach/Teacher" active={kind === 'coach'} onPress={() => setKind('coach')} />
               <RolePill label="Trainee/Student" active={kind === 'trainee'} onPress={() => setKind('trainee')} />
             </Row>
+            <View style={{ height: 54 }} />
+            <NextButton label="NEXT" accessibilityLabel="Next, choose sports and hobbies"
+              enabled={kind !== null} onPress={() => {
+              if (!kind) return;
+              s.set('signupIntent', kind);
+              track('onboarding_role_chosen', { role: kind });
+              s.set('mode', kind === 'coach' ? 'partners' : 'coaches');
+              setStep('interests');
+            }} />
           </>
         ) : step === 'interests' ? (
           <View style={{ gap: 24 }}>
@@ -217,6 +147,17 @@ export function AuthLanding() {
             <Text style={[t.pageTitle, { color: c.txt }]}>{kind === 'coach' ? 'What do you teach?' : 'Your interests'}</Text>
             <SportsPicker selected={s.signupSports} onChange={(ids) => s.set('signupSports', ids)} coach={kind === 'coach'} />
             {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
+            <NextButton label={s.signupSports.length ? 'NEXT' : 'SKIP FOR NOW'}
+              accessibilityLabel="Continue to your area"
+              busy={savingDraft} enabled={!savingDraft}
+              onPress={() => {
+                setSavingDraft(true);
+                setError(null);
+                void saveSignupDraft({ role: kind === 'coach' ? 'coach' : 'member', sportIds: s.signupSports })
+                  .then(() => setStep('where'))
+                  .catch(() => setError('Could not keep your choices. Please try again.'))
+                  .finally(() => setSavingDraft(false));
+              }} />
           </View>
         ) : (
           <>
@@ -225,7 +166,7 @@ export function AuthLanding() {
             <Text style={[t.pageTitle, { color: c.txt, marginTop: 2 }]}>Add an area label</Text>
             <LocationField value={loc} onChange={setLoc} />
             <Text style={[t.bodySm, { color: c.txt2, marginTop: 12 }]}>
-              Your area is a display label; it does not restrict results.
+              Your area is a display label; it does not restrict results. The search words you entered earlier start your search.
             </Text>
             <Text style={[t.labelSm, { color: c.txt, marginTop: 22 }]}>Distance preference</Text>
             <Text style={[t.bodySm, { color: c.txt2, marginTop: 6 }]}>
@@ -237,34 +178,22 @@ export function AuthLanding() {
               <Text style={[t.caption, { color: c.accent }]}>{radius} Km</Text>
               <Text style={[t.caption, { color: c.txt2 }]}>100 Km</Text>
             </Row>
-            {/* The search words, moved off step one. They belong here because
-                this is the screen that scopes them -- the distance above and
-                the words below are the two halves of the same search, and on
-                step one there was nothing yet to say what would be searched. */}
-            <View style={{ marginTop: 30 }}>
-              <Field value={seek} onChange={setSeek} placeholder="Search Coach, Mentor" icon="search" />
-            </View>
-            <Text style={[t.bodySm, { color: c.txt2, marginTop: 12 }]}>
-              The search words above start your search.
-            </Text>
+            <View style={{ height: 36 }} />
+            <NextButton label="CREATE ACCOUNT" accessibilityLabel="Continue to create your free account" onPress={() => {
+              s.set('authLoc', loc.trim());
+              s.set('discSearch', seek.trim());
+              setAccountMode('up');
+              setAccount(true);
+            }} />
           </>
         )}
       </ScrollView>
-      <View style={{ backgroundColor: c.bg, paddingBottom: insets.bottom }}>
-        {/* The dots ride with the action that advances them. At the very bottom
-            of the screen they were the one thing telling someone how much was
-            left, and it sat furthest from the button doing the advancing. */}
-        <ActionBar note={dots}>
-          <VoltButton label={primary.label} accessibilityLabel={primary.a11y}
-            enabled={primary.enabled ?? true} busy={primary.busy ?? false}
-            busyLabel="Saving…" onPress={primary.onPress} />
-        </ActionBar>
-      </View>
+      {!account && <ProgressDots count={STEPS.length} index={STEPS.indexOf(step)} bottom={insets.bottom + 20} />}
     </View>
   );
 }
 
-function ProgressDots({ count, index }: { count: number; index: number }) {
+function ProgressDots({ count, index, bottom }: { count: number; index: number; bottom: number }) {
   const { c } = useTheme();
   return (
     <View
@@ -273,7 +202,15 @@ function ProgressDots({ count, index }: { count: number; index: number }) {
       accessibilityRole="progressbar"
       accessibilityLabel={`Step ${index + 1} of ${count}`}
       accessibilityValue={{ min: 1, max: count, now: index + 1 }}
-      style={{ flexDirection: 'row', gap: 6, justifyContent: 'center' }}
+      style={{
+        position: 'absolute',
+        left: 26,
+        right: 26,
+        bottom,
+        flexDirection: 'row',
+        gap: 6,
+        justifyContent: 'center',
+      }}
     >
       {Array.from({ length: count }, (_, i) => (
         <View
@@ -290,10 +227,33 @@ function ProgressDots({ count, index }: { count: number; index: number }) {
   );
 }
 
-function StepBack({ onPress, label = 'Back a step' }: { onPress: () => void; label?: string }) {
+// Centered volt NEXT button from the board.
+// The gate's primary action, and a back control for every step after the
+// first. NextButton used to be hand-rolled -- its own radius, a border on a
+// volt fill, a fixed width, 44 high where a primary is 52, and no disabled or
+// busy state at all -- which is how the interests step ended up firing a
+// network write on every tap.
+function NextButton({ label, accessibilityLabel, onPress, enabled = true, busy = false }: {
+  label: string;
+  accessibilityLabel: string;
+  onPress: () => void;
+  enabled?: boolean;
+  busy?: boolean;
+}) {
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <View style={{ width: 206, maxWidth: '100%' }}>
+        <VoltButton label={label} accessibilityLabel={accessibilityLabel}
+          enabled={enabled} busy={busy} busyLabel="Saving…" onPress={onPress} />
+      </View>
+    </View>
+  );
+}
+
+function StepBack({ onPress }: { onPress: () => void }) {
   return (
     <View style={{ alignItems: 'flex-start', marginBottom: 14 }}>
-      <IconButton icon="arrow-left" accessibilityLabel={label} onPress={onPress} />
+      <IconButton icon="arrow-left" accessibilityLabel="Back a step" onPress={onPress} />
     </View>
   );
 }
@@ -306,9 +266,6 @@ function RolePill({ label, active, onPress }: { label: string; active: boolean; 
       accessibilityRole="radio"
       accessibilityLabel={label}
       accessibilityState={{ selected: active, checked: active }}
-      // The pill is drawn at 44 to sit level with the fields around it; the
-      // slop is what takes the thing a thumb actually hits to 48.
-      hitSlop={TAP_SLOP}
       style={{
         minHeight: 44,
         justifyContent: 'center',

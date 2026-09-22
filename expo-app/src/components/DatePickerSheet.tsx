@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { FormSheet, IconButton, Row, TAP_SLOP, VoltButton } from './ui';
+import { FormSheet, IconButton, Row, VoltButton } from './ui';
 import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { alpha, useTheme } from '../theme';
 
@@ -111,9 +111,6 @@ export function DatePickerSheet({
           const isSelected = key === selected;
           return (
             <Pressable key={key} disabled={disabled} onPress={() => setSelected(key)}
-              // A seventh of the sheet's width is under Material's 48dp on any
-              // phone narrower than a Pixel, and the row is 44 tall regardless.
-              hitSlop={TAP_SLOP}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected, disabled }}
               accessibilityLabel={`${day} ${MONTH_NAMES[cursor.getMonth()]}${already ? ', already closed' : ''}`}

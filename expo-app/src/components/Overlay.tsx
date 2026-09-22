@@ -2,7 +2,7 @@ import React, { ReactNode, useEffect, useRef } from 'react';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { motion, useTheme } from '../theme';
-import { Icon, IconButton } from './ui';
+import { Icon } from './ui';
 
 // Full-screen overlay that slides up 14px + fades over 280ms (matches `ovUp`).
 // Distinct from `Sheet` — overlays fill the screen, sheets dock to the bottom.
@@ -74,7 +74,14 @@ export function OverlayHeader({
   const { c, t } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12 }}>
-      <IconButton icon="chevron-left" accessibilityLabel="Go back" onPress={onBack} />
+      <Pressable
+        onPress={onBack}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Icon name="chevron-left" size={22} color={c.txt2} />
+      </Pressable>
       <View style={{ width: 12 }} />
       <View style={{ flex: 1 }}>
         <Text style={[t.overlayTitle, { color: c.txt }]}>{title}</Text>

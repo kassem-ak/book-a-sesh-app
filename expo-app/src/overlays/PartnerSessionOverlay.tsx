@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { ActionBar, Chip, Row, SectionHeading, TAP_SLOP, VoltButton } from '../components/ui';
+import { Chip, Row, SectionHeading, VoltButton } from '../components/ui';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { proposePartnerSession } from '../lib/partners';
 import { bookableDays } from './BookingOverlay';
@@ -56,13 +56,7 @@ export function PartnerSessionOverlay() {
 
   if (sent) {
     return (
-      <OverlayScaffold
-        header={<OverlayHeader title="Invitation sent" onBack={s.closeOverlay} />}
-        // The way out of a confirmation is still the screen's one verb, so it
-        // belongs in the bar with every other primary rather than floating at
-        // the end of a column that grows with the coach's name.
-        bottomBar={<ActionBar><VoltButton label="Done" onPress={s.closeOverlay} /></ActionBar>}
-      >
+      <OverlayScaffold header={<OverlayHeader title="Invitation sent" onBack={s.closeOverlay} />}>
         <View style={{ paddingHorizontal: 18, paddingTop: 40, alignItems: 'center', gap: 10 }}>
           <Text style={[t.overlayTitle, { fontSize: 22, color: c.txt, textAlign: 'center' }]}>
             Asked {p.name.split(' ')[0]} to train
@@ -73,6 +67,10 @@ export function PartnerSessionOverlay() {
           <Text style={[t.bodySm, { color: c.txt3, textAlign: 'center' }]}>
             It shows in your calendar as pending until they accept. You will see their answer in notifications.
           </Text>
+          <View style={{ height: 20 }} />
+          <View style={{ width: '100%' }}>
+            <VoltButton label="Done" onPress={s.closeOverlay} />
+          </View>
         </View>
       </OverlayScaffold>
     );
@@ -82,32 +80,18 @@ export function PartnerSessionOverlay() {
     <OverlayScaffold
       header={<OverlayHeader title="Train together" subtitle={p.name} onBack={s.backToPerson} />}
       bottomBar={
-        <ActionBar note={
-          <>
-            {/* What was picked, beside the button that sends it. The day and
-                the time are chosen at the top of a list long enough to scroll
-                them off, and nobody should have to scroll back to check. */}
-            {day && chosenSlot && (
-              <Text style={[t.bodySm, { color: c.txt }]}>
-                {bookingDayLabel(day.date)} · {chosenSlot}
-              </Text>
-            )}
-            <Text style={[t.caption, { color: c.txt3 }]}>
-              Free — you are arranging a session between the two of you, not booking a coach.
-            </Text>
-            {/* A send that fails, fails here. At the top of the content it was
-                announced somewhere the person was not looking. */}
-            {error && (
-              <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>
-            )}
-          </>
-        }>
+        <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
+          <Text style={[t.caption, { color: c.txt3, marginBottom: 12 }]}>
+            Free — you are arranging a session between the two of you, not booking a coach.
+          </Text>
           <VoltButton label="Send invitation" busy={busy} busyLabel="Sending…"
             enabled={Boolean(day && chosenSlot) && !busy} onPress={() => void send()} />
-        </ActionBar>
+        </View>
       }
     >
       <View style={{ paddingHorizontal: 18 }}>
+        {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger, marginBottom: 10 }]}>{error}</Text>}
+
         <SectionHeading style={{ marginBottom: 11 }}>Day</SectionHeading>
         <Row style={{ flexWrap: 'wrap' }} gap={9}>
           {days.map((entry, index) => {
@@ -116,9 +100,6 @@ export function PartnerSessionOverlay() {
               <Pressable key={entry.date} accessibilityRole="button"
                 accessibilityState={{ selected }} accessibilityLabel={bookingDayLabel(entry.date)}
                 onPress={() => { setDayIndex(index); setSlot(null); }}
-                // Two stacked lines of small type come out just under the 48dp
-                // floor, and these sit nine apart in a wrapping grid of 28.
-                hitSlop={TAP_SLOP}
                 style={{ borderRadius: 12, backgroundColor: selected ? c.volt : c.surface,
                   borderColor: selected ? c.volt : c.line, borderWidth: 1,
                   paddingHorizontal: 13, paddingVertical: 9, minWidth: 54, alignItems: 'center' }}>

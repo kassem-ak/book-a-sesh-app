@@ -8,7 +8,7 @@ import { perHourLabel, rsvpSubject } from '../state/courtsData';
 import { useStore } from '../state/store';
 import { radii, useTheme } from '../theme';
 
-// Delta section C. Booking type, day, hours stepper, start time, equipment
+// Delta section C. Booking type, day + start time, hours stepper, equipment
 // rent, add-a-coach (routes into the coach calendar), live total estimate.
 export const RSVP_TYPES = ['Single', 'Teams', 'Member of team'] as const;
 export type RsvpType = (typeof RSVP_TYPES)[number];
@@ -171,36 +171,13 @@ export function RsvpSheet() {
       }
       onClose={close}
       footer={
-        // Day, hours and start time are three stacked decisions and each one
-        // moves the figure. The total used to sit at the bottom of the scroll,
-        // so by the time someone reached the last decision the number it
-        // changed was off screen. Sheet's footer is outside the scroller: the
-        // running total and the action it belongs to now stay put.
-        <View style={{ gap: 12 }}>
-          <Row
-            style={{
-              backgroundColor: c.surface2,
-              borderRadius: radii.input,
-              paddingHorizontal: 15,
-              paddingVertical: 13,
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={[t.label, { color: c.txt }]}>Total</Text>
-              <Text style={[t.caption, { fontSize: 11.5, color: c.txt3, marginTop: 2 }]}>
-                Estimate · confirmed by the venue
-              </Text>
-            </View>
-            <Text style={[t.price, { fontSize: 18, color: c.accent }]}>{formatCents(total)}</Text>
-          </Row>
-          <VoltButton
-            label={coach ? 'Continue to coach calendar' : 'Confirm RSVP'}
-            onPress={confirm}
-            enabled={canConfirm}
-            busy={busy}
-            busyLabel="Reserving..."
-          />
-        </View>
+        <VoltButton
+          label={coach ? 'Continue to coach calendar' : 'Confirm RSVP'}
+          onPress={confirm}
+          enabled={canConfirm}
+          busy={busy}
+          busyLabel="Reserving..."
+        />
       }
     >
       <SectionHeading style={{ color: c.txt3, marginBottom: 9 }}>Booking type</SectionHeading>
@@ -230,6 +207,24 @@ export function RsvpSheet() {
           </ChipScroller>
           {days.length === 0 && (
             <Text style={[t.bodySm, { color: c.txt3 }]}>No open days in the next two weeks.</Text>
+          )}
+
+          <SectionHeading style={{ color: c.txt3, marginTop: 20, marginBottom: 9 }}>Start time</SectionHeading>
+          <ChipScroller>
+            {times.map((at) => (
+              <PickChip
+                key={at.toISOString()}
+                label={timeLabel(at)}
+                accessibilityLabel={`Start at ${timeLabel(at)}`}
+                active={Boolean(startsAt && startsAt.getTime() === at.getTime())}
+                onPress={() => s.set('rsvpStartsAt', at.toISOString())}
+              />
+            ))}
+          </ChipScroller>
+          {times.length === 0 && (
+            <Text style={[t.bodySm, { color: c.txt3 }]}>
+              No {hours}-hour slot left that day — pick another day or fewer hours.
+            </Text>
           )}
 
           <SectionHeading style={{ color: c.txt3, marginTop: 20, marginBottom: 9 }}>Number of hours</SectionHeading>
@@ -265,28 +260,6 @@ export function RsvpSheet() {
             />
           </Row>
 
-          {/* Hours before start time: the length of the booking is what
-              decides which starts still fit, and picking a slot first only to
-              have it cleared by the stepper below made the two feel like they
-              were fighting each other. */}
-          <SectionHeading style={{ color: c.txt3, marginTop: 20, marginBottom: 9 }}>Start time</SectionHeading>
-          <ChipScroller>
-            {times.map((at) => (
-              <PickChip
-                key={at.toISOString()}
-                label={timeLabel(at)}
-                accessibilityLabel={`Start at ${timeLabel(at)}`}
-                active={Boolean(startsAt && startsAt.getTime() === at.getTime())}
-                onPress={() => s.set('rsvpStartsAt', at.toISOString())}
-              />
-            ))}
-          </ChipScroller>
-          {times.length === 0 && (
-            <Text style={[t.bodySm, { color: c.txt3 }]}>
-              No {hours}-hour slot left that day — pick another day or fewer hours.
-            </Text>
-          )}
-
           {/* No gear rate means the venue hires no equipment and reserve_court
               would refuse; do not offer the toggle at all. */}
           {gearRate !== null && (
@@ -308,6 +281,23 @@ export function RsvpSheet() {
         style={{ marginTop: 11 }}
       />
 
+      <Row
+        style={{
+          marginTop: 20,
+          backgroundColor: c.surface2,
+          borderRadius: radii.input,
+          paddingHorizontal: 15,
+          paddingVertical: 13,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[t.label, { color: c.txt }]}>Total</Text>
+          <Text style={[t.caption, { fontSize: 11.5, color: c.txt3, marginTop: 2 }]}>
+            Estimate · confirmed by the venue
+          </Text>
+        </View>
+        <Text style={[t.price, { fontSize: 18, color: c.accent }]}>{formatCents(total)}</Text>
+      </Row>
     </Sheet>
   );
 }

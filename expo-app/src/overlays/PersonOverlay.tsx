@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  ActionBar, Avatar, Button, Card, IconButton, MicroBadge, Row, SectionHeading, Stars, TAP_SLOP,
-  VoltButton,
+  Avatar, Button, Card, Icon, IconButton, MicroBadge, Row, SectionHeading, Stars, VoltButton,
 } from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
 import { Certification, fetchCertifications } from '../lib/coaching';
@@ -77,7 +76,7 @@ export function PersonOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title={p.isCoach ? 'Coach' : 'Training partner'} onBack={s.closeOverlay} trailing={
-        <Row gap={8} style={{ alignItems: 'center' }}>
+        <Row gap={14} style={{ alignItems: 'center' }}>
           {/* Blocking someone removes the follow server-side, so offering to
               follow them here would be offering something the database
               refuses. */}
@@ -100,11 +99,7 @@ export function PersonOverlay() {
         </Row>
       } />}
       bottomBar={
-        // Deciding to book is the whole reason this screen exists, so the bar
-        // carries that verb and nothing that could undo it. Report and Block
-        // live at the end of the content instead, below the credentials,
-        // schedule and packages they are a judgement about.
-        <ActionBar>
+        <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
           {/* No price on the Book button. It quoted the per-session rate, which
               is only one of the things a session can cost -- a package makes it
               cheaper, and the booking screen is where that is chosen. A figure
@@ -112,7 +107,7 @@ export function PersonOverlay() {
           {p.isCoach ? (
             <VoltButton label="Book a session" onPress={s.openBooking} />
           ) : (
-            <>
+            <View style={{ gap: 10 }}>
               <VoltButton
                 label="Ask to train together"
                 onPress={() => s.set('overlay', 'partnerSession')}
@@ -126,9 +121,9 @@ export function PersonOverlay() {
                 accessibilityLabel={`Message ${p.name}`}
                 onPress={message}
               />
-            </>
+            </View>
           )}
-        </ActionBar>
+        </View>
       }
     >
       <View style={{ paddingHorizontal: 18 }}>
@@ -262,7 +257,6 @@ export function PersonOverlay() {
             accessibilityRole="button"
             accessibilityLabel={`${blocked ? 'Unblock' : 'Block'} ${p.name}`}
             accessibilityState={{ disabled: s.writeBusy === 'block' }}
-            hitSlop={TAP_SLOP}
             style={{ flex: 1, minHeight: 46, borderRadius: 14, borderColor: blocked ? c.line : c.danger, borderWidth: 1, alignItems: 'center', justifyContent: 'center', opacity: s.writeBusy === 'block' ? 0.5 : 1 }}
           >
             <Text style={[t.labelSm, { color: blocked ? c.txt2 : c.danger }]}>
