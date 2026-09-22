@@ -58,7 +58,14 @@ export function CoachSubjectsOverlay() {
 
   return (
     <OverlayScaffold header={<OverlayHeader title="What you teach" onBack={s.closeOverlay}
-      subtitle="Your subjects and experience" />}>
+      subtitle="Your subjects and experience" />}
+      // The sports picker above can run several screens long, so Save at the
+      // end of the content was never on screen with the fields it saves.
+      bottomBar={basics ? (
+        <View style={{ padding: 16, backgroundColor: c.bg }}>
+          <VoltButton label="Save" busy={busy} busyLabel="Saving…" enabled={!busy} onPress={save} />
+        </View>
+      ) : undefined}>
       <View style={{ paddingHorizontal: 18, gap: 16 }}>
         {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
         {!basics && !error && (
@@ -85,7 +92,6 @@ export function CoachSubjectsOverlay() {
             label="Coach headline" placeholder="Strength coach, 6 years" />
           <Field value={basics.level} onChange={(level) => { setBasics({ ...basics, level }); setSaved(false); }}
             label="Your coaching level" placeholder="Level 3 certified · national squad" />
-          <VoltButton label="Save" busy={busy} busyLabel="Saving…" enabled={!busy} onPress={save} />
           {saved && (
             <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.accent }]}>
               Saved. Your public profile shows this now.

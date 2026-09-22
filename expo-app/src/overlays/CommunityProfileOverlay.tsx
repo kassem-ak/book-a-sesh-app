@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissingSubject, OverlayHeader } from '../components/Overlay';
 import { ScrollAwareFab, useScrollAwareFab } from '../components/ScrollAwareFab';
 import {
-  Avatar, Button, Card, Icon, MicroBadge, Row, StripedPlaceholder,
+  Avatar, Button, Card, Icon, IconButton, MicroBadge, Row, StripedPlaceholder,
 } from '../components/ui';
 import { isMeetup } from '../state/models';
 import { useStore } from '../state/store';
@@ -30,7 +30,14 @@ export function CommunityProfileOverlay() {
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.bg }}>
       <View style={{ paddingTop: insets.top }}>
-        <OverlayHeader title={cm.sport} onBack={s.closeOverlay} />
+        <OverlayHeader title={cm.sport} onBack={s.closeOverlay}
+          // The edit control was threaded between the community name and its
+          // verified tick, inside the identity line. A screen's own action
+          // belongs in its header, not in the middle of its title.
+          trailing={canManage ? (
+            <IconButton icon="edit-2" accessibilityLabel="Edit community details"
+              onPress={() => s.openEditCommunity()} />
+          ) : undefined} />
       </View>
 
       <ScrollView
@@ -49,16 +56,6 @@ export function CommunityProfileOverlay() {
                   {/* Verified check belongs to official communities only — it
                       was rendering unconditionally, next to a missing badge. */}
                   {cm.official && <Icon name="check-circle" size={17} color={c.accent} />}
-                  {canManage && (
-                    <Pressable
-                      onPress={() => s.openEditCommunity()}
-                      accessibilityRole="button"
-                      accessibilityLabel="Edit community details"
-                      hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                    >
-                      <Icon name="edit-2" size={17} color={c.txt3} />
-                    </Pressable>
-                  )}
                 </Row>
                 <Row gap={8} style={{ marginTop: 6, flexWrap: 'wrap' }}>
                   {cm.official && <MicroBadge label="Official Federation" bg={alpha(c.volt, 0.12)} fg={c.accent} />}

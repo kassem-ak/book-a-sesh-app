@@ -564,6 +564,19 @@ export function ReportOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Report" onBack={s.closeOverlay} subtitle={subject.name} />}
+      // The free-text box grows as it is typed into, so at the end of the
+      // content the submit walked down the screen and off it.
+      bottomBar={(
+        <View style={{ padding: 16, backgroundColor: c.bg }}>
+          <VoltButton
+            label="Submit report"
+            busyLabel="Filing report..."
+            enabled={Boolean(reason)}
+            busy={busy}
+            onPress={submit}
+          />
+        </View>
+      )}
     >
       <View style={{ paddingHorizontal: 18 }}>
         <Text style={[t.bodySm, { color: c.txt2, lineHeight: 20 }]}>
@@ -593,15 +606,6 @@ export function ReportOverlay() {
           />
         </View>
 
-        <View style={{ marginTop: 20 }}>
-          <VoltButton
-            label="Submit report"
-            busyLabel="Filing report..."
-            enabled={Boolean(reason)}
-            busy={busy}
-            onPress={submit}
-          />
-        </View>
       </View>
     </OverlayScaffold>
   );

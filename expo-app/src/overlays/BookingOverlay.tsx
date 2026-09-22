@@ -612,10 +612,6 @@ export function BookingOverlay() {
                   <Text style={[t.labelSm, { color: c.txt }]}>
                     {picked.length} of {allowance} chosen
                   </Text>
-                  {picked.length > 0 && (
-                    <Button label="Clear" icon="x" accessibilityLabel="Clear the sessions you picked"
-                      onPress={() => { setChosenSlots({}); setBookingError(null); }} />
-                  )}
                 </Row>
                 {/* Every session the pack still has, so nobody has to count
                     the pack down themselves. They do not have to book them
@@ -642,6 +638,10 @@ export function BookingOverlay() {
                     </Pressable>
                   </Row>
                 ))}
+                {picked.length > 0 && (
+                  <Button label="Clear" icon="x" accessibilityLabel="Clear the sessions you picked"
+                    onPress={() => { setChosenSlots({}); setBookingError(null); }} />
+                )}
               </View>
             ) : bookDate && bookSlot ? (
               <Pressable accessibilityRole="button" accessibilityLabel="Change the time"
