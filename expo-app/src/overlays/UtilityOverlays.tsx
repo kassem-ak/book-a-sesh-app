@@ -1,6 +1,8 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  FlatList,
   Keyboard,
   Platform,
   Pressable,
@@ -14,7 +16,8 @@ import { CalendarItem, calendarWhen, fetchCalendar } from '../lib/calendar';
 import { decidePartnerSession } from '../lib/partners';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Button, Card, ErrorNote, Icon, MicroBadge, Row, SectionHeading, VoltButton,
+  ActionBar, Button, Card, ErrorNote, Icon, IconButton, MicroBadge, Row,
+  SectionHeading, TAP_SLOP, VoltButton,
 } from '../components/ui';
 import {
   fetchCounterpart,
@@ -34,7 +37,7 @@ import {
   type NotificationType,
 } from '../lib/notifications';
 import { useStore } from '../state/store';
-import { alpha, useTheme } from '../theme';
+import { alpha, motion, useTheme } from '../theme';
 
 function message(e: unknown, fallback: string) {
   return e instanceof Error && e.message ? e.message : fallback;
@@ -164,8 +167,21 @@ export function ConversationOverlay() {
     };
   }, [conversationId, live]);
 
-  // OverlayScaffold pins the composer to the bottom edge, which iOS keyboards
-  // cover. Android's resize mode already lifts it, so only iOS needs the shift.
+  // The same rise-and-fade every other overlay makes, on the same tokens, so a
+  // thread does not arrive differently from the screens around it.
+  const entrance = React.useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    const rise = Animated.timing(entrance, {
+      toValue: 1,
+      duration: motion.overlay,
+      useNativeDriver: true,
+    });
+    rise.start();
+    return () => rise.stop();
+  }, [entrance]);
+
+  // The composer is pinned to the bottom edge, which iOS keyboards cover.
+  // Android's resize mode already lifts it, so only iOS needs the shift.
   const [keyboard, setKeyboard] = React.useState(0);
   React.useEffect(() => {
     if (Platform.OS !== 'ios') return;
@@ -196,78 +212,113 @@ export function ConversationOverlay() {
     }
   }
 
-  return (
-    <OverlayScaffold
-      header={<OverlayHeader title={title} onBack={s.closeOverlay} />}
-      bottomBar={
-        <View
+  // Newest first, because the list below is inverted: it starts at the bottom
+  // of its own box and grows upward, which is where a thread is read from.
+  const newestFirst = React.useMemo(
+    () => (messages ? [...messages].reverse() : []),
+    [messages],
+  );
+
+  const composer = (
+    <ActionBar>
+      <Row gap={10}>
+        <View style={{ flex: 1, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 9 }}>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            editable={live && !sending}
+            placeholder={`Message ${title.split(' ')[0]}...`}
+            placeholderTextColor={c.txt3}
+            multiline
+            accessibilityLabel={`Message ${title}`}
+            onSubmitEditing={onSend}
+            style={[t.body, { color: c.txt, padding: 0, maxHeight: 96, minHeight: 24 }]}
+          />
+        </View>
+        <Pressable
+          onPress={onSend}
+          accessibilityRole="button"
+          accessibilityLabel={sending ? 'Sending message' : 'Send message'}
+          accessibilityState={{ disabled: !canSend, busy: sending }}
+          hitSlop={TAP_SLOP}
           style={{
-            backgroundColor: c.bg,
-            borderTopColor: c.line,
-            borderTopWidth: 1,
-            marginBottom: Math.max(keyboard - insets.bottom, 0),
+            width: 46,
+            height: 46,
+            borderRadius: 14,
+            backgroundColor: canSend ? c.volt : c.surface2,
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          <Row style={{ padding: 12 }} gap={10}>
-            <View style={{ flex: 1, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 9 }}>
-              <TextInput
-                value={draft}
-                onChangeText={setDraft}
-                editable={live && !sending}
-                placeholder={`Message ${title.split(' ')[0]}...`}
-                placeholderTextColor={c.txt3}
-                multiline
-                accessibilityLabel={`Message ${title}`}
-                onSubmitEditing={onSend}
-                style={[t.body, { color: c.txt, padding: 0, maxHeight: 96, minHeight: 24 }]}
-              />
-            </View>
-            <Pressable
-              onPress={onSend}
-              accessibilityRole="button"
-              accessibilityLabel={sending ? 'Sending message' : 'Send message'}
-              accessibilityState={{ disabled: !canSend, busy: sending }}
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: 14,
-                backgroundColor: canSend ? c.volt : c.surface2,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {sending ? (
-                <ActivityIndicator color={c.txt2} />
-              ) : (
-                <Icon name="send" size={20} color={canSend ? c.ink : c.txt3} />
-              )}
-            </Pressable>
-          </Row>
-        </View>
-      }
+          {sending ? (
+            <ActivityIndicator color={c.txt2} />
+          ) : (
+            <Icon name="send" size={20} color={canSend ? c.ink : c.txt3} />
+          )}
+        </Pressable>
+      </Row>
+    </ActionBar>
+  );
+
+  return (
+    // This is OverlayScaffold's shell, written out because a thread cannot use
+    // OverlayScaffold itself: the scaffold puts its children inside a ScrollView
+    // it owns, and a thread needs a scroll region of its own that starts at the
+    // newest message. Rendered as children, the messages were laid out oldest
+    // first from the top, so opening a conversation showed the beginning of it
+    // and the last thing anyone said was however many screens further down.
+    // ponytail: duplicates the shell, collapse back if OverlayScaffold ever
+    // takes a list instead of children.
+    <Animated.View
+      style={{
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: c.bg,
+        opacity: entrance,
+        transform: [{
+          translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [motion.overlayTravel, 0] }),
+        }],
+      }}
     >
-      <View style={{ paddingHorizontal: 18, gap: 10 }}>
-        {messages === null ? (
-          <LoadingCard label="Loading messages…" />
-        ) : error ? (
-          <ErrorCard
-            title="Couldn’t load this conversation"
-            detail={error}
-            onRetry={live ? () => { setMessages(null); setReloads((n) => n + 1); } : undefined}
-          />
-        ) : messages.length === 0 ? (
-          <EmptyCard icon="message-circle" title="No messages yet" detail={`Say hello to ${title}.`} />
-        ) : (
-          messages.map((m) => (
-            <View key={m.id} style={{ alignItems: m.mine ? 'flex-end' : 'flex-start' }}>
+      <View style={{ paddingTop: insets.top }}>
+        <OverlayHeader title={title} onBack={s.closeOverlay} />
+      </View>
+
+      {messages === null || error || messages.length === 0 ? (
+        <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 4 }}>
+          {messages === null ? (
+            <LoadingCard label="Loading messages…" />
+          ) : error ? (
+            <ErrorCard
+              title="Couldn’t load this conversation"
+              detail={error}
+              onRetry={live ? () => { setMessages(null); setReloads((n) => n + 1); } : undefined}
+            />
+          ) : (
+            <EmptyCard icon="message-circle" title="No messages yet" detail={`Say hello to ${title}.`} />
+          )}
+        </View>
+      ) : (
+        <FlatList
+          inverted
+          style={{ flex: 1 }}
+          data={newestFirst}
+          keyExtractor={(m) => m.id}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingHorizontal: 18, paddingVertical: 10, gap: 10 }}
+          renderItem={({ item: m }) => (
+            <View style={{ alignItems: m.mine ? 'flex-end' : 'flex-start' }}>
               <View style={{ maxWidth: '78%', borderRadius: 18, backgroundColor: m.mine ? c.volt : c.surface, borderColor: m.mine ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11 }}>
                 <Text style={[t.body, { color: m.mine ? c.ink : c.soft }]}>{m.body}</Text>
               </View>
             </View>
-          ))
-        )}
+          )}
+        />
+      )}
+
+      <View style={{ paddingBottom: insets.bottom, marginBottom: Math.max(keyboard - insets.bottom, 0) }}>
+        {composer}
       </View>
-    </OverlayScaffold>
+    </Animated.View>
   );
 }
 
@@ -375,9 +426,12 @@ export function NotificationsOverlay() {
           title="Notifications"
           onBack={s.closeOverlay}
           subtitle={unread > 0 ? `${unread} unread` : undefined}
+          // A labelled button in the header took the width the counterpart's
+          // name needs and made a bulk action look like the screen's verb. The
+          // count it acts on is already in the subtitle beside it.
           trailing={
             unread > 0 ? (
-              <Button label="Mark all read" icon="check-circle" onPress={markAll}
+              <IconButton icon="check-circle" onPress={markAll}
                 accessibilityLabel={`Mark all ${unread} notifications as read`} />
             ) : undefined
           }
@@ -564,6 +618,20 @@ export function ReportOverlay() {
   return (
     <OverlayScaffold
       header={<OverlayHeader title="Report" onBack={s.closeOverlay} subtitle={subject.name} />}
+      // Filing is what this screen is for, so it sits in the bar rather than
+      // below a free-text box that grows: the taller someone's account of what
+      // happened, the further the button that sends it used to scroll away.
+      bottomBar={
+        <ActionBar>
+          <VoltButton
+            label="Submit report"
+            busyLabel="Filing report..."
+            enabled={Boolean(reason)}
+            busy={busy}
+            onPress={submit}
+          />
+        </ActionBar>
+      }
     >
       <View style={{ paddingHorizontal: 18 }}>
         <Text style={[t.bodySm, { color: c.txt2, lineHeight: 20 }]}>
@@ -590,16 +658,6 @@ export function ReportOverlay() {
             multiline
             accessibilityLabel="Describe what happened"
             style={[t.body, { color: c.txt, padding: 0, minHeight: 96, textAlignVertical: 'top' }]}
-          />
-        </View>
-
-        <View style={{ marginTop: 20 }}>
-          <VoltButton
-            label="Submit report"
-            busyLabel="Filing report..."
-            enabled={Boolean(reason)}
-            busy={busy}
-            onPress={submit}
           />
         </View>
       </View>

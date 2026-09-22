@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Button, Card, Icon, Row } from '../components/ui';
+import { Avatar, Button, Card, Icon, Row, TAP } from '../components/ui';
 import { fetchConversations, type ConversationSummary } from '../lib/chat';
 import { fetchNotifications, type AppNotification } from '../lib/notifications';
 import { useStore } from '../state/store';
@@ -55,9 +55,19 @@ export function ChatScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 8, paddingBottom: 20 }}>
-      <Text style={[t.pageTitle, { color: c.txt }]}>Chat</Text>
-      <Text style={[t.bodySm, { color: c.txt2, marginTop: 14, marginBottom: 42 }]}>Conversations and session updates</Text>
+      {/* The shape Courts, Community and Shop use: the title alone on the
+          first line, the supporting line under it, and a tap-target's height
+          on the title row so that line lands in the same place on every tab.
+          Chat has no screen-level action to put opposite the title, and an
+          empty row still has to hold the height. */}
+      <Row style={{ minHeight: TAP }}>
+        <View style={{ flex: 1 }}>
+          <Text style={[t.pageTitle, { color: c.txt }]}>Chat</Text>
+        </View>
+      </Row>
+      <Text style={[t.bodySm, { color: c.txt2, marginTop: 14 }]}>Conversations and session updates</Text>
 
+      <View style={{ marginTop: 34 }}>
       {chats === null ? (
         <Card>
           <Row style={{ padding: 18 }} gap={12}>
@@ -131,6 +141,7 @@ export function ChatScreen() {
           ))}
         </View>
       )}
+      </View>
 
       {/* spec 5: "Session reminders" card with an "Open booking" action. The copy
           is the newest real booking notification, not a scripted line. */}

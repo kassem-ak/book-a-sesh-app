@@ -1,20 +1,35 @@
-import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { SportsPicker } from '../components/SportsPicker';
+import React, { ReactNode, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSports } from '../components/useSports';
 import {
-  BrandIcon, BrandName, Button, Field, Icon, Row, SectionHeading, VoltButton,
+  ActionBar, BrandIcon, BrandName, Button, Card, Field, Icon, Row, SectionHeading, VoltButton,
 } from '../components/ui';
 import { signInEmail, signInWithProvider, signUpEmail, SSO_LABELS, SsoProvider } from '../lib/session';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { saveSignupDraft } from '../lib/signup';
 import { useStore } from '../state/store';
-import { alpha, useTheme } from '../theme';
+import { useTheme } from '../theme';
 
 // Shared email/password + SSO form. Used by the AuthLanding gate, which is the
 // only way into the app. Calls onDone() after a successful sign-in.
-export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { onDone: () => void; initialEmail?: string; initialMode?: 'in' | 'up' }) {
+//
+// It owns a scroll and a bar of its own rather than sitting inside the gate's,
+// because its submit is the last step's primary and only this component knows
+// whether that submit is allowed yet.
+export function AuthForm({ onDone, initialEmail = '', initialMode = 'in', note, onEditChoices }: {
+  onDone: () => void;
+  initialEmail?: string;
+  initialMode?: 'in' | 'up';
+  /** The gate's progress dots, carried into this form's own action bar so the
+   *  indicator does not vanish on the one step that still has a write left. */
+  note?: ReactNode;
+  /** Back to the steps that collected the role and the sports. Without it the
+   *  read-back below is a dead end, so the read-back is only shown with it. */
+  onEditChoices?: () => void;
+}) {
   const { c, t } = useTheme();
+  const { sports } = useSports();
   const s = useStore();
   const [mode, setMode] = useState<'in' | 'up'>(initialMode);
   const [name, setName] = useState('');
@@ -77,36 +92,68 @@ export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { on
 
   if (confirmSent) {
     return (
-      <View style={{ alignItems: 'center', paddingTop: 40 }}>
-        <View style={{ width: 74, height: 74, borderRadius: 999, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="mail" size={32} color={c.ink} />
+      <Shell
+        note={note}
+        action={(
+          <Button label="Back to sign in" icon="arrow-left" full
+            onPress={() => { setConfirmSent(false); setMode('in'); }} />
+        )}
+      >
+        <View style={{ alignItems: 'center', paddingTop: 40 }}>
+          <View style={{ width: 74, height: 74, borderRadius: 999, backgroundColor: c.volt, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="mail" size={32} color={c.ink} />
+          </View>
+          <Text style={[t.overlayTitle, { fontSize: 24, color: c.txt, marginTop: 18 }]}>Confirm your email</Text>
+          <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
+            We sent a confirmation link to {email.trim()}. Open it, then sign in here.
+          </Text>
         </View>
-        <Text style={[t.overlayTitle, { fontSize: 24, color: c.txt, marginTop: 18 }]}>Confirm your email</Text>
-        <Text style={[t.bodyLg, { color: c.txt2, marginTop: 8, textAlign: 'center' }]}>
-          We sent a confirmation link to {email.trim()}. Open it, then sign in here.
-        </Text>
-        <Button label="Back to sign in" icon="arrow-left" style={{ marginTop: 18 }}
-          onPress={() => { setConfirmSent(false); setMode('in'); }} />
-      </View>
+      </Shell>
     );
   }
 
   return (
-    <View>
+    <Shell
+      note={note}
+      action={(
+        <VoltButton
+          label={mode === 'in' ? 'Sign in' : 'Create account'}
+          icon={mode === 'in' ? 'log-in' : 'user-plus'}
+          busy={busy}
+          busyLabel="Please wait…"
+          enabled={canSubmit}
+          onPress={submit}
+        />
+      )}
+    >
       {mode === 'up' && <View style={{ gap: 16, marginBottom: 24 }}>
         <Text style={[t.bodySm, { color: c.txt2 }]}>Free for coaches and members. Add your photo and profile details after creating your account.</Text>
-        <SectionHeading>Are you?</SectionHeading>
-        <Row gap={10}>
-          {(['coach', 'trainee'] as const).map((role) => <Pressable key={role}
-            accessibilityRole="radio" accessibilityLabel={role === 'coach' ? 'Coach or teacher' : 'Member, trainee or student'}
-            accessibilityState={{ checked: (s.signupIntent ?? 'trainee') === role, disabled: busy }} disabled={busy}
-            onPress={() => s.set('signupIntent', role)} style={{ flex: 1, minHeight: 48, padding: 12, borderRadius: 16, backgroundColor: (s.signupIntent ?? 'trainee') === role ? c.volt : c.surface }}>
-            <Text style={[t.label, { color: (s.signupIntent ?? 'trainee') === role ? c.ink : c.txt }]}>{role === 'coach' ? 'Coach/Teacher' : 'Trainee/Student'}</Text>
-          </Pressable>)}
-        </Row>
-        <View pointerEvents={busy ? 'none' : 'auto'}>
-          <SportsPicker selected={s.signupSports} onChange={(ids) => s.set('signupSports', ids)} coach={s.signupIntent === 'coach'} />
-        </View>
+        {/* A read-back, not a second set of controls. The role pills and the
+            whole sports catalogue used to be repeated here, two screens after
+            the gate had already asked for both -- which reads as the first
+            answers having been lost, and puts the longest list in the app
+            between someone and the button that finishes signing them up.
+            Changing an answer goes back to the step that owns it, so there is
+            one place each is decided. */}
+        {onEditChoices && (
+          <Card style={{ padding: 14, gap: 10 }}>
+            <SectionHeading>Your choices</SectionHeading>
+            <Text style={[t.label, { color: c.txt }]}>
+              {(s.signupIntent ?? 'trainee') === 'coach' ? 'Coach/Teacher' : 'Trainee/Student'}
+            </Text>
+            <Text style={[t.bodySm, { color: c.txt2 }]}>
+              {s.signupSports.length
+                ? s.signupSports.map((id) => sports?.find((sport) => sport.id === id)?.name ?? 'Unavailable').join(' · ')
+                : 'No sports or hobbies chosen yet.'}
+            </Text>
+            {/* Rule 2: this belongs to the card it changes, not to the bar. */}
+            <Row>
+              <Button label="Edit" icon="edit-2" enabled={!busy}
+                accessibilityLabel="Change your role, sports and hobbies"
+                onPress={onEditChoices} />
+            </Row>
+          </Card>
+        )}
       </View>}
       {/* SSO — Facebook, Google, Microsoft and Apple in a 2x2 grid. */}
       <View style={{ gap: 12 }}>
@@ -145,28 +192,43 @@ export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { on
           style={[t.bodySm, { color: c.danger, marginTop: 14 }]}>{error}</Text>
       )}
 
-      <View style={{ height: 22 }} />
-      <VoltButton
-        label={mode === 'in' ? 'Sign in' : 'Create account'}
-        icon={mode === 'in' ? 'log-in' : 'user-plus'}
-        busy={busy}
-        busyLabel="Please wait…"
-        enabled={canSubmit}
-        onPress={submit}
-      />
-
+      {/* Switching between signing in and signing up is a change of what this
+          screen is, not the thing it is for, so it stays in the content while
+          the submit sits in the bar. */}
       <Button
         label={mode === 'in' ? 'New here? Create an account' : 'Already have an account? Sign in'}
         icon={mode === 'in' ? 'user-plus' : 'log-in'}
         accessibilityLabel={mode === 'in' ? 'Create an account' : 'Sign in to an existing account'}
         enabled={!busy}
         full
-        style={{ marginTop: 18 }}
+        style={{ marginTop: 22 }}
         onPress={() => {
           setMode(mode === 'in' ? 'up' : 'in');
           setError(null);
         }}
       />
+    </Shell>
+  );
+}
+
+// Scroll plus a pinned bar, the shape every screen in the app has. The form
+// used to be a bare column handed to whatever scrolled it, so its submit sat
+// below a 2x2 provider grid, a divider and three fields and scrolled away.
+function Shell({ note, action, children }: { note?: ReactNode; action: ReactNode; children: ReactNode }) {
+  const { c } = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 26, paddingTop: 16, paddingBottom: 26 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {children}
+      </ScrollView>
+      <View style={{ backgroundColor: c.bg, paddingBottom: insets.bottom }}>
+        <ActionBar note={note}>{action}</ActionBar>
+      </View>
     </View>
   );
 }

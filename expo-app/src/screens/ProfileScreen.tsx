@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Toggle } from '../components/ui';
+import { Avatar, Button, Card, Icon, IconButton, MicroBadge, Row, SectionHeading, TAP_SLOP, Toggle } from '../components/ui';
 import { fetchMyBookings } from '../lib/bookings';
 import { signOutUser } from '../lib/session';
 import { analyticsErrorCode, track } from '../lib/analytics';
@@ -52,19 +52,12 @@ export function ProfileScreen() {
             {name ?? 'Your account'}{area ? ` · ${area}` : ''}
           </Text>
         </View>
-        <Row gap={10}>
-          <Pressable
-            onPress={s.openNotifs}
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-            style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Icon name="bell" size={20} color={c.txt2} />
-          </Pressable>
-          <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="user" size={20} color={c.accent} />
-          </View>
-        </Row>
+        {/* The bell used to sit beside a person glyph drawn in the same box,
+            with the same border and the same size, that did nothing at all.
+            Two identical tiles where one is a button is how a person learns
+            not to trust either; the avatar card below already says whose
+            profile this is. */}
+        <IconButton icon="bell" onPress={s.openNotifs} accessibilityLabel="Notifications" />
       </Row>
 
       <Card style={{ marginTop: 18 }}>
@@ -91,32 +84,36 @@ export function ProfileScreen() {
         </Row>
       </Card>
 
-      {s.authUid && <Card style={{ marginTop: 10, paddingHorizontal: 15 }}>
-        <GroupRow icon="edit-2" title="Edit profile" body="Photo, name, bio and interests" onPress={() => s.set('overlay', 'editProfile')} />
-      </Card>}
+      {/* Fifteen rows in a single column, all the same height and all with the
+          same chevron, is a list you read rather than scan. Four questions
+          instead: who am I, what am I doing, what do I run, and what do I own.
+          Nothing new was added -- the same destinations, sorted by the
+          question they answer. */}
 
-      {/* coach tools — free for every coach */}
-      {isCoach && (
-        <>
-          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Coach tools</SectionHeading>
-          <Card>
-            <View style={{ padding: 15, gap: 13 }}>
-              {/* Each row carries its own glyph. Without one ToolRow falls
-                  back to a chevron, so the list a working coach uses every day
-                  was five identical badges with a chevron at each end. */}
-              <ToolRow icon="inbox" title="Appointment requests" body="Review requests · record decisions" onPress={() => s.set('overlay', 'coachRequests')} />
-              <ToolRow icon="sun" title="Today's sessions" body="Day view · mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
-              {/* One row per decision, like the rows either side of them. These
-                  were three sections of a single "Coaching settings" page --
-                  what you teach, when you work and what you charge are made at
-                  three different times and belong apart. */}
-              <ToolRow icon="book-open" title="What you teach" body="Your subjects and experience" onPress={() => s.set('overlay', 'coachSubjects')} />
-              <ToolRow icon="calendar" title="When you coach" body="Working hours · days off" onPress={() => s.set('overlay', 'coachHours')} />
-              <ToolRow icon="tag" title="Packages, pricing & promos" body="Set prices · answer cancellations" onPress={() => s.set('overlay', 'coachPackages')} />
-            </View>
-          </Card>
-        </>
-      )}
+      {/* ------------------------------- YOU ------------------------------ */}
+      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>You</SectionHeading>
+      <Card style={{ paddingHorizontal: 15 }}>
+        {s.authUid && <>
+          <GroupRow icon="edit-2" title="Edit profile" body="Photo, name, bio and interests" onPress={() => s.set('overlay', 'editProfile')} />
+          <RowDivider />
+        </>}
+        {/* Board annotation: "Add my Communities" */}
+        <GroupRow
+          icon="users"
+          title="My communities"
+          body="Crews you own, moderate or follow"
+          badge={joinedCount > 0 ? String(joinedCount) : undefined}
+          onPress={() => s.set('overlay', 'myCommunities')}
+        />
+        <RowDivider />
+        <GroupRow
+          icon="user-check"
+          title="Your circle"
+          body="Coaches and partners you follow"
+          badge={s.followedIds.length > 0 ? String(s.followedIds.length) : undefined}
+          onPress={() => s.set('overlay', 'circle')}
+        />
+      </Card>
 
       {/* ---------------------------- TRAINING ---------------------------- */}
       <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Training</SectionHeading>
@@ -133,34 +130,6 @@ export function ProfileScreen() {
           onPress={s.openBookings}
         />
         <RowDivider />
-        {/* Board annotation: "Add my Communities" */}
-        <GroupRow
-          icon="users"
-          title="My communities"
-          body="Crews you own, moderate or follow"
-          badge={joinedCount > 0 ? String(joinedCount) : undefined}
-          onPress={() => s.set('overlay', 'myCommunities')}
-        />
-        <RowDivider />
-        {/* Only for somebody who is not a coach yet: once they are, everything
-            it held lives in Coach tools above. */}
-        {!isCoach && <>
-          <GroupRow
-            icon="award"
-            title="Become a coach"
-            body="Free. Adds a coach profile so people can book you"
-            onPress={() => s.set('overlay', 'coaching')}
-          />
-          <RowDivider />
-        </>}
-        <GroupRow
-          icon="user-check"
-          title="Your circle"
-          body="Coaches and partners you follow"
-          badge={s.followedIds.length > 0 ? String(s.followedIds.length) : undefined}
-          onPress={() => s.set('overlay', 'circle')}
-        />
-        <RowDivider />
         <GroupRow
           icon="bell"
           title="Notifications"
@@ -169,8 +138,45 @@ export function ProfileScreen() {
         />
       </Card>
 
-      {/* ---------------------------- SETTINGS ---------------------------- */}
-      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Settings</SectionHeading>
+      {/* coach tools — free for every coach */}
+      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Coaching</SectionHeading>
+      {isCoach ? (
+        <Card>
+          <View style={{ padding: 15, gap: 13 }}>
+            {/* Each row carries its own glyph. Without one ToolRow falls
+                back to a chevron, so the list a working coach uses every day
+                was five identical badges with a chevron at each end. */}
+            <ToolRow icon="inbox" title="Appointment requests" body="Review requests · record decisions" onPress={() => s.set('overlay', 'coachRequests')} />
+            <ToolRow icon="sun" title="Today's sessions" body="Day view · mark sessions done" onPress={() => s.set('overlay', 'coachDayView')} />
+            {/* One row per decision, like the rows either side of them. These
+                were three sections of a single "Coaching settings" page --
+                what you teach, when you work and what you charge are made at
+                three different times and belong apart. */}
+            <ToolRow icon="book-open" title="What you teach" body="Your subjects and experience" onPress={() => s.set('overlay', 'coachSubjects')} />
+            <ToolRow icon="calendar" title="When you coach" body="Working hours · days off" onPress={() => s.set('overlay', 'coachHours')} />
+            <ToolRow icon="tag" title="Packages, pricing & promos" body="Set prices · answer cancellations" onPress={() => s.set('overlay', 'coachPackages')} />
+          </View>
+        </Card>
+      ) : (
+        // The way in sits where the tools will be, so somebody who takes it up
+        // finds them in the place they already looked once.
+        <Card style={{ paddingHorizontal: 15 }}>
+          <GroupRow
+            icon="award"
+            title="Become a coach"
+            body="Free. Adds a coach profile so people can book you"
+            onPress={() => s.set('overlay', 'coaching')}
+          />
+        </Card>
+      )}
+
+      {/* ---------------------------- ACCOUNT ----------------------------- */}
+      {/* The admin console moved to the web back office. Administration is
+          not a phone job: it needs the service role, which must never ship in
+          a client, and every tool that used to sit here now has a server-side
+          actor check rather than a UI-only gate. Nothing privileged is
+          reachable from this build. */}
+      <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Account</SectionHeading>
       <Card style={{ paddingHorizontal: 15 }}>
         <GroupRow
           icon="moon"
@@ -181,33 +187,29 @@ export function ProfileScreen() {
         />
       </Card>
 
-      {/* The admin console moved to the web back office. Administration is
-          not a phone job: it needs the service role, which must never ship in
-          a client, and every tool that used to sit here now has a server-side
-          actor check rather than a UI-only gate. Nothing privileged is
-          reachable from this build. */}
-      <Card style={{ marginTop: 10, paddingHorizontal: 15 }}>
-        {/* "My day view" used to sit here too, opening the same overlay as
-            "Today's sessions" in Coach tools under a different name, filed
-            beside Sign out. One entry point, in the section that is for it. */}
-        <>
-          <>
-            <GroupRow
-              icon="log-out"
-              title="Sign out"
-              // authEmail is nullable, and template-stringing it printed the
-              // literal word "null" for any account without one.
-              body={[s.authName, s.authEmail].filter(Boolean).join(' · ') || 'Signed in'}
-              onPress={() => {
-                void signOutUser().catch((error) => {
-                  track('write_failed', { error_code: analyticsErrorCode(error) });
-                  s.set('writeError', errorMessage(error));
-                });
-              }}
-            />
-          </>
-        </>
-      </Card>
+      {/* Sign out was a row in an unlabelled card, the same height and the
+          same chevron as the rows that merely navigate -- so the one control
+          that ends the session looked exactly like the one that opens a list.
+          It is a button now, on its own at the end of the screen, after
+          everything it signs you out of. */}
+      <View style={{ marginTop: 34, gap: 10 }}>
+        <Text style={[t.bodySm, { color: c.txt3 }]}>
+          {/* authEmail is nullable, and template-stringing it printed the
+              literal word "null" for any account without one. */}
+          {[s.authName, s.authEmail].filter(Boolean).join(' · ') || 'Signed in'}
+        </Text>
+        <Button
+          label="Sign out"
+          icon="log-out"
+          full
+          onPress={() => {
+            void signOutUser().catch((error) => {
+              track('write_failed', { error_code: analyticsErrorCode(error) });
+              s.set('writeError', errorMessage(error));
+            });
+          }}
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -220,6 +222,9 @@ function ToolRow({ count, icon, title, body, onPress }: { count?: string; icon?:
       accessibilityRole="button"
       accessibilityLabel={count ? `${title}, ${count}` : title}
       accessibilityHint={body}
+      // The tools sit in a gapped column, so unlike the divided GroupRows
+      // nothing pads these out past their 44pt content.
+      hitSlop={TAP_SLOP}
       style={{ flexDirection: 'row', alignItems: 'center', minHeight: 44 }}
     >
       <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: count ? alpha(c.volt, 0.12) : c.surface2, alignItems: 'center', justifyContent: 'center' }}>
