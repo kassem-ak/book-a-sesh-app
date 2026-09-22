@@ -151,12 +151,19 @@ export function EditProfileOverlay() {
   };
   return (
     <OverlayScaffold header={<OverlayHeader title="Edit profile" subtitle="Free for coaches and members" onBack={() => { if (!busy && !picking) s.closeOverlay(); }} />}
-      bottomBar={profile ? <View style={{ padding: 16 }}>
-        <VoltButton label="Save profile" busy={busy} busyLabel="Saving…" enabled={!!profile.name.trim() && !picking && !locating} onPress={() => void save()} />
+      bottomBar={profile ? <View style={{ padding: 16, gap: 10 }}>
+        {/* Beside the button that caused it. The copy at the top of the form
+            stays for the load failure, which is a different thing. */}
+        {error && (
+          <Text accessibilityRole="alert" accessibilityLiveRegion="assertive"
+            style={[t.bodySm, { color: c.danger }]}>{error}</Text>
+        )}
+        <VoltButton label="Save profile" icon="check" busy={busy} busyLabel="Saving…" enabled={!!profile.name.trim() && !picking && !locating} onPress={() => void save()} />
       </View> : undefined}>
       <View style={{ paddingHorizontal: 18, gap: 16 }}>
-        {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
-        {!profile && (error ? <VoltButton label="Retry loading profile" onPress={() => setAttempt(attempt + 1)} />
+        {!profile && error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
+        {!profile && (error ? <Button label="Try again" icon="refresh-cw" tone="danger"
+          accessibilityLabel="Retry loading your profile" onPress={() => setAttempt(attempt + 1)} />
           : <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt2 }]}>Loading profile…</Text>)}
         {profile && <View pointerEvents={busy ? 'none' : 'auto'} accessibilityElementsHidden={busy} importantForAccessibility={busy ? 'no-hide-descendants' : 'auto'} style={{ gap: 16 }}>
           <Row gap={16}>

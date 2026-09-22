@@ -14,7 +14,7 @@ import { CalendarItem, calendarWhen, fetchCalendar } from '../lib/calendar';
 import { decidePartnerSession } from '../lib/partners';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Button, Card, Icon, MicroBadge, Row, SectionHeading, VoltButton,
+  Button, Card, ErrorNote, Icon, MicroBadge, Row, SectionHeading, VoltButton,
 } from '../components/ui';
 import {
   fetchCounterpart,
@@ -294,13 +294,18 @@ export function NotificationsOverlay() {
   const [schedule, setSchedule] = React.useState<CalendarItem[] | null>(null);
   const [answering, setAnswering] = React.useState<string | null>(null);
 
+  const [scheduleError, setScheduleError] = React.useState<string | null>(null);
+
   React.useEffect(() => {
     let alive = true;
-    // A failed calendar read hides the section rather than taking the inbox
-    // down with it: they are two independent reads of two different things.
+    // A failed calendar read does not take the inbox down with it: they are
+    // two independent reads of two different things.
+    setScheduleError(null);
     fetchCalendar()
       .then((rows) => { if (alive) setSchedule(rows); })
-      .catch(() => { if (alive) setSchedule([]); });
+      // An empty array is what "nothing scheduled" looks like, so a failure
+      // that set one made the whole section disappear silently.
+      .catch(() => { if (alive) { setSchedule([]); setScheduleError('Could not load what is coming up.'); } });
     return () => { alive = false; };
   }, [reloads, s.authUid]);
 
@@ -380,6 +385,12 @@ export function NotificationsOverlay() {
       }
     >
       <View style={{ paddingHorizontal: 18, gap: 11 }}>
+        {scheduleError && (
+          <View style={{ marginBottom: 14 }}>
+            <ErrorNote message={scheduleError} retryLabel="Retry loading what is coming up"
+              onRetry={() => setReloads((n) => n + 1)} />
+          </View>
+        )}
         {schedule && schedule.length > 0 && (
           <View style={{ gap: 8, marginBottom: 6 }}>
             <SectionHeading>Your schedule</SectionHeading>

@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Button, Card, Field, FormSheet, Icon, IconButton, Row, SectionHeading, VoltButton,
+  Button, Card, Chip, Field, FormSheet, Icon, IconButton, Row, SectionHeading, VoltButton,
 } from '../components/ui';
 import { dateKey, monthCells, MONTH_NAMES } from '../lib/calendarGrid';
 import { coachPackageOptions } from '../state/models';
@@ -679,8 +679,7 @@ export function BookingOverlay() {
             {(chosen ? chosen.slots : []).map((slot) => {
               const sel = multi && chosen ? chosenSlots[chosen.date] === slot : bookSlot === slot;
               return (
-                <Pressable key={slot} accessibilityRole="button" accessibilityState={{ selected: sel }}
-                  accessibilityLabel={slot}
+                <Chip key={slot} label={slot} active={sel}
                   onPress={() => {
                     if (multi && chosen) {
                       const already = chosen.date in chosenSlots;
@@ -696,11 +695,7 @@ export function BookingOverlay() {
                     }
                     s.set('bookSlot', slot);
                     setPickingTime(false);
-                  }}
-                  style={{ borderRadius: 12, backgroundColor: sel ? c.volt : c.surface,
-                    borderColor: sel ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 11 }}>
-                  <Text style={[t.labelSm, { color: sel ? c.ink : c.txt }]}>{slot}</Text>
-                </Pressable>
+                  }} />
               );
             })}
           </Row>

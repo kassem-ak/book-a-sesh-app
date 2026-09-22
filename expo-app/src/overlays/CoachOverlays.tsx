@@ -324,20 +324,25 @@ export function CoachRequestsOverlay() {
                         </View>
                       ) : (
                         <Row gap={8}>
-                          <ApptBtn
-                            label={busyId === a.id ? 'Saving…' : 'Approve'}
-                            bg={c.volt}
-                            fg={c.ink}
+                          <Button
+                            label="Approve"
+                            icon="check"
+                            tone="primary"
+                            height={44}
+                            style={{ flex: 1 }}
+                            busy={busyId === a.id}
+                            busyLabel="Saving…"
                             accessibilityLabel={`Approve the request from ${a.clientName}`}
-                            disabled={busyId === a.id}
+                            enabled={busyId !== a.id}
                             onPress={() => decide(a.id, 'approved')}
                           />
-                          <ApptBtn
+                          <Button
                             label="Decline"
-                            bg={c.surface2}
-                            fg={c.danger}
+                            icon="x"
+                            tone="danger"
+                            style={{ flex: 1 }}
                             accessibilityLabel={`Decline the request from ${a.clientName}`}
-                            disabled={busyId === a.id}
+                            enabled={busyId !== a.id}
                             onPress={() => decide(a.id, 'declined')}
                           />
                         </Row>
@@ -387,9 +392,14 @@ export function CoachRequestsOverlay() {
                           key={n}
                           onPress={() => rate(trainee, n)}
                           disabled={busyId === trainee.id}
-                          accessibilityRole="button"
+                          // One of a set, not five separate commands -- and a
+                          // tap writes a review immediately, which is the worst
+                          // place in the app to be missing the 44pt floor.
+                          accessibilityRole="radio"
                           accessibilityLabel={`Rate ${trainee.name} ${n} out of 5`}
                           accessibilityState={{ selected: (trainee.stars ?? 0) >= n, disabled: busyId === trainee.id }}
+                          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                          style={{ minHeight: 44, minWidth: 40, alignItems: 'center', justifyContent: 'center' }}
                         >
                           <Text style={{ fontSize: 30, color: (trainee.stars ?? 0) >= n ? c.amber : c.mono }}>★</Text>
                         </Pressable>
@@ -437,42 +447,6 @@ function ClientPackCard({ pack }: { pack: ClientPack }) {
         <View style={{ width: `${progress * 100}%`, height: 6, borderRadius: 999, backgroundColor: c.volt }} />
       </View>
     </Card>
-  );
-}
-
-function ApptBtn({
-  label,
-  bg,
-  fg,
-  accessibilityLabel,
-  disabled = false,
-  onPress,
-}: {
-  label: string;
-  bg: string;
-  fg: string;
-  accessibilityLabel: string;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  const { t } = useTheme();
-  return (
-    <Pressable
-      onPress={disabled ? undefined : onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ disabled }}
-      style={{
-        flex: 1,
-        borderRadius: 11,
-        backgroundColor: bg,
-        paddingVertical: 10,
-        alignItems: 'center',
-        opacity: disabled ? 0.6 : 1,
-      }}
-    >
-      <Text style={[t.labelSm, { fontFamily: t.microBadge.fontFamily, color: fg }]}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -540,9 +514,12 @@ export function CoachPackagesOverlay() {
 
   // Every write re-reads. A price list showing a figure the server refused is
   // the one thing it must never do.
+  const [saved, setSaved] = useState<string | null>(null);
+
   const run = async (write: () => Promise<void>, fallback: string) => {
     setBusy(true);
     setActionError(null);
+    setSaved(null);
     try {
       await write();
       await load();
@@ -563,12 +540,18 @@ export function CoachPackagesOverlay() {
       [id]: { ...(current[id] ?? { sessions: '', price: '' }), ...change } as { sessions: string; price: string },
     }));
 
+  // Dirty-gated like the package save beside it, and it says so afterwards:
+  // every other write on this screen was silent, so a coach had no way to tell
+  // a save from a no-op.
+  const rateDirty = pricing !== null && parseMoney(rate) !== pricing.rateCents;
+
   const saveRate = () => {
     const cents = parseMoney(rate);
     if (cents === null) { setActionError('Enter a rate like 45 or 45.50.'); return; }
     void run(async () => {
       await setSessionRate(cents);
       track('coach_rate_set');
+      setSaved('Rate saved. Discover shows it now.');
     }, 'Could not save your rate.');
   };
 
@@ -630,9 +613,17 @@ export function CoachPackagesOverlay() {
               <View style={{ flex: 1 }}>
                 <MoneyField value={rate} onChange={setRate} label="Price per session" placeholder="45" />
               </View>
-              <Button label="Save" icon="check" enabled={!busy} onPress={saveRate}
+              {/* This is the number Discover shows and the Book button quotes,
+                  so it is a primary -- it used to be the quietest control on a
+                  page whose other three saves were all volt. */}
+              <VoltButton label="Save" icon="check" height={44} enabled={!busy && rateDirty}
+                busy={busy} busyLabel="Saving…" onPress={saveRate}
                 accessibilityLabel="Save your rate per session" />
             </Row>
+            {saved && (
+              <Text accessibilityLiveRegion="polite"
+                style={[t.bodySm, { color: c.accent, marginTop: 8 }]}>{saved}</Text>
+            )}
             <Text style={[t.bodySm, { color: c.txt3, marginTop: 8 }]}>
               Leave it at 0 and BOOK’D quotes nothing rather than guessing a figure for you.
             </Text>
