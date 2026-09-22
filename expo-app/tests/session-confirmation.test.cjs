@@ -25,6 +25,8 @@ function load() {
     exports,
     require: (id) => (id === './supabase' ? { supabase }
       : id === './session' ? { currentAppUserId: async () => 'me', ensureAppSession: async () => {} }
+      // These tests are about behaviour once the migration has landed.
+      : id === './schema' ? { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} }
       : {}),
     Date, JSON, Number, Math, Array, Object, String, Promise, Set, Map,
   }, { filename });
@@ -81,4 +83,72 @@ test('confirming names only the session -- the server decides whose stamp it is'
   // No party is named: a client that could say which side it was stamping
   // could stamp the coach's.
   assert.equal(JSON.stringify(rpc.args), JSON.stringify({ p_booking: 'b1' }));
+});
+
+// ---- shipping ahead of the migration ---------------------------------------
+//
+// PostgREST refuses a whole query that names a column the table does not have.
+// A client deployed before its migration would therefore not degrade -- it
+// would take My bookings down. This is the fallback that stops that.
+
+function loadWithSchemaProbe() {
+  const filename = join(__dirname, '../src/lib/bookings.ts');
+  const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exports = {};
+  const selects = [];
+  let ready = true;
+  // A database that predates the migration: any select naming the stamps is
+  // refused with 42703, exactly as PostgREST does.
+  const builder = (columns) => {
+    selects.push(columns);
+    const missing = columns.includes('coach_confirmed_at');
+    const result = missing
+      ? { data: null, error: { code: '42703', message: 'column does not exist' } }
+      : { data: [], error: null };
+    const chain = {
+      eq: () => chain,
+      order: () => Promise.resolve(result),
+      then: (fn) => Promise.resolve(result).then(fn),
+    };
+    return chain;
+  };
+  runInNewContext(code, {
+    exports,
+    require: (id) => (id === './supabase' ? { supabase: { from: () => ({ select: builder }) } }
+      : id === './session' ? { currentAppUserId: async () => 'me', ensureAppSession: async () => {} }
+      : id === './schema' ? {
+        fulfilmentSchemaReady: () => ready,
+        markFulfilmentSchemaMissing: () => { ready = false; },
+      }
+      : id === './partners' ? { fetchPartnerSessions: async () => [] }
+      : {}),
+    Date, JSON, Number, Math, Array, Object, String, Promise, Set, Map,
+  }, { filename });
+  return { module: exports, selects, isReady: () => ready };
+}
+
+test('a database without the stamps falls back instead of failing the screen', async () => {
+  const h = loadWithSchemaProbe();
+  const bookings = await h.module.fetchMyBookings();
+  // The screen still renders: empty lists, not a thrown error.
+  assert.deepEqual(Object.keys(bookings).sort(), ['past', 'upcoming']);
+  // It asked for the stamps once, was refused, and asked again without them.
+  assert.equal(h.selects.length, 2);
+  assert.ok(h.selects[0].includes('coach_confirmed_at'));
+  assert.ok(!h.selects[1].includes('coach_confirmed_at'));
+  assert.equal(h.isReady(), false);
+});
+
+test('with no stamps in the database nobody is asked to confirm anything', async () => {
+  const h = loadWithSchemaProbe();
+  await h.module.fetchMyBookings();
+  const past = {
+    id: 'b1', kind: 'coach', withId: 'coach', withName: 'Coach', slotLabel: null,
+    totalCents: 0, needsAnswer: false, coachConfirmed: false, clientConfirmed: false,
+    status: 'confirmed', scheduledFor: PAST,
+  };
+  // Asking for an answer the database cannot record is worse than not asking.
+  assert.equal(h.module.awaitsConfirmation(past, NOW), false);
 });

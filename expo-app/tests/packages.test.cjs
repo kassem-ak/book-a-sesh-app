@@ -44,6 +44,10 @@ function harness({ progress = [], names = [] } = {}) {
   const dependencies = {
     './supabase': { supabase },
     './session': { currentAppUserId: async () => ME },
+    // The app can ship ahead of its migration, so the readiness flag is a
+    // real dependency of what these functions decide. True here: these tests
+    // are about the behaviour once the migration has landed.
+    './schema': { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} },
   };
   const filename = join(__dirname, '../src/lib/packages.ts');
   const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
@@ -281,7 +285,10 @@ function offersHarness(rows) {
   }).outputText;
   const exports = {};
   runInNewContext(code, { exports, require: (id) => (
-    id === './supabase' ? { supabase } : { currentAppUserId: async () => ME }
+    id === './supabase' ? { supabase }
+      : id === './schema'
+        ? { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} }
+        : { currentAppUserId: async () => ME }
   ), URL, Response, Headers, Promise, Array, Object, JSON, Number, String, Map, Set }, { filename });
   return { module: exports, calls };
 }

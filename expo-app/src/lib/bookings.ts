@@ -5,8 +5,19 @@
 // booked with the ones you coach. The explicit client_id filter is what makes
 // this "My bookings".
 import { decidePartnerSession, fetchPartnerSessions, PartnerSession } from './partners';
+import { fulfilmentSchemaReady, markFulfilmentSchemaMissing } from './schema';
 import { currentAppUserId, ensureAppSession } from './session';
 import { supabase } from './supabase';
+
+// The client ships ahead of its migration here. The first read tries the new
+// shape, falls back to the old one and remembers -- see ./schema. Until the
+// migration lands the app behaves exactly as it did before: nobody is asked to
+// confirm anything, and a package cancellation always goes to the negotiation.
+const BOOKING_COLUMNS_BASE =
+  'id, coach_id, scheduled_for, slot_label, status, total_cents, coach:users!bookings_coach_id_fkey(name)';
+const BOOKING_COLUMNS_WITH_STAMPS =
+  'id, coach_id, scheduled_for, slot_label, status, total_cents, '
+  + 'coach_confirmed_at, client_confirmed_at, coach:users!bookings_coach_id_fkey(name)';
 
 // Exactly the live `booking_status` enum — never widen or invent members here.
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show';
@@ -42,6 +53,8 @@ export type MyBooking = {
  *  say it took place. Partner sessions are free and settle nothing, so they
  *  are never asked about. */
 export function awaitsConfirmation(booking: MyBooking, now = Date.now()): boolean {
+  // Nothing is asked for until the database can record the answer.
+  if (!fulfilmentSchemaReady()) return false;
   if (booking.kind !== 'coach') return false;
   if (booking.status !== 'pending' && booking.status !== 'confirmed') return false;
   const startsAt = Date.parse(booking.scheduledFor);
@@ -76,8 +89,8 @@ type BookingRow = {
   slot_label: string | null;
   status: BookingStatus;
   total_cents: number | null;
-  coach_confirmed_at: string | null;
-  client_confirmed_at: string | null;
+  coach_confirmed_at?: string | null;
+  client_confirmed_at?: string | null;
   coach?: Related<CoachName>;
 };
 
@@ -156,8 +169,8 @@ function toBooking(row: BookingRow): MyBooking {
     status: row.status,
     totalCents: row.total_cents ?? 0,
     needsAnswer: false,
-    coachConfirmed: row.coach_confirmed_at !== null,
-    clientConfirmed: row.client_confirmed_at !== null,
+    coachConfirmed: (row.coach_confirmed_at ?? null) !== null,
+    clientConfirmed: (row.client_confirmed_at ?? null) !== null,
   };
 }
 
@@ -206,12 +219,22 @@ function toPartnerBooking(session: PartnerSession): MyBooking {
  */
 export async function fetchMyBookings(): Promise<MyBookings> {
   const clientId = await currentAppUserId();
-  const { data, error } = await supabase
+  // users exposes only the non-sensitive columns; asking for more is refused.
+  const read = (columns: string) => supabase
     .from('bookings')
-    // users exposes only the non-sensitive columns; asking for more is refused.
-    .select('id, coach_id, scheduled_for, slot_label, status, total_cents, coach_confirmed_at, client_confirmed_at, coach:users!bookings_coach_id_fkey(name)')
+    .select(columns)
     .eq('client_id', clientId)
     .order('scheduled_for', { ascending: false });
+
+  let { data, error } = await read(
+    fulfilmentSchemaReady() ? BOOKING_COLUMNS_WITH_STAMPS : BOOKING_COLUMNS_BASE,
+  );
+  // 42703 is "column does not exist": the migration has not been applied to
+  // this database yet. Every other error is a real one and still throws.
+  if (error && fulfilmentSchemaReady() && error.code === '42703') {
+    markFulfilmentSchemaMissing();
+    ({ data, error } = await read(BOOKING_COLUMNS_BASE));
+  }
   if (error) throw error;
 
   // A partner-session read that fails must not take the coach bookings down

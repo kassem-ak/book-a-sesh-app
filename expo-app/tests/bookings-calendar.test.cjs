@@ -43,6 +43,7 @@ function bookingsLib({ rows = [], partners = [], partnersThrow = false } = {}) {
   });
   return load('lib/bookings.ts', {
     './supabase': { supabase },
+    './schema': { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} },
     './session': { ensureAppSession: async () => ME, currentAppUserId: async () => ME },
     './partners': {
       PartnerSession: {},
