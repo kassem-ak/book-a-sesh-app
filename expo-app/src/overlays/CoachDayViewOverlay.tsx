@@ -3,7 +3,7 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading,
+  Avatar, Button, Card, ErrorNote, IconButton, MicroBadge, Note, Row, SectionHeading,
 } from '../components/ui';
 import { BookingStatus, bookingStatusLabel, currentAppUserId, formatCents } from '../lib/bookings';
 import { ensureAppSession } from '../lib/session';
@@ -154,16 +154,18 @@ export function CoachDayViewOverlay() {
   };
 
   return (
-    <OverlayScaffold header={<OverlayHeader title="My day" onBack={s.closeOverlay} />}>
+    // The subtitle is the line the Coach tools row already uses, so the row and
+    // the screen it opens describe the same job.
+    <OverlayScaffold header={<OverlayHeader title="My day" onBack={s.closeOverlay}
+      subtitle="Day view · mark sessions done" />}>
       <View style={{ paddingHorizontal: 18 }}>
-        <Row style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+        <Row gap={8} style={{ justifyContent: 'space-between', marginBottom: 8 }}>
           <SectionHeading style={{ flex: 1 }}>{isToday ? 'Today' : selectedDate.toDateString()}</SectionHeading>
-          <Pressable onPress={() => changeWeek(-1)} accessibilityRole="button" accessibilityLabel="Previous week" style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="chevron-left" size={20} color={c.txt2} />
-          </Pressable>
-          <Pressable onPress={() => changeWeek(1)} accessibilityRole="button" accessibilityLabel="Next week" style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="chevron-right" size={20} color={c.txt2} />
-          </Pressable>
+          {/* Steppers for the strip underneath them, so they stay with it
+              rather than moving into the header: the header's right-hand slot
+              is for the screen, and this pair only moves the week. */}
+          <IconButton icon="chevron-left" accessibilityLabel="Previous week" onPress={() => changeWeek(-1)} />
+          <IconButton icon="chevron-right" accessibilityLabel="Next week" onPress={() => changeWeek(1)} />
         </Row>
         <Row gap={4} style={{ marginBottom: 16 }}>
           {weekDays.map((date) => {

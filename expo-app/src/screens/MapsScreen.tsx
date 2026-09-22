@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Button, Field, IconButton } from '../components/ui';
+import { ScrollView, Text, View } from 'react-native';
+import { ActionBar, Avatar, Button, Card, Chip, ErrorNote, Field, IconButton } from '../components/ui';
 import { MapCanvas, MapMarker } from '../components/MapCanvas';
 import { useSports } from '../components/useSports';
 import { track } from '../lib/analytics';
@@ -108,53 +108,63 @@ export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; 
           : 'Nobody nearby is sharing their location yet.')
         : null);
 
+  const failure = loadError ?? peopleError;
+
   return (
     <View style={{ flex: 1 }}>
-      <MapCanvas
-        center={center}
-        markers={markers}
-        initialZoom={me ? 13 : 4}
-        onRecenter={me ? () => setCenter({ ...me }) : undefined}
-      />
+      {/* The map only owns the space above whatever is docked below it. The
+          selected-person card used to float over the map at the bottom edge,
+          on top of the zoom and recentre controls at the bottom right; on a
+          narrow phone it covered them outright, so choosing someone cost you
+          the ability to zoom. Docking the card and the bar here shortens the
+          map instead, and the map's own controls ride up with its bottom
+          edge. */}
+      <View style={{ flex: 1 }}>
+        <MapCanvas
+          center={center}
+          markers={markers}
+          initialZoom={me ? 13 : 4}
+          onRecenter={me ? () => setCenter({ ...me }) : undefined}
+        />
 
-      <View style={{ position: 'absolute', top: 24, left: 18, right: 18 }}>
-        <Field value={query} onChange={setQuery} placeholder="Search this area" icon="search" />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 5, paddingHorizontal: 8, alignItems: 'center' }}>
-          {areaFilters.map((label, index) => (
-            <Pressable key={label} onPress={() => {
-              track('maps_filter_used', { selected_index: index, active: filter !== label });
-              setFilter(filter === label ? null : label);
-            }} accessibilityRole="button" accessibilityLabel={`Filter by ${label === GYMS ? 'gyms' : label.toLowerCase()}`}
-              accessibilityState={{ selected: filter === label }} style={{ minHeight: 36, justifyContent: 'center' }}>
-              <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: alpha(c.volt, 0.24), backgroundColor: filter === label ? c.volt : alpha(c.volt, 0.1) }}>
-                <Text style={[t.microBadge, { fontSize: 10, color: filter === label ? c.ink : c.accent }]}>{label}</Text>
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
+        {/* The search and the area chips decide the same thing -- who is on
+            this map -- so they are one block in one vocabulary, the Field and
+            the Chip that Discover filters with. They were a bordered input
+            above a run of 36pt badges indented a further 8pt, which read as
+            two unrelated controls that happened to sit near each other. */}
+        <View style={{ position: 'absolute', top: 24, left: 18, right: 18, gap: 8 }}>
+          <Field value={query} onChange={setQuery} placeholder="Search this area" icon="search" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: 'center' }}>
+            {areaFilters.map((label, index) => (
+              <Chip
+                key={label}
+                label={label}
+                active={filter === label}
+                onPress={() => {
+                  track('maps_filter_used', { selected_index: index, active: filter !== label });
+                  setFilter(filter === label ? null : label);
+                }}
+              />
+            ))}
+          </ScrollView>
 
-        {status && (
-          <View style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: c.bg, borderColor: c.line, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
-            <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt2 }]}>{status}</Text>
-            {(loadError || peopleError) && (
-              <Button label="Try again" icon="refresh-cw" tone="danger"
-                accessibilityLabel="Try loading the map again"
-                onPress={() => { setAttempt(attempt + 1); onRetry?.(); }} />
-            )}
-          </View>
-        )}
-
-        {!me && people !== null && (
-          <Button label="Show my location" icon="map-pin" style={{ marginTop: 8 }}
-            accessibilityLabel="Open your profile to share your location"
-            onPress={() => s.set('tab', 'profile')} />
-        )}
+          {/* A failure and its way out are one thing, so they are one card
+              rather than a note with a button loose underneath it. */}
+          {failure ? (
+            <ErrorNote message={failure} retryLabel="Try loading the map again"
+              onRetry={() => { setAttempt(attempt + 1); onRetry?.(); }} />
+          ) : status ? (
+            <View style={{ alignSelf: 'flex-start', backgroundColor: c.bg, borderColor: c.line, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+              <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt2 }]}>{status}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
 
       {selected && (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Open ${selected.name}`}
-          onPress={() => { const id = selected.id; setSelected(null); s.openPerson(id); }}
-          style={{ position: 'absolute', left: 18, right: 18, bottom: 18, backgroundColor: c.bg, borderColor: c.line, borderWidth: 1, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Card onPress={() => { const id = selected.id; setSelected(null); s.openPerson(id); }}
+          accessibilityLabel={`Open ${selected.name}`} radius={18} background={c.bg}
+          style={{ margin: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Avatar initials={initials(selected.name)} avatarUrl={selected.avatarUrl} size={44} radius={14} />
           <View style={{ flex: 1 }}>
             <Text style={[t.name, { color: c.txt }]}>{selected.name}</Text>
@@ -165,8 +175,23 @@ export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; 
               {selected.shareLevel === 'exact' ? 'Sharing a pin' : 'Sharing an approximate area (~1 km)'}
             </Text>
           </View>
+          {/* Dismissing this card is the card's own business, so the control
+              stays in the card and never joins the bar below. */}
           <IconButton icon="x" accessibilityLabel="Close" onPress={() => setSelected(null)} />
-        </Pressable>
+        </Card>
+      )}
+
+      {/* This one leaves the map: it opens Profile, where sharing is turned
+          on. Filed with the search and the area chips it read as a third way
+          to change what the map shows, which is the one thing it does not do.
+          In the bar it is what it is -- the screen's own verb, and the answer
+          to the line above saying nobody can see you. */}
+      {!me && people !== null && (
+        <ActionBar>
+          <Button label="Show my location" icon="map-pin" full
+            accessibilityLabel="Open your profile to share your location"
+            onPress={() => s.set('tab', 'profile')} />
+        </ActionBar>
       )}
     </View>
   );

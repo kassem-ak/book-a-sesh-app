@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  Avatar, Button, Card, Chip, Field, Icon, Note, Row, SectionHeading, Segmented, Stars,
-  StatusLine,
+  Avatar, Button, Card, Chip, Field, Icon, IconButton, Row, SectionHeading, Segmented, Stars,
+  StatusLine, TAP_SLOP,
 } from '../components/ui';
 import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, parseGeoPoint } from '../lib/geo';
 import { track } from '../lib/analytics';
@@ -11,7 +10,7 @@ import { Person, firstName, initials } from '../state/models';
 import * as D from '../state/sampleData';
 import { groupSports, matchesQuery, useSports } from '../components/useSports';
 import { useStore } from '../state/store';
-import { alpha, useTheme } from '../theme';
+import { alpha, radii, useTheme } from '../theme';
 
 
 type GeoPerson = Person & { coordinates?: GeoPoint | null };
@@ -129,52 +128,44 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
       : s.sport === 'All' ? `No ${peopleLabel} listed yet.` : `No ${peopleLabel} listed for ${s.sport} yet.`;
 
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 24, paddingBottom: 24 }}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 24 }}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }} gap={12}>
         <View style={{ flex: 1 }}>
           <Text style={[t.bodySm, { color: c.txt2 }]}>{s.authName ? `Hey ${firstName(s.authName)}` : 'Let’s'}</Text>
           <Text style={[t.pageTitle, { color: c.txt, marginTop: 3 }]}>Find your coach{ '\n' }or partner</Text>
           {s.authLoc.trim() ? <Text style={[t.label, { color: c.accent, marginTop: 3 }]}>{s.authLoc.trim()}</Text> : null}
         </View>
+        {/* Nothing on this screen goes back, so the header is all trailing:
+            two of the same control, not two 44pt boxes drawn by hand that
+            happened to agree with IconButton on everything but the target. */}
         <Row gap={8}>
-          <Pressable onPress={s.openNotifs} accessibilityRole="button" accessibilityLabel="Notifications"
-            style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="bell" size={24} color={c.txt} />
-          </Pressable>
-          <Pressable onPress={() => s.set('tab', 'profile')} accessibilityRole="button" accessibilityLabel="Your profile"
-            style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="user" size={24} color={c.txt} />
-          </Pressable>
+          <IconButton icon="bell" accessibilityLabel="Notifications" onPress={s.openNotifs} />
+          <IconButton icon="user" accessibilityLabel="Your profile" onPress={() => s.set('tab', 'profile')} />
         </Row>
       </Row>
 
-      <Row style={{ marginTop: 28, marginBottom: 12, justifyContent: 'space-between' }} gap={12}>
-        <Pressable onPress={() => s.set('sportMenu', !s.sportMenu)} accessibilityRole="button" accessibilityLabel={`Chosen sport: ${s.sport}. Choose a sport`} style={{ minHeight: 44, justifyContent: 'center', flex: 1 }}>
-          <Text style={[t.caption, { color: c.txt2, marginBottom: 5 }]}>Chosen Sport</Text>
-          <Row gap={5}>
-            {s.sport === 'All' ? <>
-              <MaterialCommunityIcons name="basketball" size={16} color={c.accent} />
-              <MaterialCommunityIcons name="tennis" size={16} color={c.accent} />
-              <MaterialCommunityIcons name="boxing-glove" size={16} color={c.accent} />
-            </> : <Text style={[t.labelSm, { color: c.accent }]} numberOfLines={1}>{s.sport}</Text>}
-          </Row>
-        </Pressable>
-        <View style={{ width: 150 }}>
-          <Segmented options={[{ key: 'coaches', label: 'coaches' }, { key: 'partners', label: 'Partners' }]}
-            selected={s.mode} onSelect={(key) => {
-              if (key !== s.mode) track('discover_filter_changed', { filter: 'mode', mode: key });
-              s.set('mode', key);
-            }} fontSize={13} pad={9} />
-        </View>
-      </Row>
+      {/* Everything that decides which people are in the list, in one block
+          and in the order the sentence runs: coaches or partners, in which
+          sport, called what. The sport used to be asked for twice -- a
+          "Chosen Sport" summary on one row and a pill below it, both opening
+          the same menu and both showing the same answer -- so a member had to
+          read three separated controls to know what they were looking at, and
+          the first card started below the fold. */}
+      <View style={{ marginTop: 20, gap: 8 }}>
+        <Segmented options={[{ key: 'coaches', label: 'coaches' }, { key: 'partners', label: 'Partners' }]}
+          selected={s.mode} onSelect={(key) => {
+            if (key !== s.mode) track('discover_filter_changed', { filter: 'mode', mode: key });
+            s.set('mode', key);
+          }} fontSize={13} pad={9} radius={radii.pill} />
 
-      <Pressable onPress={() => s.set('sportMenu', !s.sportMenu)} accessibilityRole="button" accessibilityLabel="Choose sport or hobby" accessibilityState={{ expanded: s.sportMenu }}
-        style={{ flexDirection: 'row', alignItems: 'center', minHeight: 40, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 999, paddingHorizontal: 22 }}>
-        <Text style={[t.labelSm, { color: c.soft, flex: 1 }]}>{s.sport === 'All' ? 'All sports and hobbies' : s.sport}</Text>
-        <Icon name={s.sportMenu ? 'chevron-up' : 'chevron-down'} size={20} color={c.txt3} />
-      </Pressable>
-      {s.sportMenu && (
-        <Card style={{ marginTop: 8, padding: 6 }}>
+        <Pressable onPress={() => s.set('sportMenu', !s.sportMenu)} accessibilityRole="button" accessibilityLabel={`Chosen sport: ${s.sport}. Choose a sport or hobby`} accessibilityState={{ expanded: s.sportMenu }}
+          hitSlop={TAP_SLOP}
+          style={{ flexDirection: 'row', alignItems: 'center', minHeight: 44, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 999, paddingHorizontal: 22 }}>
+          <Text style={[t.labelSm, { color: c.soft, flex: 1 }]}>{s.sport === 'All' ? 'All sports and hobbies' : s.sport}</Text>
+          <Icon name={s.sportMenu ? 'chevron-up' : 'chevron-down'} size={20} color={c.txt3} />
+        </Pressable>
+        {s.sportMenu && (
+        <Card style={{ padding: 6 }}>
           <TextInput value={sportQuery} onChangeText={setSportQuery} placeholder="Search sports and hobbies"
             placeholderTextColor={c.txt3} accessibilityLabel="Search sports and hobbies" autoCorrect={false}
             style={[t.label, { color: c.txt, minHeight: 44, paddingHorizontal: 10, borderBottomColor: c.line2, borderBottomWidth: 1, marginBottom: 4 }]} />
@@ -216,21 +207,23 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
             <Button label="Request a sport or hobby" icon="plus" onPress={s.openRequest} />
           </View>
         </Card>
-      )}
-      <View style={{ marginTop: 10 }}>
+        )}
         <Field value={query} onChange={setQuery} placeholder="Search Coach, Mentor" icon="search" />
       </View>
 
       {featured.length > 0 && <>
-        <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Featured {isCoaches ? 'coaches' : 'partners'}</SectionHeading>
+        <SectionHeading style={{ marginTop: 20, marginBottom: 11 }}>Featured {isCoaches ? 'coaches' : 'partners'}</SectionHeading>
         <View style={{ gap: 12 }}>
           {featured.map(({ person, distanceLabel }) => <PersonCard key={person.id} p={person} distanceLabel={distanceLabel} onPress={() => s.openPerson(person.id)} />)}
         </View>
       </>}
 
-      <Row style={{ marginTop: 26, marginBottom: 11, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+      {/* Sorting is not filtering: it changes the order of this list and
+          nothing about which people are in it, so it stays on the heading of
+          the list it reorders rather than joining the filter block above. */}
+      <Row style={{ marginTop: 20, marginBottom: 11, justifyContent: 'space-between', flexWrap: 'wrap' }} gap={8}>
         <SectionHeading>All {isCoaches ? 'coaches' : 'partners'}</SectionHeading>
-        {entries.length > 1 && <Row gap={4}>
+        {entries.length > 1 && <Row gap={8}>
           {sortOptions.map(({ key, label }) => (
             <Chip key={key} label={label} active={s.sortBy === key} onPress={() => {
               if (key !== s.sortBy) track('discover_sort_changed', { sort: key });
