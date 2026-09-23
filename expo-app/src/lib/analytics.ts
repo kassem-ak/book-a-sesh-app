@@ -36,6 +36,7 @@ export type AnalyticsEvent =
   | 'package_booking_opened'
   | 'package_cancellation_requested'
   | 'package_cancelled_unused'
+  | 'session_rated'
   | 'package_cancellation_decided'
   | 'package_refund_offered'
   | 'coach_basics_saved'

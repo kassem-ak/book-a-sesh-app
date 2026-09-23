@@ -578,7 +578,15 @@ export function FormSheet({
 }
 
 // ---- Choice chip (pill) ----
-export function Chip({ label, active, onPress, fill }: { label: string; active: boolean; onPress: () => void; fill?: boolean }) {
+export function Chip({ label, active, onPress, fill, accessibilityLabel }: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  fill?: boolean;
+  /** When the visible word is not the whole question. A filter row reading
+   *  "All 7" says nothing about what seven of. */
+  accessibilityLabel?: string;
+}) {
   const { c, t } = useTheme();
   return (
     <Pressable
@@ -586,7 +594,7 @@ export function Chip({ label, active, onPress, fill }: { label: string; active: 
       // A chip is a choice, not a command, so it reports selection rather than
       // leaving a screen reader to infer it from the fill.
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ selected: active }}
       style={{
         flex: fill ? 1 : undefined,

@@ -152,3 +152,50 @@ test('with no stamps in the database nobody is asked to confirm anything', async
   // Asking for an answer the database cannot record is worse than not asking.
   assert.equal(h.module.awaitsConfirmation(past, NOW), false);
 });
+
+// ---- the archive ------------------------------------------------------------
+//
+// A past session is one of three things, and which one decides what the
+// archive offers: a completed session can be rated, a cancelled one cannot,
+// and one nobody confirmed is still waiting on an answer.
+
+test('a past session is sorted by how it ended', () => {
+  const { pastOutcome } = load().module;
+  const at = (status) => ({ ...base, status, scheduledFor: PAST });
+  assert.equal(pastOutcome(at('completed')), 'completed');
+  assert.equal(pastOutcome(at('cancelled')), 'cancelled');
+  // Its time went by with neither party saying whether it happened. Neither
+  // finished nor called off, and the group a person has to act on.
+  assert.equal(pastOutcome(at('confirmed')), 'unconfirmed');
+  assert.equal(pastOutcome(at('pending')), 'unconfirmed');
+});
+
+test('a rating names the session and its kind, and nothing about who is rated', async () => {
+  const { module, calls } = load();
+  await module.rateSession({ sessionId: 's1', kind: 'coach', stars: 4 });
+  const rpc = calls.find((c) => c.name === 'rate_session');
+  // The subject comes from who is asking, on the server. A client that could
+  // name the subject could rate somebody it never trained with.
+  assert.equal(rpc.args.p_session, 's1');
+  assert.equal(rpc.args.p_stars, 4);
+  assert.equal(rpc.args.p_kind, 'coach');
+  assert.equal(rpc.args.p_skill_stars, null);
+  assert.equal(rpc.args.p_feedback, null);
+});
+
+test('blank feedback is sent as nothing rather than as an empty note', async () => {
+  const { module, calls } = load();
+  await module.rateSession({ sessionId: 's1', kind: 'coach', stars: 5, feedback: '   ' });
+  const rpc = calls.find((c) => c.name === 'rate_session');
+  assert.equal(rpc.args.p_feedback, null);
+});
+
+test('a coach sends both numbers and the note', async () => {
+  const { module, calls } = load();
+  await module.rateSession({
+    sessionId: 's1', kind: 'coach', stars: 4, skillStars: 3, feedback: '  Good hands.  ',
+  });
+  const rpc = calls.find((c) => c.name === 'rate_session');
+  assert.equal(rpc.args.p_skill_stars, 3);
+  assert.equal(rpc.args.p_feedback, 'Good hands.');
+});
