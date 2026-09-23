@@ -211,13 +211,21 @@ export function BookingsOverlay() {
           />
         )}
 
-        {!loading && !error && view === 'list' && (
+        {!loading && !error && view === 'list' && (() => {
+          // A pack whose cancellation was approved buys nothing and books
+          // nothing. It sat in Packages next to the live ones for good, which
+          // made the list read as more than the person actually has.
+          const isCancelled = (pack: PackageProgress) =>
+            cancels.get(pack.packageId)?.status === 'approved';
+          const livePacks = progress.filter((pack) => !isCancelled(pack));
+          const cancelledPacks = progress.filter(isCancelled);
+          return (
           <>
-            {progress.length > 0 ? (
+            {livePacks.length > 0 ? (
               <>
                 <SectionHeading style={{ marginBottom: 11 }}>Packages</SectionHeading>
                 <View style={{ gap: 10 }}>
-                  {progress.map((pack) => {
+                  {livePacks.map((pack) => {
                     const request = cancels.get(pack.packageId);
                     // 'offered' is still open: the figure is being argued
                     // over, and the pack is what the argument is about.
@@ -292,7 +300,7 @@ export function BookingsOverlay() {
               )}
             </View>
 
-            {bookings.past.length > 0 && (() => {
+            {(bookings.past.length > 0 || cancelledPacks.length > 0) && (() => {
               // Everything that is over, whether it happened or was called off.
               const counts = bookings.past.reduce((acc, b) => {
                 const key = pastOutcome(b);
@@ -302,12 +310,18 @@ export function BookingsOverlay() {
               const shown = outcome === 'all'
                 ? bookings.past
                 : bookings.past.filter((b) => pastOutcome(b) === outcome);
+              // A cancelled pack is one of the cancelled things, so it counts
+              // where somebody would look for it rather than in a group of its
+              // own that they would have to know to check.
+              const cancelledCount = (counts.cancelled ?? 0) + cancelledPacks.length;
+              const total = bookings.past.length + cancelledPacks.length;
               const filters: { key: PastOutcome | 'all'; label: string }[] = [
-                { key: 'all', label: `All ${bookings.past.length}` },
+                { key: 'all', label: `All ${total}` },
                 ...(counts.completed ? [{ key: 'completed' as const, label: `Completed ${counts.completed}` }] : []),
                 ...(counts.unconfirmed ? [{ key: 'unconfirmed' as const, label: `Unconfirmed ${counts.unconfirmed}` }] : []),
-                ...(counts.cancelled ? [{ key: 'cancelled' as const, label: `Cancelled ${counts.cancelled}` }] : []),
+                ...(cancelledCount ? [{ key: 'cancelled' as const, label: `Cancelled ${cancelledCount}` }] : []),
               ];
+              const showPacks = outcome === 'all' || outcome === 'cancelled';
               return (
                 <>
                   <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>
@@ -326,7 +340,13 @@ export function BookingsOverlay() {
                     </ScrollView>
                   )}
                   <View style={{ gap: 10 }}>
-                    {shown.length === 0 ? (
+                    {showPacks && cancelledPacks.map((pack) => (
+                      <ProgressCard key={`pack-${pack.packageId}`} pack={pack}
+                        withLabel={`with ${pack.withName}`}
+                        request={cancels.get(pack.packageId)}
+                        priceCents={prices.get(pack.packageId) ?? 0} />
+                    ))}
+                    {shown.length === 0 && !(showPacks && cancelledPacks.length > 0) ? (
                       <Note>Nothing in this part of your history.</Note>
                     ) : shown.map((b) => (
                       <SessionCard key={b.id} booking={b}
@@ -345,7 +365,8 @@ export function BookingsOverlay() {
               );
             })()}
           </>
-        )}
+          );
+        })()}
         <PastDetailSheet
           booking={opened}
           ratings={opened ? ratings.filter((r) => r.sessionId === opened.id) : []}
