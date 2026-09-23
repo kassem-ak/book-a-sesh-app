@@ -42,7 +42,10 @@ function harness({ existing = [], profile = { headline: 'Swim coach', level: 'Pr
     } },
   });
   const dependencies = {
-    './avatars': { pickAvatar: async () => null },
+    // A certificate can now be a PDF, which the image picker cannot see, so
+    // coaching.ts reaches for the document picker. Neither is exercised here.
+    './avatars': { pickAvatar: async () => null, decodeBase64: () => new Uint8Array() },
+    'expo-document-picker': { getDocumentAsync: async () => ({ canceled: true, assets: null }) },
     './profiles': { realProfileIdentity: async () => ({ appId: ME, user: { id: 'auth' } }) },
     './supabase': { supabase },
   };

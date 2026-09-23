@@ -11,7 +11,8 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import * as D from '../state/sampleData';
 import { fetchBlackouts } from '../lib/availability';
 import {
-  bookPackageSessions, fetchCancellations, fetchMyPackages, isOpenRequest, PackageCancellation,
+  bookPackageSessions, CancellationStatus, fetchCancellations, fetchMyPackages, isOpenRequest,
+  PackageCancellation,
   PackageProgress, progressSummary, requestCancellation, SessionSlot,
 } from '../lib/packages';
 import { bookingDayLabel, errorMessage, SCHED_TIMES, scheduledFor, useStore } from '../state/store';
@@ -112,6 +113,11 @@ export function BookingOverlay() {
   // frozen: booking more sessions would change the unused count the coach is
   // being asked to refund against.
   const [openRequest, setOpenRequest] = React.useState<PackageCancellation | null>(null);
+  // Every cancellation on this coach's packs, by package. `openRequest` above
+  // answers "is there a question hanging over this coach"; this answers "can
+  // this particular pack still be spent", which is a different question and the
+  // one that decides what the screen offers.
+  const [packStatus, setPackStatus] = React.useState<Map<string, CancellationStatus>>(new Map());
   const [askingCancel, setAskingCancel] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState('');
   const [usageLoading, setUsageLoading] = React.useState(true);
@@ -154,13 +160,21 @@ export function BookingOverlay() {
     fetchCancellations().then(
       (requests) => {
         if (!live) return;
-        setOpenRequest(requests.find(
+        const mine = requests.filter((request) => request.coachId === personId);
+        setOpenRequest(mine.find(
           // 'offered' is open too: a figure is on the table and the unused
           // count is what it is a share of.
-          (request) => request.coachId === personId && isOpenRequest(request.status),
+          (request) => isOpenRequest(request.status),
         ) ?? null);
+        // Newest first from the server, so the first row for a pack is its
+        // current state and anything older is history.
+        const latest = new Map<string, CancellationStatus>();
+        for (const request of mine) {
+          if (!latest.has(request.packageId)) latest.set(request.packageId, request.status);
+        }
+        setPackStatus(latest);
       },
-      () => { if (live) setOpenRequest(null); },
+      () => { if (live) { setOpenRequest(null); setPackStatus(new Map()); } },
     );
     // A schedule we cannot read must not hide the coach: fall back to the
     // open-coach offering, which is what the server would accept anyway.
@@ -273,12 +287,25 @@ export function BookingOverlay() {
   };
 
   const everyPkg = coachPackageOptions(p);
-  // A pack already bought with sessions left is what this screen is for.
-  // Offering the others alongside it invites buying a second pack while the
-  // first is half unused, and buries the thing they came to spend.
-  const activePkg = everyPkg.find(
-    (option) => option.packageId && (owned?.get(option.packageId)?.remaining ?? 0) > 0,
-  );
+  // A pack you can still spend: sessions left, and nothing stopping you
+  // spending them.
+  //
+  // `remaining` alone was not that. A cancelled pack keeps its remaining count
+  // -- the view reports what was never booked, not what is still yours -- so a
+  // member who cancelled found this screen collapsed onto the dead pack with
+  // every other package hidden behind it and a button that would not fire. A
+  // pack under an open request is frozen for the length of the argument, which
+  // is the same dead end for as long as it lasts.
+  const spendable = (packageId: string | null | undefined) => {
+    if (!packageId) return false;
+    if ((owned?.get(packageId)?.remaining ?? 0) <= 0) return false;
+    const status = packStatus.get(packageId);
+    return !(status && (status === 'approved' || isOpenRequest(status)));
+  };
+  // Offering the others alongside a live pack invites buying a second one
+  // while the first is half unused, and buries the thing they came to spend.
+  // With no live pack there is nothing to bury, so the full list comes back.
+  const activePkg = everyPkg.find((option) => spendable(option.packageId));
   const pkgs = activePkg ? [activePkg] : everyPkg;
   const selectedPkg = (activePkg ? pkgs[0] : pkgs[s.bookPkg]) ?? pkgs[0];
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { DatePickerSheet } from './DatePickerSheet';
 import { ConfirmSheet, Field, Icon, Row, SectionHeading, VoltButton } from './ui';
 import {
@@ -9,13 +9,12 @@ import {
 } from '../lib/availability';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, useStore } from '../state/store';
-import { alpha, useTheme } from '../theme';
+import { alpha, radii, useTheme } from '../theme';
 
 // When a coach works.
 //
-// `coach_availability` keys weekday 0=Mon..6=Sun, so DAYS is in that order and
-// the index IS the weekday -- no lookup table to get wrong.
-const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+// `coach_availability` keys weekday 0=Mon..6=Sun, so DAY_NAMES is in that
+// order and the index IS the weekday -- no lookup table to get wrong.
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 export function CoachAvailability() {
@@ -276,29 +275,77 @@ export function CoachAvailability() {
   );
 }
 
+// A dropdown, not a strip of seven chips.
+//
+// The chips were a horizontal scroll inside a vertical one: on a narrow phone
+// the last two days sat off the edge, and a drag meant to reach Sunday moved
+// the page instead. Seven fixed options with one answer is what a dropdown is
+// for, and the closed state says the current day in full rather than in three
+// letters.
 function DayPicker({ label, value, onChange }: {
   label: string; value: number; onChange: (day: number) => void;
 }) {
   const { c, t } = useTheme();
+  const [open, setOpen] = useState(false);
   return (
-    <Row gap={10} style={{ alignItems: 'center' }}>
-      <Text style={[t.bodySm, { color: c.txt3, width: 44 }]}>{label}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-        {DAYS.map((day, index) => {
-          const active = value === index;
-          return (
-            <Pressable key={day} onPress={() => onChange(index)}
-              accessibilityRole="radio" accessibilityState={{ selected: active }}
-              accessibilityLabel={`${label} ${DAY_NAMES[index]}`}
-              style={{ borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1,
-                borderColor: active ? c.volt : c.line,
-                backgroundColor: active ? c.volt : c.surface }}>
-              <Text style={[t.caption, { color: active ? c.ink : c.txt2 }]}>{day}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </Row>
+    <View style={{ gap: 8 }}>
+      <Row gap={10} style={{ alignItems: 'center' }}>
+        <Text style={[t.bodySm, { color: c.txt3, width: 44 }]}>{label}</Text>
+        <Pressable
+          onPress={() => setOpen((shown) => !shown)}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}: ${DAY_NAMES[value]}`}
+          accessibilityHint="Choose a day"
+          accessibilityState={{ expanded: open }}
+          style={{
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            minHeight: 48,
+            backgroundColor: c.surface,
+            borderColor: open ? c.volt : c.line,
+            borderWidth: 1,
+            borderRadius: radii.input,
+            paddingHorizontal: 14,
+          }}
+        >
+          <Text style={[t.body, { color: c.txt, flex: 1 }]}>{DAY_NAMES[value]}</Text>
+          <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={c.txt3} />
+        </Pressable>
+      </Row>
+      {open && (
+        <View style={{
+          marginLeft: 54,
+          backgroundColor: c.surface,
+          borderColor: c.line,
+          borderWidth: 1,
+          borderRadius: radii.input,
+          padding: 6,
+        }}>
+          {DAY_NAMES.map((name, index) => {
+            const active = value === index;
+            return (
+              <Pressable
+                key={name}
+                onPress={() => { onChange(index); setOpen(false); }}
+                accessibilityRole="menuitem"
+                accessibilityLabel={name}
+                accessibilityState={{ selected: active }}
+                style={{
+                  minHeight: 48,
+                  justifyContent: 'center',
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  backgroundColor: active ? alpha(c.volt, 0.14) : 'transparent',
+                }}
+              >
+                <Text style={[t.label, { color: active ? c.accent : c.txt }]}>{name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </View>
   );
 }
 

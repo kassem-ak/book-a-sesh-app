@@ -11,7 +11,7 @@ import {
   savePackage, SessionPackage, setSessionRate,
 } from '../lib/pricing';
 import {
-  decideCancellation, fetchCancellations, fetchClientPackages, PackageCancellation,
+  decideCancellation, fetchCancellations, fetchClientPackages, isOpenRequest, PackageCancellation,
   PackageProgress, progressSummary, suggestedRefundCents,
 } from '../lib/packages';
 import { RefundNegotiation } from '../components/RefundNegotiation';
@@ -470,6 +470,13 @@ export function CoachPackagesOverlay() {
   // at the unused share of what was paid -- the arithmetic the coach would do
   // anyway -- and stays editable, because it is their money and their call.
   const [requests, setRequests] = useState<PackageCancellation[]>([]);
+  // Only the packs with a cancellation still open. A settled one needs nothing
+  // from the coach, and the client's own screen already reports the outcome.
+  const awaiting = clients.filter((pack) => requests.some(
+    (r) => r.clientId === pack.clientId
+      && r.packageId === pack.packageId
+      && isOpenRequest(r.status),
+  ));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -721,63 +728,50 @@ export function CoachPackagesOverlay() {
               sessions; a single session uses your rate above.
             </Text>
 
-            <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Packs your clients are on</SectionHeading>
-            <Text style={[t.bodySm, { color: c.txt3, marginBottom: 11 }]}>
-              What each client has booked, is waiting on, has already had, and still has left. They see the same numbers.
-            </Text>
-            <View style={{ gap: 10 }}>
-              {clients.length === 0 ? (
-                <Note>Nobody is part-way through a pack right now.</Note>
-              ) : (
-                clients.map((pack) => (
-                  (() => {
+            {/* "Packs your clients are on" used to sit here: every client, every
+                remaining count, on a screen about setting prices. The numbers
+                are the client's and they already see them.
+
+                What could not go with it is the answer to a cancellation --
+                this is the only place a coach can give one -- so what is left
+                is that, and only when there is one waiting. */}
+            {awaiting.length > 0 && (
+              <>
+                <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>
+                  Waiting on your answer
+                </SectionHeading>
+                <View style={{ gap: 10 }}>
+                  {awaiting.map((pack) => {
                     const key = pack.clientId + pack.packageId;
                     const request = requests.find(
                       (r) => r.clientId === pack.clientId && r.packageId === pack.packageId,
-                    );
+                    )!;
                     const sold = pricing?.packages.find((p) => p.id === pack.packageId);
                     const suggested = sold ? suggestedRefundCents(pack, sold.priceCents) : 0;
                     return (
                       <Card key={key} style={{ padding: 14, gap: 10 }}>
-                        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[t.name, { color: c.txt }]}>{pack.withName}</Text>
-                            <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
-                              {pack.total}-session pack · {progressSummary(pack)}
-                            </Text>
-                          </View>
-                          <Text style={[t.priceSm, { color: c.accent }]}>{pack.remaining} left</Text>
-                        </Row>
-
-                        {request && (
-                          <View style={{ gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: c.line }}>
-                            <Text style={[t.labelSm, { color: c.danger }]}>
-                              {pack.withName.split(' ')[0]} asked to cancel this pack
-                            </Text>
-                            {request.reason ? (
-                              <Text style={[t.bodySm, { color: c.txt2 }]}>“{request.reason}”</Text>
-                            ) : null}
-                            {/* The same panel the client sees, from the
-                                other side. Two implementations of "what is on
-                                the table" would be two places for the figures
-                                to be presented differently. */}
-                            <RefundNegotiation request={request}
-                              suggestedCents={suggested}
-                              onSettled={load} />
-                            <Button label="Decline the cancellation" icon="x" tone="danger" enabled={!busy}
-                              accessibilityLabel={`Decline the cancellation from ${pack.withName}`}
-                              onPress={() => run(
-                                () => decideCancellation(request.id, 'rejected'),
-                                'Could not decline that request.',
-                              )} />
-                          </View>
-                        )}
+                        <View>
+                          <Text style={[t.name, { color: c.txt }]}>{pack.withName}</Text>
+                          <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
+                            {pack.total}-session pack · {pack.remaining} left · asked to cancel
+                          </Text>
+                        </View>
+                        <RefundNegotiation request={request}
+                          suggestedCents={suggested}
+                          onSettled={load} />
+                        <Button label="Decline the cancellation" icon="x" tone="danger" enabled={!busy}
+                          accessibilityLabel={`Decline the cancellation from ${pack.withName}`}
+                          onPress={() => run(
+                            () => decideCancellation(request.id, 'rejected'),
+                            'Could not decline that request.',
+                          )} />
                       </Card>
                     );
-                  })()
-                ))
-              )}
-            </View>
+                  })}
+                </View>
+              </>
+            )}
+
 
             <SectionHeading style={{ marginTop: 26, marginBottom: 11 }}>Promo codes</SectionHeading>
             {/* Promo codes persist, but no booking flow redeems them yet. */}

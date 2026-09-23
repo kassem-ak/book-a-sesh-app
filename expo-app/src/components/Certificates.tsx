@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Image, Platform, Pressable, Text, View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import {
   Button, ConfirmSheet, Field, FormSheet, Icon, MicroBadge, Row, SectionHeading, VoltButton,
 } from './ui';
 import { PickedAvatar } from '../lib/avatars';
 import {
-  addCertification, Certification, fetchCertifications, pickCertificateImage, removeCertification,
+  addCertification, Certification, fetchCertifications, isPdf, pickCertificateFile,
+  removeCertification,
 } from '../lib/coaching';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage } from '../state/store';
-import { useTheme } from '../theme';
+import { alpha, useTheme } from '../theme';
 
 // A coach's certificates.
 //
@@ -50,7 +52,7 @@ export function Certificates({ coachId }: { coachId: string }) {
     setPicking(true);
     setError(null);
     try {
-      const picked = await pickCertificateImage();
+      const picked = await pickCertificateFile();
       if (picked) setImage(picked);
     } catch (e) { setError(errorMessage(e)); }
     finally { setPicking(false); }
@@ -75,6 +77,9 @@ export function Certificates({ coachId }: { coachId: string }) {
   // nothing in the app can put either back -- while "Mark done", which is
   // reversible, already asks.
   const [dropping, setDropping] = useState<Certification | null>(null);
+  // The one being looked at. A tile is a thumbnail, and a certificate is a
+  // document somebody wants to actually read.
+  const [viewing, setViewing] = useState<Certification | null>(null);
 
   const drop = async (cert: Certification) => {
     setBusy(true);
@@ -102,6 +107,7 @@ export function Certificates({ coachId }: { coachId: string }) {
         onConfirm={() => { if (dropping) void drop(dropping); }}
         onCancel={() => setDropping(null)}
       />
+      <CertificateViewer cert={viewing} onClose={() => setViewing(null)} />
       <SectionHeading>Your certificates</SectionHeading>
       {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
       <Text style={[t.bodySm, { color: c.txt2 }]}>
@@ -118,33 +124,17 @@ export function Certificates({ coachId }: { coachId: string }) {
         <Text style={[t.bodySm, { color: c.txt3 }]}>You have not added a certificate yet.</Text>
       )}
 
-      {certs?.map((cert) => (
-        <View key={cert.id} style={{ borderWidth: 1, borderColor: c.line, borderRadius: 14, overflow: 'hidden' }}>
-          {cert.fileUrl && (
-            <Image source={{ uri: cert.fileUrl }} accessibilityIgnoresInvertColors
-              accessibilityLabel={`${cert.name} certificate`}
-              style={{ width: '100%', height: 160, backgroundColor: c.surface }} resizeMode="cover" />
-          )}
-          <Row gap={10} style={{ alignItems: 'center', padding: 12 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={[t.name, { color: c.txt }]}>{cert.name}</Text>
-              <Text style={[t.bodySm, { color: c.txt2 }]}>
-                {[cert.issuer, cert.year].filter(Boolean).join(' · ') || 'No issuer given'}
-              </Text>
-            </View>
-            <MicroBadge
-              label={cert.status === 'approved' ? 'Verified' : 'Pending review'}
-              bg={cert.status === 'approved' ? c.volt : c.surface2}
-              fg={cert.status === 'approved' ? c.ink : c.txt2}
-            />
-            <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${cert.name}`}
-              onPress={() => setDropping(cert)} disabled={busy}
-              style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="trash-2" size={18} color={c.txt3} />
-            </Pressable>
-          </Row>
-        </View>
-      ))}
+      {/* Three to a row. A certificate is a thing you recognise at a glance --
+          the paper, the crest, the shape of it -- so the thumbnail is the
+          card and the words go underneath. One per row made a wall of scrolling
+          for something most coaches have three or four of. */}
+      <Row style={{ flexWrap: 'wrap', gap: TILE_GAP }}>
+        {certs?.map((cert) => (
+          <CertificateTile key={cert.id} cert={cert} busy={busy}
+            onOpen={() => setViewing(cert)}
+            onRemove={() => setDropping(cert)} />
+        ))}
+      </Row>
 
       {/* The form is a detour, not part of the page. Inline, four fields and a
           photo picker sat under the list whether or not anyone was adding
@@ -177,5 +167,177 @@ export function Certificates({ coachId }: { coachId: string }) {
         </Row>
       </FormSheet>
     </View>
+  );
+}
+
+// Three to a row, on any width.
+//
+// The gap is fixed and the tiles take what is left, so the grid holds on a
+// small phone and on a tablet without a breakpoint. `flexBasis: 0` with
+// `flexGrow: 1` rather than a percentage: percentages fight the gap, and three
+// 33% tiles plus two gaps is wider than the row.
+const TILE_GAP = 10;
+
+function CertificateTile({ cert, busy, onOpen, onRemove }: {
+  cert: Certification;
+  busy: boolean;
+  onOpen: () => void;
+  onRemove: () => void;
+}) {
+  const { c, t } = useTheme();
+  const approved = cert.status === 'approved';
+  const pdf = isPdf(cert.fileUrl);
+  return (
+    <Pressable
+      onPress={onOpen}
+      accessibilityRole="button"
+      accessibilityLabel={`${cert.name}${cert.issuer ? `, ${cert.issuer}` : ''}`}
+      accessibilityHint="Opens the certificate"
+      style={{
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+      // A third of a phone width is narrow; without this a two-word issuer
+      // pushes the tile wider than its share and the row wraps to two.
+      minWidth: 96,
+      maxWidth: '32%',
+      borderWidth: 1,
+      borderColor: c.line,
+      borderRadius: 14,
+      overflow: 'hidden',
+      backgroundColor: c.surface,
+    }}>
+      <View style={{ aspectRatio: 1, backgroundColor: c.surface2 }}>
+        {cert.fileUrl && !pdf && (
+          <Image source={{ uri: cert.fileUrl }} accessibilityIgnoresInvertColors
+            accessibilityLabel={`${cert.name} certificate`}
+            style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+        )}
+        {cert.fileUrl && pdf && (
+          // A PDF has no thumbnail here. React Native cannot rasterise a page
+          // without a native renderer, so the tile says what the file is
+          // rather than showing an empty square and hoping.
+          <View accessibilityLabel={`${cert.name} certificate, PDF`}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <Icon name="file-text" size={26} color={c.txt3} />
+            <Text style={[t.caption, { color: c.txt3, letterSpacing: 1 }]}>PDF</Text>
+          </View>
+        )}
+        {!cert.fileUrl && (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="award" size={26} color={c.txt3} />
+          </View>
+        )}
+
+        {/* Over the thumbnail rather than under it: the tile is small, and a
+            row of words below would leave no room for the picture. */}
+        <View style={{ position: 'absolute', top: 6, left: 6 }}>
+          <MicroBadge
+            label={approved ? 'Verified' : 'Pending'}
+            bg={approved ? c.volt : alpha(c.ink, 0.66)}
+            fg={approved ? c.ink : '#FFFFFF'}
+          />
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${cert.name}`}
+          onPress={onRemove} disabled={busy}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          style={{
+            position: 'absolute', top: 4, right: 4,
+            width: 32, height: 32, borderRadius: 16,
+            alignItems: 'center', justifyContent: 'center',
+            backgroundColor: alpha(c.ink, 0.66),
+          }}>
+          <Icon name="trash-2" size={15} color="#FFFFFF" />
+        </Pressable>
+      </View>
+
+      <View style={{ padding: 8, gap: 1 }}>
+        <Text numberOfLines={2} style={[t.labelSm, { color: c.txt }]}>{cert.name}</Text>
+        <Text numberOfLines={1} style={[t.caption, { color: c.txt3 }]}>
+          {[cert.issuer, cert.year].filter(Boolean).join(' · ') || 'No issuer'}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// The certificate, big enough to read.
+//
+// An image is shown here. A PDF is not: React Native has no page renderer, so
+// the honest thing is to hand it to something that does rather than draw an
+// empty frame. Either way "Open" goes to the browser, which is also where a
+// download lives -- on the web that is the browser's own save, and on a phone
+// it is the system viewer's share sheet. Re-implementing either would mean
+// writing a file somewhere and asking for permission to do it.
+function CertificateViewer({ cert, onClose }: {
+  cert: Certification | null;
+  onClose: () => void;
+}) {
+  const { c, t } = useTheme();
+  const [error, setError] = useState<string | null>(null);
+  if (!cert) return null;
+  const pdf = isPdf(cert.fileUrl);
+
+  const open = () => {
+    if (!cert.fileUrl) return;
+    setError(null);
+    void (async () => {
+      try {
+        // A new tab on the web: openBrowserAsync navigates the page itself
+        // there, which on this app would unmount everything behind it.
+        if (Platform.OS === 'web') window.open(cert.fileUrl!, '_blank', 'noopener');
+        else await WebBrowser.openBrowserAsync(cert.fileUrl!);
+      } catch {
+        setError('Could not open that file.');
+      }
+    })();
+  };
+
+  return (
+    <FormSheet
+      visible
+      title={cert.name}
+      subtitle={[cert.issuer, cert.year].filter(Boolean).join(' · ') || undefined}
+      onClose={onClose}
+      footer={cert.fileUrl ? (
+        <Button label={pdf ? 'Open the PDF' : 'Open full size'} icon="external-link"
+          tone="primary" full height={52}
+          accessibilityLabel={`Open ${cert.name}, and save it from there`}
+          onPress={open} />
+      ) : (
+        <Button label="Close" icon="x" full onPress={onClose} />
+      )}
+    >
+      <View style={{ gap: 12 }}>
+        {cert.fileUrl && !pdf && (
+          <Image source={{ uri: cert.fileUrl }} accessibilityIgnoresInvertColors
+            accessibilityLabel={`${cert.name} certificate`}
+            style={{ width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: c.surface2 }}
+            resizeMode="contain" />
+        )}
+        {cert.fileUrl && pdf && (
+          <View style={{
+            width: '100%', aspectRatio: 1.6, borderRadius: 12, backgroundColor: c.surface2,
+            alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>
+            <Icon name="file-text" size={34} color={c.txt3} />
+            <Text style={[t.bodySm, { color: c.txt2 }]}>This certificate is a PDF.</Text>
+          </View>
+        )}
+        {!cert.fileUrl && (
+          <Text style={[t.bodySm, { color: c.txt2 }]}>
+            No file was uploaded with this certificate.
+          </Text>
+        )}
+        <Text style={[t.caption, { color: c.txt3 }]}>
+          {cert.status === 'approved'
+            ? 'Verified by an admin, and shown as verified on your public profile.'
+            : 'Pending review. It is on your profile, but not marked verified yet.'}
+        </Text>
+        {error && (
+          <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>
+        )}
+      </View>
+    </FormSheet>
   );
 }

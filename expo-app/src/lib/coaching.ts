@@ -1,4 +1,5 @@
-import { PickedAvatar, pickAvatar } from './avatars';
+import * as DocumentPicker from 'expo-document-picker';
+import { decodeBase64, PickedAvatar } from './avatars';
 import { realProfileIdentity } from './profiles';
 import { supabase } from './supabase';
 
@@ -35,7 +36,89 @@ export async function fetchCertifications(coachId: string): Promise<Certificatio
 }
 
 /** The same OS picker the avatar uses: image-only, no library permission. */
-export const pickCertificateImage = pickAvatar;
+/** The largest certificate we will take. Matches the avatar limit: a scan of
+ *  an A4 page is comfortably under it, and anything much bigger is a photo
+ *  nobody needs at full resolution on a profile. */
+const MAX_CERT_BYTES = 2 * 1024 * 1024;
+
+/** What a certificate can be.
+ *
+ *  A photo of a certificate and a PDF of one are the same credential, and
+ *  people have whichever their awarding body sent them. Anything else is
+ *  refused here rather than uploaded and puzzled over later.  */
+const CERT_EXTENSION: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/heic': '.heic',
+  'image/heif': '.heif',
+};
+
+const CERT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'];
+
+/** Pick a certificate: an image or a PDF.
+ *
+ *  The document picker rather than the image picker, because the image picker
+ *  cannot see a PDF at all -- a coach whose certificate arrived as one had no
+ *  way to add it. */
+export async function pickCertificateFile(): Promise<PickedAvatar | null> {
+  const result = await DocumentPicker.getDocumentAsync({
+    type: ['image/*', 'application/pdf'],
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (result.canceled || !result.assets?.length) return null;
+  const asset = result.assets[0];
+  if (asset.size && asset.size > MAX_CERT_BYTES) {
+    throw new Error('Choose a file no larger than 2 MiB.');
+  }
+
+  const blob = await (await fetch(asset.uri)).blob();
+  if (blob.size > MAX_CERT_BYTES) throw new Error('Choose a file no larger than 2 MiB.');
+
+  // Same FileReader path the avatar picker uses: RN's upload needs an
+  // ArrayBuffer, and this works for a native blob and a web File alike without
+  // another filesystem dependency.
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that file. Please choose it again.'));
+    reader.onload = () => resolve(String(reader.result));
+    reader.readAsDataURL(blob);
+  });
+  const bytes = decodeBase64(dataUrl.slice(dataUrl.indexOf(',') + 1));
+
+  // The picker's own mimeType is the file's claim about itself. Trust the
+  // bytes: a PDF starts %PDF- and the image formats have their own headers,
+  // and an upload typed as something it is not renders as a broken tile on a
+  // public profile.
+  const mimeType = certificateMimeType(bytes, asset.mimeType ?? blob.type);
+  return { uri: asset.uri, bytes: bytes.buffer, mimeType };
+}
+
+/** True when this certificate is a PDF rather than a picture of one. */
+export function isPdf(mimeTypeOrUrl: string | null | undefined): boolean {
+  if (!mimeTypeOrUrl) return false;
+  return mimeTypeOrUrl === 'application/pdf' || /\.pdf($|\?)/i.test(mimeTypeOrUrl);
+}
+
+function certificateMimeType(bytes: Uint8Array, claimed: string): string {
+  if (!bytes.length) throw new Error('That file is empty.');
+  const text = (start: number, end: number) => String.fromCharCode(...bytes.slice(start, end));
+  if (text(0, 5) === '%PDF-') return 'application/pdf';
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  // Byte-wise rather than an escaped string: the PNG signature is control
+  // characters, and those do not survive being retyped.
+  const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (PNG.every((byte, at) => bytes[at] === byte)) return 'image/png';
+  if (text(0, 4) === 'RIFF' && text(8, 12) === 'WEBP') return 'image/webp';
+  if (text(4, 8) === 'ftyp') return 'image/heic';
+  if (CERT_TYPES.includes(claimed)) return claimed;
+  throw new Error('Choose a JPEG, PNG, WebP, HEIC or PDF.');
+}
+
+/** @deprecated Images only. `pickCertificateFile` takes a PDF as well. */
+export const pickCertificateImage = pickCertificateFile;
 
 /** Add a certificate, with an optional photo of it.
  *
@@ -56,7 +139,14 @@ export async function addCertification(input: {
   if (input.image) {
     // Keyed by auth id to match the storage policy, then a unique suffix so a
     // second certificate does not overwrite the first.
-    filePath = `${user.id}/${Date.now()}`;
+    // The extension is how a reader knows what it got. The object's
+    // contentType is correct either way, but the public URL is what the app
+    // holds, and a tile has to decide between an <Image> and a PDF card
+    // without fetching the file to find out.
+    //
+    // Rows written before PDFs were possible have no extension at all, which
+    // is the right answer for them: they are all images.
+    filePath = `${user.id}/${Date.now()}${CERT_EXTENSION[input.image.mimeType] ?? ''}`;
     const uploaded = await supabase.storage
       .from('certificates')
       .upload(filePath, input.image.bytes, { contentType: input.image.mimeType, upsert: false });
