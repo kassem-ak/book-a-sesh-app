@@ -43,7 +43,7 @@ export function PersonOverlay() {
     // certificates, and neither must take the profile down -- the parts of a
     // profile are not each other's preconditions.
     fetchCoachAvailability(coachId)
-      .then((week) => { if (active) setHours(week ? groupWeek(week) : null); })
+      .then((got) => { if (active) setHours(got ? groupWeek(got.week, got.notes) : null); })
       .catch(() => { if (active) setHours(null); });
     fetchBlackouts(coachId)
       .then((dates) => { if (active) setDaysOff(dates); })
@@ -172,9 +172,15 @@ export function PersonOverlay() {
                 <Text style={[t.labelSm, { color: c.txt, width: 118 }]}>{dayRangeLabel(group.days)}</Text>
                 <View style={{ flex: 1 }}>
                   {group.periods.map((period) => (
-                    <Text key={`${period.startsAt}-${period.endsAt}`} style={[t.bodySm, { color: c.accent }]}>
-                      {periodLabel(period)}
-                    </Text>
+                    <View key={`${period.startsAt}-${period.endsAt}`} style={{ marginBottom: period.note ? 6 : 0 }}>
+                      <Text style={[t.bodySm, { color: c.accent }]}>{periodLabel(period)}</Text>
+                      {/* What the coach said about these particular hours --
+                          "Juniors only", "Outdoor". Worth reading before you
+                          book, so it sits with the time and not in the bio. */}
+                      {period.note && (
+                        <Text style={[t.caption, { color: c.txt2 }]}>{period.note}</Text>
+                      )}
+                    </View>
                   ))}
                 </View>
               </Row>

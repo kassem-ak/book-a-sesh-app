@@ -559,3 +559,51 @@ test('settling is idempotent', () => {
   const once = normaliseTimeInput('1730');
   assert.equal(normaliseTimeInput(once), once);
 });
+
+// ---- Comments on a schedule entry ------------------------------------------
+// The note rides the period's first slot, so the two things worth pinning are
+// that it is read from the start and nowhere else, and that a merge does not
+// swallow it silently.
+
+test('a note is read from the period start, and only from there', () => {
+  const { periodsFromSlots, slotsForPeriods } = availability();
+  const slots = slotsForPeriods([{ startsAt: 9 * 60, endsAt: 11 * 60 }]);
+  const back = periodsFromSlots(slots, (slot) => ({
+    '9:00 AM': 'Juniors only',
+    '10:00 AM': 'ignored, not a start',
+  })[slot]);
+  assert.equal(back.length, 1);
+  assert.equal(back[0].note, 'Juniors only');
+});
+
+test('a period with no note keeps the shape it always had', () => {
+  const { periodsFromSlots, slotsForPeriods } = availability();
+  const back = periodsFromSlots(slotsForPeriods([{ startsAt: 9 * 60, endsAt: 10 * 60 }]), () => '   ');
+  assert.equal('note' in back[0], false);
+});
+
+test('merging keeps the earliest note rather than dropping every one', () => {
+  const { addPeriod } = availability();
+  const merged = addPeriod(
+    [{ startsAt: 9 * 60, endsAt: 12 * 60, note: 'Outdoor' }],
+    { startsAt: 11 * 60, endsAt: 14 * 60, note: 'Indoor' },
+  );
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].note, 'Outdoor');
+});
+
+test('days with the same hours but different notes do not group together', () => {
+  const { groupWeek, slotsForPeriods, noteKey } = availability();
+  const slots = slotsForPeriods([{ startsAt: 9 * 60, endsAt: 10 * 60 }]);
+  const week = { 0: slots, 1: slots };
+  assert.equal(groupWeek(week, {}).length, 1);
+  assert.equal(groupWeek(week, { [noteKey(1, '9:00 AM')]: 'Juniors only' }).length, 2);
+});
+
+test('a note is trimmed and capped at what the column will take', () => {
+  const { cleanNote, MAX_NOTE_LENGTH } = availability();
+  assert.equal(cleanNote('   '), null);
+  assert.equal(cleanNote(null), null);
+  assert.equal(cleanNote('  Outdoor  '), 'Outdoor');
+  assert.equal(cleanNote('x'.repeat(500)).length, MAX_NOTE_LENGTH);
+});

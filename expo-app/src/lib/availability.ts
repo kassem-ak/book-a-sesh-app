@@ -1,4 +1,5 @@
 import { dateKey } from './calendarGrid';
+import { markScheduleNotesSchemaMissing, scheduleNotesSchemaReady } from './schema';
 import { currentAppUserId } from './session';
 import { supabase } from './supabase';
 
@@ -36,8 +37,30 @@ export const DAY_ENDS_AT = 23 * 60;         // 11:00 PM, one slot past the last
 export const MAX_PERIODS_PER_DAY = 2;
 
 /** Minutes from midnight. `endsAt` is exclusive: a period ending at 12:00 PM
- *  has its last bookable start at 11:30. */
-export type Period = { startsAt: number; endsAt: number };
+ *  has its last bookable start at 11:30.
+ *
+ *  `note` is the coach's own comment on this entry -- "Juniors only", "Outdoor,
+ *  weather permitting". It is stored on the period's first slot and is public,
+ *  because it answers the same question the hours do. */
+export type Period = { startsAt: number; endsAt: number; note?: string | null };
+
+/** The longest note the column will take. Matched in the editor so the coach
+ *  is stopped while typing rather than by a 400 on save. */
+export const MAX_NOTE_LENGTH = 140;
+
+/** Notes keyed by the slot they ride on, `${weekday}|${slot}`. */
+export type SlotNotes = Record<string, string>;
+
+export function noteKey(weekday: number, slot: string): string {
+  return `${weekday}|${slot}`;
+}
+
+/** Empty, whitespace and null all mean "no note" -- one shape for the rest of
+ *  the code, so nothing has to decide whether "  " counts. */
+export function cleanNote(note: string | null | undefined): string | null {
+  const trimmed = (note ?? '').trim();
+  return trimmed ? trimmed.slice(0, MAX_NOTE_LENGTH) : null;
+}
 
 /** "9:30 AM" -> 570. Returns null for anything that is not a slot label, so a
  *  stray row cannot silently become midnight. */
@@ -79,14 +102,24 @@ export function slotsForPeriods(periods: Period[]): string[] {
  *  truncated. Showing a coach fewer hours than they actually offer would be the
  *  worse error.
  */
-export function periodsFromSlots(slots: string[]): Period[] {
+export function periodsFromSlots(slots: string[], noteAt?: (slot: string) => string | null | undefined): Period[] {
   const starts = [...new Set(slots.map(minutesFromLabel).filter((m): m is number => m !== null))]
     .sort((a, b) => a - b);
   const periods: Period[] = [];
   for (const start of starts) {
     const last = periods[periods.length - 1];
     if (last && start === last.endsAt) last.endsAt = start + SLOT_MINUTES;
-    else periods.push({ startsAt: start, endsAt: start + SLOT_MINUTES });
+    else {
+      // The note hangs off the slot the period starts on, so it is read here
+      // and nowhere else. A note on a slot in the middle of a run is not a
+      // period's note and is ignored rather than guessed at.
+      const note = noteAt ? cleanNote(noteAt(labelFromMinutes(start))) : null;
+      // The key is only set when there is something to say: a period without a
+      // note is `{startsAt, endsAt}`, the same shape it has always been.
+      periods.push(note
+        ? { startsAt: start, endsAt: start + SLOT_MINUTES, note }
+        : { startsAt: start, endsAt: start + SLOT_MINUTES });
+    }
   }
   return periods;
 }
@@ -231,7 +264,19 @@ export function daysInRange(from: number, to: number): number[] {
  *  stored slots cannot tell them apart anyway, so two entries claiming the same
  *  hour would be one entry the moment it was saved and read back. */
 export function addPeriod(existing: Period[], period: Period): Period[] {
-  return periodsFromSlots(slotsForPeriods([...existing, period]));
+  const all = [...existing, period];
+  const merged = periodsFromSlots(slotsForPeriods(all));
+  // A merge swallows whole entries, and with them their notes. The survivor
+  // keeps the earliest note it absorbed: dropping all of them would lose a
+  // coach's words silently, and concatenating them would invent a sentence
+  // nobody wrote.
+  return merged.map((m) => {
+    const note = cleanNote(
+      all.filter((p) => p.startsAt >= m.startsAt && p.startsAt < m.endsAt && cleanNote(p.note))
+        .sort((a, b) => a.startsAt - b.startsAt)[0]?.note,
+    );
+    return note ? { ...m, note } : m;
+  });
 }
 
 /** The period a coach gets when they add one: an hour, mid-morning, or the
@@ -252,8 +297,10 @@ export function suggestedPeriod(existing: Period[]): Period {
  */
 export type DayGroup = { days: number[]; periods: Period[] };
 
+// The note is part of the signature, so Tuesday's "Juniors only" does not get
+// folded into Monday's identical hours and quietly disappear.
 const signature = (periods: Period[]) =>
-  periods.map((p) => `${p.startsAt}-${p.endsAt}`).join(',');
+  periods.map((p) => `${p.startsAt}-${p.endsAt}-${cleanNote(p.note) ?? ''}`).join(',');
 
 /** Days that work, grouped into runs, Monday first.
  *
@@ -263,10 +310,13 @@ const signature = (periods: Period[]) =>
  *  set a wrapping range still gets what they asked for; it is only shown in the
  *  order the week runs.
  */
-export function groupWeek(week: Week): DayGroup[] {
+export function groupWeek(week: Week, notes?: SlotNotes): DayGroup[] {
   const groups: DayGroup[] = [];
   for (let day = 0; day < 7; day += 1) {
-    const periods = periodsFromSlots(week[day] ?? []);
+    const periods = periodsFromSlots(
+      week[day] ?? [],
+      notes ? (slot) => notes[noteKey(day, slot)] : undefined,
+    );
     if (!periods.length) continue;
     const last = groups[groups.length - 1];
     const runs = last && last.days[last.days.length - 1] === day - 1;
@@ -289,16 +339,35 @@ export function blackoutLabel(date: string): string {
     .toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-export async function fetchMyWeek(): Promise<Week> {
+export async function fetchMyWeek(): Promise<{ week: Week; notes: SlotNotes }> {
   const coachId = await currentAppUserId();
-  const { data, error } = await supabase
-    .from('coach_availability').select('weekday, slot').eq('coach_id', coachId);
-  if (error) throw error;
-  const week: Week = {};
-  for (const row of (data ?? []) as { weekday: number; slot: string }[]) {
-    week[row.weekday] = [...(week[row.weekday] ?? []), row.slot];
+
+  // `note` is asked for first and dropped on 42703. PostgREST refuses the whole
+  // query over one missing column, so a client shipped ahead of the migration
+  // would show the coach no schedule at all rather than a schedule without
+  // notes -- see lib/schema.ts.
+  // Two whole calls rather than one with a conditional column list: the client
+  // reads the select string as a literal type, and a union of two strings parses
+  // as neither.
+  const read = async (withNote: boolean) => (withNote
+    ? supabase.from('coach_availability').select('weekday, slot, note').eq('coach_id', coachId)
+    : supabase.from('coach_availability').select('weekday, slot').eq('coach_id', coachId));
+
+  let { data, error } = await read(scheduleNotesSchemaReady());
+  if (error && (error as { code?: string }).code === '42703') {
+    markScheduleNotesSchemaMissing();
+    ({ data, error } = await read(false));
   }
-  return week;
+  if (error) throw error;
+
+  const week: Week = {};
+  const notes: SlotNotes = {};
+  for (const row of (data ?? []) as { weekday: number; slot: string; note?: string | null }[]) {
+    week[row.weekday] = [...(week[row.weekday] ?? []), row.slot];
+    const note = cleanNote(row.note);
+    if (note) notes[noteKey(row.weekday, row.slot)] = note;
+  }
+  return { week, notes };
 }
 
 /** Replace one weekday's hours with exactly these periods.
@@ -325,12 +394,50 @@ export async function saveDayPeriods(weekday: number, periods: Period[]): Promis
   }
 
   const added = wanted.filter((slot) => !existing.includes(slot));
-  if (!added.length) return;
-  // The primary key is (coach_id, weekday, slot), so the insert is its own
-  // duplicate guard -- no read-then-write race to worry about.
-  const written = await supabase.from('coach_availability')
-    .insert(added.map((slot) => ({ coach_id: coachId, weekday, slot })));
-  if (written.error) throw written.error;
+  if (added.length) {
+    // The primary key is (coach_id, weekday, slot), so the insert is its own
+    // duplicate guard -- no read-then-write race to worry about.
+    const written = await supabase.from('coach_availability')
+      .insert(added.map((slot) => ({ coach_id: coachId, weekday, slot })));
+    if (written.error) throw written.error;
+  }
+
+  await writeDayNotes(coachId, weekday, periods, wanted);
+}
+
+/** Put each period's note on the slot it now starts on, and clear the rest.
+ *
+ *  Slots survive edits -- widening 9–12 to 8–12 keeps every original row -- so
+ *  a note left where it was would sit in the middle of a run and stop being
+ *  anyone's note. Rather than chase which start moved where, every slot in the
+ *  day is set: the starts get their note, everything else gets null. One write
+ *  each, and the day cannot end up with a note the editor never showed.
+ */
+async function writeDayNotes(
+  coachId: string, weekday: number, periods: Period[], wanted: string[],
+): Promise<void> {
+  if (!scheduleNotesSchemaReady()) return;
+
+  const noteFor = new Map<string, string | null>(wanted.map((slot) => [slot, null]));
+  for (const period of periods) noteFor.set(labelFromMinutes(period.startsAt), cleanNote(period.note));
+
+  // Grouped by value: at most three statements for a day (two notes and the
+  // nulls) instead of one per half hour.
+  const byNote = new Map<string | null, string[]>();
+  for (const [slot, note] of noteFor) byNote.set(note, [...(byNote.get(note) ?? []), slot]);
+
+  for (const [note, slots] of byNote) {
+    if (!slots.length) continue;
+    const { error } = await supabase.from('coach_availability')
+      .update({ note })
+      .eq('coach_id', coachId).eq('weekday', weekday).in('slot', slots);
+    // A note is a comment on hours that did save. Failing the whole write here
+    // would tell the coach their hours did not take, which is not true.
+    if (error) {
+      if ((error as { code?: string }).code === '42703') markScheduleNotesSchemaMissing();
+      return;
+    }
+  }
 }
 
 /** Closed dates from today onwards.

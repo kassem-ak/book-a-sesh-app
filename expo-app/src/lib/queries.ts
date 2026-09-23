@@ -1,5 +1,7 @@
 // Data-access layer for Supabase. Public reads power browsing screens; writes are gated by RLS.
+import { cleanNote, noteKey, SlotNotes } from './availability';
 import { currentAppUserId } from './bookings';
+import { markScheduleNotesSchemaMissing, scheduleNotesSchemaReady } from './schema';
 import { ensureAppSession } from './session';
 import { supabase } from './supabase';
 import { CoachPkg, Person } from '../state/models';
@@ -383,17 +385,35 @@ async function resolveCoachId(coach: { id: string; name: string }) {
 /** A coach's saved weekly schedule, keyed 0=Mon..6=Sun to match
  *  `coach_availability.weekday`. `null` means the coach has not set one, which
  *  `create_booking_for_coach` treats as open — so the picker must too. */
-export async function fetchCoachAvailability(coachId: string): Promise<Record<number, string[]> | null> {
+export async function fetchCoachAvailability(
+  coachId: string,
+): Promise<{ week: Record<number, string[]>; notes: SlotNotes } | null> {
   if (!UUID_RE.test(coachId)) return null;
-  const { data, error } = await supabase
-    .from('coach_availability').select('weekday, slot').eq('coach_id', coachId);
+
+  // Same 42703 dance as fetchMyWeek: one missing column takes the whole query
+  // with it, and a profile that cannot show a coach's hours is worse than one
+  // that shows them without the coach's comments.
+  // Two calls, not one conditional column list -- see fetchMyWeek.
+  const read = async (withNote: boolean) => (withNote
+    ? supabase.from('coach_availability').select('weekday, slot, note').eq('coach_id', coachId)
+    : supabase.from('coach_availability').select('weekday, slot').eq('coach_id', coachId));
+
+  let { data, error } = await read(scheduleNotesSchemaReady());
+  if (error && (error as { code?: string }).code === '42703') {
+    markScheduleNotesSchemaMissing();
+    ({ data, error } = await read(false));
+  }
   if (error) throw error;
   if (!data?.length) return null;
+
   const week: Record<number, string[]> = {};
-  for (const row of data as { weekday: number; slot: string }[]) {
+  const notes: SlotNotes = {};
+  for (const row of data as { weekday: number; slot: string; note?: string | null }[]) {
     week[row.weekday] = [...(week[row.weekday] ?? []), row.slot];
+    const note = cleanNote(row.note);
+    if (note) notes[noteKey(row.weekday, row.slot)] = note;
   }
-  return week;
+  return { week, notes };
 }
 
 export type MapPerson = {
