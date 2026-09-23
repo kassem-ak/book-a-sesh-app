@@ -204,3 +204,47 @@ test('a coach sends both numbers and the note', async () => {
   assert.equal(rpc.args.p_skill_stars, 3);
   assert.equal(rpc.args.p_feedback, 'Good hands.');
 });
+
+// ---- nobody trains with themselves -----------------------------------------
+//
+// The server refuses it and a trigger refuses it underneath that. What these
+// cover is the client half: that the refusal is a sentence rather than a
+// constraint violation, and that it happens before a round trip.
+
+function packagesModule(meId) {
+  const filename = join(__dirname, '../src/lib/packages.ts');
+  const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exports = {};
+  const calls = [];
+  runInNewContext(code, {
+    exports,
+    require: (id) => (
+      id === './supabase'
+        ? { supabase: { rpc: async (n, a) => { calls.push({ n, a }); return { data: 1, error: null }; } } }
+        : id === './schema'
+          ? { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} }
+          : { currentAppUserId: async () => meId }
+    ),
+    Date, JSON, Number, Math, Array, Object, String, Promise, Set, Map, Error,
+  }, { filename });
+  return { module: exports, calls };
+}
+
+test('booking a package with yourself is refused before it is sent', async () => {
+  const h = packagesModule('me');
+  await assert.rejects(
+    () => h.module.bookPackageSessions('me', 'pk1', [{ at: '2026-09-22T10:00:00Z', label: '10:00 AM' }]),
+    /cannot book a session with yourself/,
+  );
+  // Not sent: a refusal that still makes the round trip is a refusal the
+  // server had to catch.
+  assert.equal(h.calls.length, 0);
+});
+
+test('booking a package with somebody else is unaffected', async () => {
+  const h = packagesModule('me');
+  await h.module.bookPackageSessions('coach', 'pk1', [{ at: '2026-09-22T10:00:00Z', label: '10:00 AM' }]);
+  assert.equal(h.calls.filter((c) => c.n === 'book_package_sessions').length, 1);
+});
