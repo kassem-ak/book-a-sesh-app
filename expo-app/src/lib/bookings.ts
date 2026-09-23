@@ -5,7 +5,9 @@
 // booked with the ones you coach. The explicit client_id filter is what makes
 // this "My bookings".
 import { decidePartnerSession, fetchPartnerSessions, PartnerSession } from './partners';
-import { fulfilmentSchemaReady, markFulfilmentSchemaMissing } from './schema';
+import {
+  fulfilmentSchemaReady, markFulfilmentSchemaMissing, markRatingsSchemaMissing, ratingsSchemaReady,
+} from './schema';
 import { currentAppUserId, ensureAppSession } from './session';
 import { supabase } from './supabase';
 
@@ -51,6 +53,8 @@ export type MyBooking = {
 
 /** How a past session ended, which is the only thing worth filtering an
  *  archive by. Everything else -- who, when, what it cost -- is on the card. */
+export { ratingsSchemaReady };
+
 export type PastOutcome = 'completed' | 'cancelled' | 'unconfirmed';
 
 export function pastOutcome(booking: MyBooking): PastOutcome {
@@ -321,7 +325,12 @@ export async function fetchSessionRatings(sessionIds: string[]): Promise<Session
   // 42703 / 42P01: the migration has not run here. An archive with no ratings
   // on it is still an archive; a thrown error is not.
   if (reviews.error) {
-    if (reviews.error.code === '42703' || reviews.error.code === '42P01') return [];
+    if (reviews.error.code === '42703' || reviews.error.code === '42P01') {
+      // Nothing to read, and nothing to write either: the form that would
+      // write it is hidden until this comes back true.
+      markRatingsSchemaMissing();
+      return [];
+    }
     throw reviews.error;
   }
 

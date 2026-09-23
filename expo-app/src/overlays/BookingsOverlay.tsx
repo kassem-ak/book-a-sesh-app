@@ -19,6 +19,7 @@ import {
   fetchSessionRatings,
   pastOutcome,
   rateSession,
+  ratingsSchemaReady,
   bookingStatusLabel,
   canCancel,
   cancelSession,
@@ -570,7 +571,9 @@ function PastDetailSheet({ booking, ratings, onClose, onRated }: {
   // Nothing to rate about a session that was called off, and nothing to rate
   // twice -- the server replaces rather than duplicating, but offering the
   // form again reads as if the first one did not land.
-  const canRate = outcome !== 'cancelled' && !mine;
+  // Hidden entirely until the database can record an answer. Offering a form
+  // that cannot be submitted is worse than not offering one.
+  const canRate = ratingsSchemaReady() && outcome !== 'cancelled' && !mine;
 
   const send = () => {
     if (stars < 1) { setError('Pick a number of stars first.'); return; }

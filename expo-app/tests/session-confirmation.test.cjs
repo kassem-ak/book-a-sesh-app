@@ -26,7 +26,10 @@ function load() {
     require: (id) => (id === './supabase' ? { supabase }
       : id === './session' ? { currentAppUserId: async () => 'me', ensureAppSession: async () => {} }
       // These tests are about behaviour once the migration has landed.
-      : id === './schema' ? { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} }
+      : id === './schema' ? {
+        fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {},
+        ratingsSchemaReady: () => true, markRatingsSchemaMissing: () => {},
+      }
       : {}),
     Date, JSON, Number, Math, Array, Object, String, Promise, Set, Map,
   }, { filename });
@@ -121,6 +124,8 @@ function loadWithSchemaProbe() {
       : id === './schema' ? {
         fulfilmentSchemaReady: () => ready,
         markFulfilmentSchemaMissing: () => { ready = false; },
+        ratingsSchemaReady: () => true,
+        markRatingsSchemaMissing: () => {},
       }
       : id === './partners' ? { fetchPartnerSessions: async () => [] }
       : {}),
