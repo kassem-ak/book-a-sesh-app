@@ -69,6 +69,10 @@ export function BookingsOverlay() {
   // Ratings for the whole archive in one read, rather than one per card.
   const [ratings, setRatings] = useState<SessionRating[]>([]);
   const [opened, setOpened] = useState<MyBooking | null>(null);
+  // Shut by default. This screen is for what is coming up; history is the
+  // longest thing on the page and the least often wanted, so it costs a tap
+  // rather than the whole scroll.
+  const [showPast, setShowPast] = useState(false);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -324,12 +328,30 @@ export function BookingsOverlay() {
               const showPacks = outcome === 'all' || outcome === 'cancelled';
               return (
                 <>
-                  <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>
-                    Past appointments
-                  </SectionHeading>
+                  {/* The heading is the control. A count on it means the tap
+                      is an informed one -- nobody opens a section to find out
+                      whether it was worth opening. */}
+                  <Pressable
+                    onPress={() => setShowPast((open) => !open)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: showPast }}
+                    accessibilityLabel={`Past appointments, ${total}`}
+                    accessibilityHint={showPast ? 'Hides your history' : 'Shows your history'}
+                    style={{ minHeight: 48, marginTop: 22, justifyContent: 'center' }}
+                  >
+                    <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Row gap={8} style={{ alignItems: 'center' }}>
+                        <SectionHeading>Past appointments</SectionHeading>
+                        <Text style={[t.caption, { color: c.txt3 }]}>{total}</Text>
+                      </Row>
+                      <Icon name={showPast ? 'chevron-up' : 'chevron-down'} size={20} color={c.txt3} />
+                    </Row>
+                  </Pressable>
+
+                  {showPast && <View style={{ height: 11 }} />}
                   {/* Only worth a filter row once there is more than one kind
                       of ending in the list. */}
-                  {filters.length > 2 && (
+                  {showPast && filters.length > 2 && (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}
                       contentContainerStyle={{ gap: 8, paddingRight: 8, paddingBottom: 11 }}>
                       {filters.map((f) => (
@@ -339,6 +361,7 @@ export function BookingsOverlay() {
                       ))}
                     </ScrollView>
                   )}
+                  {showPast && (
                   <View style={{ gap: 10 }}>
                     {showPacks && cancelledPacks.map((pack) => (
                       <ProgressCard key={`pack-${pack.packageId}`} pack={pack}
@@ -361,6 +384,7 @@ export function BookingsOverlay() {
                           : undefined} />
                     ))}
                   </View>
+                  )}
                 </>
               );
             })()}
