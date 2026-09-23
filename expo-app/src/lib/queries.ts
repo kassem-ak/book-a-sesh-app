@@ -131,6 +131,28 @@ type CoachPackageRow = {
   active: boolean;
 };
 
+/** Your own id, or null when nothing is signed in.
+ *
+ *  Never throws: a people list that cannot resolve the viewer should show
+ *  everybody rather than nobody. The server refuses a self-booking regardless,
+ *  so this is about not being shown yourself, not about enforcement. */
+async function meOrNull(): Promise<string | null> {
+  try {
+    return await currentAppUserId();
+  } catch {
+    return null;
+  }
+}
+
+/** Drop the viewer from a list of people.
+ *
+ *  A coach who also trains -- which the app encourages -- otherwise finds
+ *  their own profile in Discover, and the only thing they can do with it is
+ *  book themselves.  */
+function withoutMe<T extends { id: string }>(people: T[], me: string | null): T[] {
+  return me ? people.filter((person) => person.id !== me) : people;
+}
+
 export async function fetchCoaches(sort: DiscoverSort = 'rating') {
   const order =
     sort === 'price'
@@ -160,7 +182,11 @@ export async function fetchCoaches(sort: DiscoverSort = 'rating') {
     packagesByCoach.set(pkg.coach_id, list);
   }
 
-  return (data ?? []).map((row) => fromRemoteCoach({ ...row, packages: packagesByCoach.get(row.user_id) ?? [] }));
+  const me = await meOrNull();
+  return withoutMe(
+    (data ?? []).map((row) => fromRemoteCoach({ ...row, packages: packagesByCoach.get(row.user_id) ?? [] })),
+    me,
+  );
 }
 
 // Public partner profiles share the same discovery list; no private user fields.
@@ -168,7 +194,8 @@ export async function fetchPartners(): Promise<Person[]> {
   const { data, error } = await supabase.from('partner_profiles')
     .select('user_id, level, goal, bio, looking_for, user:users(name, avatar_url, profile_tags(tag)), sport:sports(name)');
   if (error) throw error;
-  return (data ?? []).map((row) => ({
+  const me = await meOrNull();
+  return withoutMe((data ?? []).map((row) => ({
     id: row.user_id,
     name: firstRelated(row.user)?.name ?? 'Training partner',
     avatarUrl: firstRelated(row.user)?.avatar_url,
@@ -184,7 +211,7 @@ export async function fetchPartners(): Promise<Person[]> {
     sessions: '0',
     reply: '',
     isCoach: false,
-  }));
+  })), me);
 }
 
 // --- Shop marketplace: approved partner shops with active catalog items ---
@@ -393,7 +420,11 @@ export async function fetchPeopleOnMap(): Promise<MapPerson[]> {
   await ensureAppSession();
   const { data, error } = await supabase.rpc('people_on_the_map');
   if (error) throw error;
-  return ((data ?? []) as Record<string, unknown>[])
+  // The map already draws you from the device's own position. Leaving your
+  // shared pin in as well puts you on the map twice, and the second one opens
+  // your own profile with a Book button on it.
+  const me = await meOrNull();
+  return withoutMe(((data ?? []) as Record<string, unknown>[])
     .map((row) => ({
       id: String(row.id),
       name: typeof row.name === 'string' && row.name ? row.name : 'Member',
@@ -404,7 +435,7 @@ export async function fetchPeopleOnMap(): Promise<MapPerson[]> {
       longitude: Number(row.longitude),
       shareLevel: row.share_level === 'exact' ? ('exact' as const) : ('area' as const),
     }))
-    .filter((person) => Number.isFinite(person.latitude) && Number.isFinite(person.longitude));
+    .filter((person) => Number.isFinite(person.latitude) && Number.isFinite(person.longitude)), me);
 }
 
 export async function createBooking(
@@ -419,6 +450,12 @@ export async function createBooking(
   slot?: string | null,
 ) {
   const coachId = await resolveCoachId(coach);
+  // The server refuses this too. Saying it here means the message is a
+  // sentence rather than whatever a constraint violation reads like, and a
+  // coach who also trains never gets that far by accident.
+  if (coachId === await meOrNull()) {
+    throw new Error('You cannot book a session with yourself.');
+  }
   return callRpc<string>('create_booking_for_coach', {
     p_coach: coachId,
     p_scheduled_for: scheduledFor,

@@ -137,8 +137,10 @@ export async function bookPackageSessions(
   packageId: string,
   slots: SessionSlot[],
 ): Promise<number> {
-  await currentAppUserId();
+  const me = await currentAppUserId();
   if (!slots.length) throw new Error('Pick at least one session.');
+  // The server refuses this too; saying it here makes the message a sentence.
+  if (coachId === me) throw new Error('You cannot book a session with yourself.');
   const { data, error } = await supabase.rpc('book_package_sessions', {
     p_coach: coachId,
     p_package_id: packageId,
