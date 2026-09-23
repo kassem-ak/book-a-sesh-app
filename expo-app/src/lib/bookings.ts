@@ -5,7 +5,9 @@
 // booked with the ones you coach. The explicit client_id filter is what makes
 // this "My bookings".
 import { decidePartnerSession, fetchPartnerSessions, PartnerSession } from './partners';
-import { fulfilmentSchemaReady, markFulfilmentSchemaMissing } from './schema';
+import {
+  fulfilmentSchemaReady, markFulfilmentSchemaMissing, markRatingsSchemaMissing, ratingsSchemaReady,
+} from './schema';
 import { currentAppUserId, ensureAppSession } from './session';
 import { supabase } from './supabase';
 
@@ -48,6 +50,20 @@ export type MyBooking = {
    *  coach is the one party who gains by saying it happened. */
   clientConfirmed: boolean;
 };
+
+/** How a past session ended, which is the only thing worth filtering an
+ *  archive by. Everything else -- who, when, what it cost -- is on the card. */
+export { ratingsSchemaReady };
+
+export type PastOutcome = 'completed' | 'cancelled' | 'unconfirmed';
+
+export function pastOutcome(booking: MyBooking): PastOutcome {
+  if (booking.status === 'cancelled') return 'cancelled';
+  if (booking.status === 'completed') return 'completed';
+  // Its time went by and nobody said whether it happened. Neither finished nor
+  // called off, and the one group a person actually has to act on.
+  return 'unconfirmed';
+}
 
 /** A session whose time has passed and which is still waiting on somebody to
  *  say it took place. Partner sessions are free and settle nothing, so they
@@ -272,6 +288,102 @@ export async function fetchMyBookings(): Promise<MyBookings> {
  *  One entry point so the card does not have to know that a coach booking is a
  *  column update guarded by a trigger and a partner session is an RPC that
  *  decides who may say what. */
+/** What somebody thought of the other party, once the session was over.
+ *
+ *  `stars` is attitude and everybody leaves it. `skillStars` is the coach's
+ *  second read on a trainee and nobody else gives one. `feedback` is private
+ *  between the two of them -- it is not on `reviews`, which is public, but in
+ *  its own table with its own rule. */
+export type SessionRating = {
+  sessionId: string;
+  /** The account that left it. */
+  authorId: string;
+  subjectId: string;
+  stars: number;
+  skillStars: number | null;
+  /** Only ever populated for the two parties. Null when there is none, and
+   *  null for everybody else because the row is not readable by them. */
+  feedback: string | null;
+};
+
+/** Every rating either party left on these sessions, and any private note
+ *  this account is allowed to read.
+ *
+ *  Two reads rather than a join: the note lives in its own table precisely
+ *  because it has a different rule about who may see it, and a join would
+ *  quietly make one query's failure the other's. A database that has not had
+ *  the migration yet returns nothing rather than taking the archive down.  */
+export async function fetchSessionRatings(sessionIds: string[]): Promise<SessionRating[]> {
+  const ids = [...new Set(sessionIds)].filter(Boolean);
+  if (ids.length === 0) return [];
+  const me = await currentAppUserId();
+
+  const reviews = await supabase
+    .from('reviews')
+    .select('booking_id, author_id, subject_id, stars, skill_stars')
+    .in('booking_id', ids);
+  // 42703 / 42P01: the migration has not run here. An archive with no ratings
+  // on it is still an archive; a thrown error is not.
+  if (reviews.error) {
+    if (reviews.error.code === '42703' || reviews.error.code === '42P01') {
+      // Nothing to read, and nothing to write either: the form that would
+      // write it is hidden until this comes back true.
+      markRatingsSchemaMissing();
+      return [];
+    }
+    throw reviews.error;
+  }
+
+  const notes = new Map<string, string>();
+  const feedback = await supabase
+    .from('session_feedback')
+    .select('session_id, author_id, body')
+    .in('session_id', ids);
+  if (!feedback.error) {
+    for (const row of (feedback.data ?? []) as { session_id: string; author_id: string; body: string }[]) {
+      notes.set(`${row.session_id}:${row.author_id}`, row.body);
+    }
+  } else if (feedback.error.code !== '42703' && feedback.error.code !== '42P01') {
+    throw feedback.error;
+  }
+
+  type ReviewRow = {
+    booking_id: string; author_id: string; subject_id: string;
+    stars: number; skill_stars: number | null;
+  };
+  return ((reviews.data ?? []) as unknown as ReviewRow[]).map((row) => ({
+    sessionId: row.booking_id,
+    authorId: row.author_id,
+    subjectId: row.subject_id,
+    stars: row.stars,
+    skillStars: row.skill_stars ?? null,
+    feedback: notes.get(`${row.booking_id}:${row.author_id}`) ?? null,
+  })).filter((r) => r.authorId === me || r.subjectId === me);
+}
+
+/** Leave a rating on a session you were in.
+ *
+ *  The server decides who the subject is from who is asking, refuses a session
+ *  that has not happened or was called off, and refuses a skill rating or a
+ *  private note from anybody who was not the coach. */
+export async function rateSession(input: {
+  sessionId: string;
+  kind: SessionKind;
+  stars: number;
+  skillStars?: number | null;
+  feedback?: string | null;
+}): Promise<void> {
+  await ensureAppSession();
+  const { error } = await supabase.rpc('rate_session', {
+    p_session: input.sessionId,
+    p_stars: input.stars,
+    p_skill_stars: input.skillStars ?? null,
+    p_feedback: input.feedback?.trim() ? input.feedback.trim() : null,
+    p_kind: input.kind,
+  });
+  if (error) throw error;
+}
+
 /** Say this session happened.
  *
  *  One call for either side: the server works out which stamp is yours from

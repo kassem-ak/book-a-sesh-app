@@ -253,9 +253,19 @@ export async function requestCancellation(
 /** Take the request back before it is answered. */
 export async function withdrawCancellation(id: string): Promise<void> {
   await currentAppUserId();
-  const { error } = await supabase
-    .from('package_cancellations').update({ status: 'withdrawn' }).eq('id', id);
+  // Selecting the row back is the point. This is a policy-gated UPDATE, and a
+  // policy that matches nothing is not an error -- it changes zero rows and
+  // reports success. That is how "Take it back" came to look like it worked
+  // while leaving the request exactly where it was.
+  const { data, error } = await supabase
+    .from('package_cancellations')
+    .update({ status: 'withdrawn' })
+    .eq('id', id)
+    .select('id');
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error('That request could not be taken back. It may have already been answered.');
+  }
 }
 
 /** The coach's answer. An approval carries the amount they are giving back --

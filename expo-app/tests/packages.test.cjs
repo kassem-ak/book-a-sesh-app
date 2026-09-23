@@ -231,13 +231,14 @@ test('declining carries no amount at all', async () => {
 });
 
 test('taking a request back is one update, not a delete', async () => {
-  const h = harness();
+  // The shared harness answers every write with an empty body, which is now
+  // indistinguishable from a policy refusal -- so this one states the row it
+  // got back. See withdrawHarness below for the refusal case.
+  const h = withdrawHarness([{ id: 'req-1' }]);
   await h.module.withdrawCancellation('req-1');
-  const write = h.calls.find((c) => c.method === 'PATCH');
-  assert.ok(write, 'expected an update');
-  assert.equal(write.body.status, 'withdrawn');
+  assert.equal(h.calls.length, 1);
+  assert.equal(JSON.stringify(h.calls[0].patch), JSON.stringify({ status: 'withdrawn' }));
   // Deleting it would lose the fact that it was ever asked.
-  assert.equal(h.calls.filter((c) => c.method === 'DELETE').length, 0);
 });
 
 test('the suggested refund is the unused share of what was paid', () => {
@@ -398,4 +399,45 @@ test('giving back an unused pack names the coach and the package, nothing else',
   // No amount is sent: the price is the coach's, and a client that could name
   // its own refund would be naming it.
   assert.equal(JSON.stringify(rpc.body), JSON.stringify({ p_coach: COACH, p_package: 'pk1' }));
+});
+
+// ---- taking a request back --------------------------------------------------
+//
+// This is a policy-gated UPDATE, not an RPC. A policy that matches no row is
+// not an error in PostgREST: it changes nothing and reports success. So the
+// call has to look at what came back, or a refusal reads as a success.
+
+function withdrawHarness(returnedRows) {
+  const calls = [];
+  const supabase = {
+    from: () => ({
+      update: (patch) => ({
+        eq: (col, val) => ({
+          select: () => {
+            calls.push({ patch, col, val });
+            return Promise.resolve({ data: returnedRows, error: null });
+          },
+        }),
+      }),
+    }),
+  };
+  const filename = join(__dirname, '../src/lib/packages.ts');
+  const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exports = {};
+  runInNewContext(code, { exports, require: (id) => (
+    id === './supabase' ? { supabase }
+      : id === './schema' ? { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} }
+      : { currentAppUserId: async () => ME }
+  ), URL, Response, Headers, Promise, Array, Object, JSON, Number, String, Map, Set, Error },
+  { filename });
+  return { module: exports, calls };
+}
+
+test('a withdraw that changed nothing is a failure, not a success', async () => {
+  // What a policy refusal looks like: no error, no rows. Before this it was
+  // reported as done and the request stayed exactly where it was.
+  const h = withdrawHarness([]);
+  await assert.rejects(() => h.module.withdrawCancellation('req-1'), /could not be taken back/);
 });
