@@ -3,9 +3,10 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { DatePickerSheet } from './DatePickerSheet';
 import { ConfirmSheet, Field, Icon, Row, SectionHeading, VoltButton } from './ui';
 import {
-  addPeriod, Blackout, blackoutLabel, closeDate, daysInRange, fetchMyBlackouts,
-  fetchMyWeek, groupWeek, maskTimeInput, MAX_PERIODS_PER_DAY, normaliseTimeInput, openDate,
-  parsePeriodInput, Period, periodLabel, periodsFromSlots, saveDayPeriods, Week,
+  addPeriod, Blackout, blackoutLabel, cleanNote, closeDate, daysInRange, fetchMyBlackouts,
+  fetchMyWeek, groupWeek, maskTimeInput, MAX_NOTE_LENGTH, MAX_PERIODS_PER_DAY, normaliseTimeInput,
+  noteKey, openDate, parsePeriodInput, Period, periodLabel, periodsFromSlots, saveDayPeriods,
+  SlotNotes, Week,
 } from '../lib/availability';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, useStore } from '../state/store';
@@ -21,6 +22,7 @@ export function CoachAvailability() {
   const { c, t } = useTheme();
   const s = useStore();
   const [week, setWeek] = useState<Week | null>(null);
+  const [notes, setNotes] = useState<SlotNotes>({});
   const [blackouts, setBlackouts] = useState<Blackout[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +35,7 @@ export function CoachAvailability() {
   const [toDay, setToDay] = useState(4);
   const [startText, setStartText] = useState('9:00 AM');
   const [endText, setEndText] = useState('5:00 PM');
+  const [noteText, setNoteText] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
   const [picking, setPicking] = useState(false);
@@ -41,8 +44,9 @@ export function CoachAvailability() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [rows, closed] = await Promise.all([fetchMyWeek(), fetchMyBlackouts()]);
-      setWeek(rows);
+      const [hours, closed] = await Promise.all([fetchMyWeek(), fetchMyBlackouts()]);
+      setWeek(hours.week);
+      setNotes(hours.notes);
       setBlackouts(closed);
     } catch (e) {
       setError(errorMessage(e));
@@ -66,7 +70,10 @@ export function CoachAvailability() {
     } finally { setBusy(false); }
   };
 
-  const periodsOn = (weekday: number) => periodsFromSlots(week?.[weekday] ?? []);
+  const periodsOn = (weekday: number) => periodsFromSlots(
+    week?.[weekday] ?? [],
+    (slot) => notes[noteKey(weekday, slot)],
+  );
   const targetDays = spanDays ? daysInRange(fromDay, toDay) : [fromDay];
 
   const addHours = () => {
@@ -88,13 +95,39 @@ export function CoachAvailability() {
     }
 
     setFormError(null);
+    const adding: Period = { ...parsed.period, note: cleanNote(noteText) };
     void run(async () => {
       for (const day of targetDays) {
-        await saveDayPeriods(day, addPeriod(periodsOn(day), parsed.period));
+        await saveDayPeriods(day, addPeriod(periodsOn(day), adding));
       }
+      setNoteText('');
       track('coach_hours_saved');
     });
   };
+
+  // Editing an existing entry's note, inline in the card it belongs to. A
+  // sheet would cover the hours the note is about, which is the one thing the
+  // coach needs to see while writing it.
+  const [editing, setEditing] = useState<{ days: number[]; period: Period } | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+
+  const isEditing = (days: number[], period: Period) =>
+    editing !== null
+    && editing.period.startsAt === period.startsAt
+    && editing.period.endsAt === period.endsAt
+    && editing.days.join('-') === days.join('-');
+
+  const saveNote = (days: number[], period: Period) =>
+    void run(async () => {
+      for (const day of days) {
+        await saveDayPeriods(day, periodsOn(day).map((p) => (
+          p.startsAt === period.startsAt && p.endsAt === period.endsAt
+            ? { ...p, note: cleanNote(noteDraft) }
+            : p
+        )));
+      }
+      setEditing(null);
+    });
 
   // Removing from a group removes from every day in it. The hours were added
   // across those days in one go, and taking them back one day at a time would
@@ -113,7 +146,7 @@ export function CoachAvailability() {
       setDropping(null);
     });
 
-  const groups = week ? groupWeek(week) : [];
+  const groups = week ? groupWeek(week, notes) : [];
   const groupLabel = (days: number[]) =>
     days.length === 1
       ? DAY_NAMES[days[0]]
@@ -164,17 +197,70 @@ export function CoachAvailability() {
               )}
             </Row>
             {group.periods.map((period) => (
-              <Row key={`${period.startsAt}-${period.endsAt}`} gap={10} style={{ alignItems: 'center' }}>
-                <Text style={[t.body, { color: c.accent, flex: 1 }]}>{periodLabel(period)}</Text>
-                <Pressable accessibilityRole="button" disabled={busy}
-                  accessibilityLabel={`Remove ${periodLabel(period)} on ${groupLabel(group.days)}`}
-                  onPress={() => (group.days.length > 1
-                    ? setDropping({ days: group.days, period })
-                    : dropPeriod(group.days, period))}
-                  style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
-                  <Icon name="trash-2" size={17} color={c.txt3} />
-                </Pressable>
-              </Row>
+              <View key={`${period.startsAt}-${period.endsAt}`} style={{ gap: 6 }}>
+                <Row gap={10} style={{ alignItems: 'center' }}>
+                  <Text style={[t.body, { color: c.accent, flex: 1 }]}>{periodLabel(period)}</Text>
+                  <Pressable accessibilityRole="button" disabled={busy}
+                    accessibilityLabel={period.note
+                      ? `Edit the comment on ${periodLabel(period)}, ${groupLabel(group.days)}`
+                      : `Add a comment to ${periodLabel(period)}, ${groupLabel(group.days)}`}
+                    onPress={() => {
+                      if (isEditing(group.days, period)) { setEditing(null); return; }
+                      setNoteDraft(period.note ?? '');
+                      setEditing({ days: group.days, period });
+                    }}
+                    style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name={period.note ? 'message-square' : 'plus'} size={17}
+                      color={period.note ? c.accent : c.txt3} />
+                  </Pressable>
+                  <Pressable accessibilityRole="button" disabled={busy}
+                    accessibilityLabel={`Remove ${periodLabel(period)} on ${groupLabel(group.days)}`}
+                    onPress={() => (group.days.length > 1
+                      ? setDropping({ days: group.days, period })
+                      : dropPeriod(group.days, period))}
+                    style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
+                    <Icon name="trash-2" size={17} color={c.txt3} />
+                  </Pressable>
+                </Row>
+
+                {/* The note as clients read it, when it is not being edited. */}
+                {period.note && !isEditing(group.days, period) && (
+                  <Text style={[t.bodySm, { color: c.txt2 }]}>{period.note}</Text>
+                )}
+
+                {isEditing(group.days, period) && (
+                  <View style={{ gap: 8 }}>
+                    <TextInput
+                      value={noteDraft}
+                      onChangeText={setNoteDraft}
+                      maxLength={MAX_NOTE_LENGTH}
+                      multiline
+                      editable={!busy}
+                      placeholder="Juniors only, outdoor, bring your own mat…"
+                      placeholderTextColor={c.txt3}
+                      accessibilityLabel={`Comment on ${periodLabel(period)}, ${groupLabel(group.days)}`}
+                      style={[t.bodySm, {
+                        color: c.txt, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1,
+                        borderRadius: radii.input, paddingHorizontal: 12, paddingVertical: 10, minHeight: 60,
+                      }]}
+                    />
+                    <Text style={[t.caption, { color: c.txt3 }]}>
+                      {group.days.length > 1
+                        ? `Clients see this on all ${group.days.length} days.`
+                        : 'Clients see this next to your hours.'}
+                    </Text>
+                    <Row gap={8}>
+                      <VoltButton label="Save comment" busy={busy}
+                        onPress={() => saveNote(group.days, period)} />
+                      <Pressable accessibilityRole="button" accessibilityLabel="Cancel" disabled={busy}
+                        onPress={() => setEditing(null)}
+                        style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' }}>
+                        <Text style={[t.labelSm, { color: c.txt2 }]}>Cancel</Text>
+                      </Pressable>
+                    </Row>
+                  </View>
+                )}
+              </View>
             ))}
           </View>
         ))}
@@ -199,14 +285,40 @@ export function CoachAvailability() {
             })}
           </Row>
 
-          <DayPicker label={spanDays ? 'From' : 'Day'} value={fromDay} onChange={setFromDay} />
-          {spanDays && <DayPicker label="To" value={toDay} onChange={setToDay} />}
+          {/* Side by side: From and To are one answer, read left to right.
+              Each column owns its own open list, so a menu drops under the
+              control that opened it rather than under the pair. */}
+          <Row gap={10} style={{ alignItems: 'flex-start' }}>
+            <DayPicker label={spanDays ? 'From' : 'Day'} value={fromDay} onChange={setFromDay} />
+            {spanDays && <DayPicker label="To" value={toDay} onChange={setToDay} />}
+          </Row>
 
           <Row gap={10} style={{ alignItems: 'center' }}>
             <TimeInput label="Start" value={startText} onChange={setStartText} />
             <Text style={[t.bodySm, { color: c.txt3 }]}>to</Text>
             <TimeInput label="Finish" value={endText} onChange={setEndText} />
           </Row>
+
+          {/* Optional, and last: hours are the point of this form and a comment
+              is a thing you add to them. Labelled as public so nobody writes a
+              reminder to themselves on their own shop window. */}
+          <View style={{ gap: 6 }}>
+            <Text style={[t.caption, { color: c.txt3 }]}>Comment (optional, clients see it)</Text>
+            <TextInput
+              value={noteText}
+              onChangeText={setNoteText}
+              maxLength={MAX_NOTE_LENGTH}
+              multiline
+              editable={!busy}
+              placeholder="Juniors only, outdoor, bring your own mat…"
+              placeholderTextColor={c.txt3}
+              accessibilityLabel="Comment on these hours, optional, clients see it"
+              style={[t.bodySm, {
+                color: c.txt, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1,
+                borderRadius: radii.input, paddingHorizontal: 12, paddingVertical: 10, minHeight: 60,
+              }]}
+            />
+          </View>
 
           {formError
             ? <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{formError}</Text>
@@ -288,34 +400,30 @@ function DayPicker({ label, value, onChange }: {
   const { c, t } = useTheme();
   const [open, setOpen] = useState(false);
   return (
-    <View style={{ gap: 8 }}>
-      <Row gap={10} style={{ alignItems: 'center' }}>
-        <Text style={[t.bodySm, { color: c.txt3, width: 44 }]}>{label}</Text>
-        <Pressable
-          onPress={() => setOpen((shown) => !shown)}
-          accessibilityRole="button"
-          accessibilityLabel={`${label}: ${DAY_NAMES[value]}`}
-          accessibilityHint="Choose a day"
-          accessibilityState={{ expanded: open }}
-          style={{
-            flex: 1,
-            flexDirection: 'row',
-            alignItems: 'center',
-            minHeight: 48,
-            backgroundColor: c.surface,
-            borderColor: open ? c.volt : c.line,
-            borderWidth: 1,
-            borderRadius: radii.input,
-            paddingHorizontal: 14,
-          }}
-        >
-          <Text style={[t.body, { color: c.txt, flex: 1 }]}>{DAY_NAMES[value]}</Text>
-          <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={c.txt3} />
-        </Pressable>
-      </Row>
+    <View style={{ flex: 1, gap: 6 }}>
+      <Text style={[t.caption, { color: c.txt3 }]}>{label}</Text>
+      <Pressable
+        onPress={() => setOpen((shown) => !shown)}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${DAY_NAMES[value]}`}
+        accessibilityHint="Choose a day"
+        accessibilityState={{ expanded: open }}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          minHeight: 48,
+          backgroundColor: c.surface,
+          borderColor: open ? c.volt : c.line,
+          borderWidth: 1,
+          borderRadius: radii.input,
+          paddingHorizontal: 14,
+        }}
+      >
+        <Text numberOfLines={1} style={[t.body, { color: c.txt, flex: 1 }]}>{DAY_NAMES[value]}</Text>
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={c.txt3} />
+      </Pressable>
       {open && (
         <View style={{
-          marginLeft: 54,
           backgroundColor: c.surface,
           borderColor: c.line,
           borderWidth: 1,

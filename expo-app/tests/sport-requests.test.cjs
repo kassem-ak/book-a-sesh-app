@@ -25,7 +25,15 @@ function harness(responses) {
   });
   const dependencies = {
     './supabase': { supabase },
-    './schema': { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} },
+    './schema': {
+      fulfilmentSchemaReady: () => true,
+      markFulfilmentSchemaMissing: () => {},
+      scheduleNotesSchemaReady: () => true,
+      markScheduleNotesSchemaMissing: () => {},
+    },
+    // queries.ts borrows the schedule-note helpers rather than keeping a second
+    // copy; neither one touches the network.
+    './availability': { cleanNote: (n) => (n ?? '').trim() || null, noteKey: (d, s) => `${d}|${s}` },
     './session': { ensureAppSession: async () => { sessions++; return 'auth-user-id'; } },
     // bookings.ts now merges free partner sessions into the same list; sport
     // requests do not touch them.

@@ -35,3 +35,17 @@ export function ratingsSchemaReady(): boolean {
 export function markRatingsSchemaMissing(): void {
   ratings = false;
 }
+
+let scheduleNotes = true;
+
+/** False once a read has proved `coach_availability.note` is not there yet.
+ *
+ *  Its own flag for the same reason as the others: this column arrives in its
+ *  own migration, and the schedule must still load without it. */
+export function scheduleNotesSchemaReady(): boolean {
+  return scheduleNotes;
+}
+
+export function markScheduleNotesSchemaMissing(): void {
+  scheduleNotes = false;
+}
