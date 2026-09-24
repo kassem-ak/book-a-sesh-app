@@ -57,6 +57,19 @@ comment on function award_loyalty(uuid, int, text) is
   'because the tables are select-only to their owner -- a user must not be '
   'able to award themselves points.';
 
+-- SECURITY DEFINER plus the default EXECUTE-to-PUBLIC grant is the whole
+-- exploit: this function is in `public`, so PostgREST exposes it as an RPC, and
+-- any signed-in user could call award_loyalty(own_id, 999999, 'x') and mint
+-- themselves a balance. The definer bit is what makes it work -- it is exactly
+-- the privilege the select-only policies were there to withhold.
+--
+-- Its two legitimate callers are both SECURITY DEFINER themselves
+-- (mark_event_payment_settled, settle_event_payment_by_hand) and run as this
+-- function's owner, so revoking from `authenticated` does not reach them.
+revoke all on function award_loyalty(uuid, int, text) from public;
+revoke all on function award_loyalty(uuid, int, text) from authenticated;
+grant execute on function award_loyalty(uuid, int, text) to service_role;
+
 -- One point per whole unit of currency spent, rounded down. A deliberate,
 -- boring rule: it is the one people already expect, it needs no tier table,
 -- and it is a single number to change when somebody wants it to be different.
