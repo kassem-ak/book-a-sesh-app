@@ -176,13 +176,17 @@ export function Certificates({ coachId }: { coachId: string }) {
 // small phone and on a tablet without a breakpoint. `flexBasis: 0` with
 // `flexGrow: 1` rather than a percentage: percentages fight the gap, and three
 // 33% tiles plus two gaps is wider than the row.
-const TILE_GAP = 10;
+export const TILE_GAP = 10;
 
-function CertificateTile({ cert, busy, onOpen, onRemove }: {
+// Exported because a coach's profile shows the same certificates to visitors,
+// and two grids of the same thing drift apart. The difference is one prop: a
+// visitor gets no delete, so `onRemove` is optional rather than a second
+// component.
+export function CertificateTile({ cert, busy, onOpen, onRemove }: {
   cert: Certification;
-  busy: boolean;
+  busy?: boolean;
   onOpen: () => void;
-  onRemove: () => void;
+  onRemove?: () => void;
 }) {
   const { c, t } = useTheme();
   const approved = cert.status === 'approved';
@@ -238,7 +242,7 @@ function CertificateTile({ cert, busy, onOpen, onRemove }: {
             fg={approved ? c.ink : '#FFFFFF'}
           />
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${cert.name}`}
+        {onRemove && <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${cert.name}`}
           onPress={onRemove} disabled={busy}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           style={{
@@ -248,7 +252,7 @@ function CertificateTile({ cert, busy, onOpen, onRemove }: {
             backgroundColor: alpha(c.ink, 0.66),
           }}>
           <Icon name="trash-2" size={15} color="#FFFFFF" />
-        </Pressable>
+        </Pressable>}
       </View>
 
       <View style={{ padding: 8, gap: 1 }}>
@@ -269,7 +273,7 @@ function CertificateTile({ cert, busy, onOpen, onRemove }: {
 // download lives -- on the web that is the browser's own save, and on a phone
 // it is the system viewer's share sheet. Re-implementing either would mean
 // writing a file somewhere and asking for permission to do it.
-function CertificateViewer({ cert, onClose }: {
+export function CertificateViewer({ cert, onClose }: {
   cert: Certification | null;
   onClose: () => void;
 }) {
