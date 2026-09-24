@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissingSubject, OverlayHeader } from '../components/Overlay';
 import { ScrollAwareFab, useScrollAwareFab } from '../components/ScrollAwareFab';
 import {
   Avatar, Button, Card, Icon, IconButton, MicroBadge, Row, StripedPlaceholder,
 } from '../components/ui';
+import { PhotoStrip } from '../components/PhotoStrip';
 import { SocialRow } from '../components/SocialLinks';
 import { CommunityDetail, fetchCommunity, fetchPhotos, Photo } from '../lib/communities';
 import { hasAnyHandle } from '../lib/socialLinks';
@@ -123,50 +124,17 @@ export function CommunityProfileOverlay() {
             )}
           </Card>
 
-          {/* Three to a row, the same grid the certificates use. Five pictures
-              of what this community actually looks like beats a paragraph
-              saying so. */}
+          {/* Five slots wide, always. The tile is the row divided by five,
+              measured rather than guessed -- so the strip looks the same
+              whether it holds one picture or five, and a tap opens the
+              picture full size. */}
           {photos.length > 0 && (
-            <Row style={{ flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
-              {photos.map((photo) => (
-                <View key={photo.id} style={{
-                  flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 96, maxWidth: '32%',
-                  aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: c.surface,
-                }}>
-                  <Image source={{ uri: photo.url }} accessibilityIgnoresInvertColors
-                    accessibilityLabel={photo.caption ?? `${detail?.name || cm.sport} picture`}
-                    style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                </View>
-              ))}
-            </Row>
-          )}
-
-          {/* EVENTS — cards + Load More */}
-          {(
-            <View style={{ marginTop: 14, gap: 12 }}>
-              {events.length === 0 && (
-                <Text style={[t.bodySm, { color: c.txt3, marginTop: 8 }]}>No events scheduled yet.</Text>
-              )}
-              {events.slice(0, shownEvents).map((ev) => (
-                <Card key={ev.id} onPress={() => s.openEvent(ev.id, 'communityProfile')} style={{ padding: 12 }}>
-                  <StripedPlaceholder caption="" height={110} />
-                  <View style={{ marginTop: 10 }}>
-                    <MicroBadge
-                      label={ev.type}
-                      bg={isMeetup(ev) ? alpha(c.volt, 0.12) : alpha(c.amber, 0.2)}
-                      fg={isMeetup(ev) ? c.accent : c.amberText}
-                    />
-                  </View>
-                  <Text style={[t.name, { color: c.txt, marginTop: 8 }]}>{ev.title}</Text>
-                  <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{ev.whenLabel} · {ev.loc}</Text>
-                  <Text style={[t.caption, { color: c.txt3, marginTop: 4 }]}>{ev.attendees} going</Text>
-                </Card>
-              ))}
-              {shownEvents < events.length && (
-                <Button label="Load more" icon="chevron-down" full
-                  accessibilityLabel="Load more events"
-                  onPress={() => setShownEvents(shownEvents + 3)} />
-              )}
+            <View style={{ marginTop: 14 }}>
+              <PhotoStrip
+                photos={photos}
+                label={`${detail?.name || cm.sport} gallery`}
+                emptySlots={false}
+              />
             </View>
           )}
         </View>

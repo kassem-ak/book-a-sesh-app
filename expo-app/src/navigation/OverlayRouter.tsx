@@ -20,6 +20,7 @@ import {
   EventSuggestionOverlay,
 } from '../overlays/CommunityOverlays';
 import { CommunityManageOverlay } from '../overlays/CommunityManageOverlay';
+import { EventManageOverlay } from '../overlays/EventManageOverlay';
 import {
   ConversationOverlay,
   NotificationsOverlay,
@@ -61,6 +62,8 @@ export function OverlayRouter({ id }: { id: string }) {
       return <CommunityDetailOverlay />;
     case 'event':
       return <EventDetailOverlay />;
+    case 'manageEvent':
+      return <EventManageOverlay />;
     case 'createEvent':
       return <CreateEventOverlay />;
     case 'suggestEvent':

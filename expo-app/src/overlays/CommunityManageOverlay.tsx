@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
+import { PhotoStrip } from '../components/PhotoStrip';
 import { SocialFields } from '../components/SocialLinks';
 import {
   Avatar, Button, ConfirmSheet, Icon, MicroBadge, Row, SectionHeading, Segmented, VoltButton,
@@ -10,6 +11,9 @@ import {
   canModerate, CommunityDetail, CommunityPrivacy, decideJoinRequest, fetchCommunity,
   fetchJoinRequests, fetchMembers, fetchPhotos, isAdmin, JoinRequest, MAX_GALLERY, Member,
   Photo, removeMember, removePhoto, Role, setMemberRole, updateCommunity,
+} from '../lib/communities';
+import {
+  deleteCommunity, fetchOfficialStatus, OfficialStatus, requestOfficialStatus,
 } from '../lib/communities';
 import { addPhoto, setCommunityAvatar } from '../lib/communities';
 import { pickAvatar, PickedAvatar } from '../lib/avatars';
@@ -57,6 +61,8 @@ export function CommunityManageOverlay() {
 
   const [dropping, setDropping] = useState<Member | null>(null);
   const [droppingPhoto, setDroppingPhoto] = useState<Photo | null>(null);
+  const [official, setOfficial] = useState<OfficialStatus>('none');
+  const [deleting, setDeleting] = useState(false);
 
   const { sports } = useSports();
 
@@ -82,6 +88,7 @@ export function CommunityManageOverlay() {
       setMembers(people);
       setRequests(queue);
       setPhotos(gallery);
+      setOfficial(await fetchOfficialStatus(found.id).catch(() => 'none' as OfficialStatus));
       setName(found.name);
       setAbout(found.about);
       setPrivacy(found.privacy);
@@ -205,6 +212,33 @@ export function CommunityManageOverlay() {
         onCancel={() => setDropping(null)}
       />
       <ConfirmSheet
+        visible={deleting}
+        title={`Delete ${detail?.name ?? 'this community'}?`}
+        body={
+          `${members.length} ${members.length === 1 ? 'member' : 'members'}, every event, the `
+          + 'gallery and anyone waiting to join are deleted with it. This cannot be undone.'
+        }
+        confirmLabel="Delete it"
+        busy={busy === 'delete'}
+        busyLabel="Deleting…"
+        onConfirm={() => void (async () => {
+          setBusy('delete');
+          setError(null);
+          try {
+            await deleteCommunity(detail!.id);
+            setDeleting(false);
+            // Nothing to come back to: the screen behind this one is a
+            // community that no longer exists.
+            s.set('overlay', null);
+            s.set('communityId', '');
+          } catch (e) {
+            track('write_failed', { error_code: analyticsErrorCode(e) });
+            setError(errorMessage(e));
+          } finally { setBusy(null); }
+        })()}
+        onCancel={() => setDeleting(false)}
+      />
+      <ConfirmSheet
         visible={droppingPhoto !== null}
         title="Remove this picture?"
         body="It comes off the community's gallery. The file is deleted."
@@ -311,27 +345,16 @@ export function CommunityManageOverlay() {
           <Text style={[t.bodySm, { color: c.txt2 }]}>
             Five pictures of what this community actually looks like. Everyone can see them.
           </Text>
-          <Row style={{ flexWrap: 'wrap', gap: 10 }}>
-            {photos.map((photo) => (
-              <View key={photo.id} style={{
-                flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 96, maxWidth: '32%',
-                aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: c.surface2,
-              }}>
-                <Image source={{ uri: photo.url }} accessibilityIgnoresInvertColors
-                  accessibilityLabel={photo.caption ?? 'Community picture'}
-                  style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                <Pressable accessibilityRole="button" accessibilityLabel="Remove this picture"
-                  onPress={() => setDroppingPhoto(photo)} disabled={!!busy}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  style={{
-                    position: 'absolute', top: 4, right: 4, width: 32, height: 32, borderRadius: 16,
-                    alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(c.ink, 0.66),
-                  }}>
-                  <Icon name="trash-2" size={15} color="#FFFFFF" />
-                </Pressable>
-              </View>
-            ))}
-          </Row>
+          <PhotoStrip
+            photos={photos}
+            label={`${detail?.name ?? 'This community'} gallery`}
+            busy={!!busy}
+            onRemove={(photo) => {
+              const found = photos.find((candidate) => candidate.id === photo.id);
+              if (found) setDroppingPhoto(found);
+            }}
+          />
+
           {photos.length < MAX_GALLERY && (
             <Button label="Add a picture" icon="plus" full enabled={!busy}
               onPress={() => pickPicture(async (picked) => {
@@ -414,7 +437,66 @@ export function CommunityManageOverlay() {
             value={socials} disabled={!!busy} subject="this community's"
             onChange={setSocials}
           />
+
+          {/* ---- Accreditation ---- */}
+          <SectionHeading style={{ marginTop: 8 }}>Official status</SectionHeading>
+          {detail?.official ? (
+            <Row gap={8} style={{ alignItems: 'center' }}>
+              <Icon name="check-circle" size={16} color={c.accent} />
+              <Text style={[t.bodySm, { color: c.txt2, flex: 1 }]}>
+                This community is accredited. The tick shows on its page.
+              </Text>
+            </Row>
+          ) : official === 'pending' ? (
+            <Text style={[t.bodySm, { color: c.txt2 }]}>
+              Asked. A BOOK&apos;D admin reviews it — you will see the tick here when it is
+              granted.
+            </Text>
+          ) : (
+            <>
+              <Text style={[t.bodySm, { color: c.txt2 }]}>
+                {official === 'rejected'
+                  ? 'The last request was turned down. You can ask again if something has changed.'
+                  : 'Ask BOOK’D to verify that this community is what it says it is. '
+                    + 'Accredited communities carry a tick and are easier to trust.'}
+              </Text>
+              <Button
+                label={official === 'rejected' ? 'Ask again' : 'Request accreditation'}
+                icon="award"
+                full
+                enabled={!busy}
+                busy={busy === 'official'}
+                busyLabel="Sending…"
+                onPress={() => void run('official', () => requestOfficialStatus(detail!.id))}
+              />
+            </>
+          )}
         </>}
+
+        {/* ---- Ending it. Owner only, and last, because it is the one thing
+                on this screen that cannot be undone. ---- */}
+        {role === 'owner' && (
+          <>
+            <SectionHeading style={{ marginTop: 18 }}>Delete this community</SectionHeading>
+            <Text style={[t.bodySm, { color: c.txt2 }]}>
+              Everything goes: every member, every event, the gallery, and anyone waiting to
+              join. It cannot be undone, and the name becomes free for somebody else to take.
+            </Text>
+            <Button
+              label="Delete this community"
+              icon="trash-2"
+              tone="danger"
+              full
+              enabled={!busy}
+              onPress={() => setDeleting(true)}
+            />
+          </>
+        )}
+        {role !== 'owner' && admin && (
+          <Text style={[t.caption, { color: c.txt3, marginTop: 18 }]}>
+            Only the owner can delete this community.
+          </Text>
+        )}
       </View>
     </OverlayScaffold>
   );

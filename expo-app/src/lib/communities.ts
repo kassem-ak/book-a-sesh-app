@@ -502,3 +502,56 @@ export async function dismissSuggestion(id: string): Promise<void> {
   const { error } = await supabase.from('community_suggestions').delete().eq('id', id);
   if (error) throw error;
 }
+
+// --- Ending it, and asking to be made official -------------------------------
+
+/** Delete the community and everything hanging off it.
+ *
+ *  The owner only. An admin changes what the community is; the owner decides
+ *  whether it exists -- and the cascade takes every membership, event,
+ *  suggestion, photo and join request with it. */
+export async function deleteCommunity(communityId: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_community', { p_community: communityId });
+  if (error) {
+    if (isMissingFunction(error)) {
+      markCommunitySchemaMissing();
+      throw new Error('Deleting a community is not available yet.');
+    }
+    throw error;
+  }
+}
+
+export type OfficialStatus = 'none' | 'pending' | 'approved' | 'rejected';
+
+/** Where an accreditation request stands. `none` means nobody has asked. */
+export async function fetchOfficialStatus(communityId: string): Promise<OfficialStatus> {
+  const { data, error } = await supabase
+    .from('community_official_requests')
+    .select('status, created_at')
+    .eq('community_id', communityId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  // A read that fails must not stop the settings screen loading; the button
+  // simply offers to ask again, which the one-open index makes harmless.
+  if (error) return 'none';
+  const status = (data?.[0] as { status?: string } | undefined)?.status;
+  return status === 'pending' || status === 'approved' || status === 'rejected'
+    ? status
+    : 'none';
+}
+
+/** Ask the platform to mark this community official. Admins and moderators
+ *  may both ask -- the insert policy has always allowed it -- and the answer
+ *  comes from a platform admin, not from anyone here. */
+export async function requestOfficialStatus(communityId: string): Promise<void> {
+  const { error } = await supabase
+    .from('community_official_requests')
+    .insert({ community_id: communityId });
+  if (error) {
+    // The one-open index: asking twice is the same ask.
+    if ((error as { code?: string }).code === '23505') {
+      throw new Error('You have already asked. An admin will answer it.');
+    }
+    throw error;
+  }
+}

@@ -103,3 +103,15 @@ export function isMissingFunction(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
   return code === '42883' || code === 'PGRST202';
 }
+
+let eventExtras = true;
+
+/** False once a read has proved the event privacy/invite/gallery/fee migration
+ *  is not applied here. */
+export function eventSchemaReady(): boolean {
+  return eventExtras;
+}
+
+export function markEventSchemaMissing(): void {
+  eventExtras = false;
+}
