@@ -30,6 +30,18 @@ function harness({ user, draft }) {
   };
   const dependencies = {
     './supabase': { supabase },
+    './schema': { socialLinksSchemaReady: () => true, markSocialLinksSchemaMissing: () => {} },
+    // profiles.ts borrows the handle helpers; none of them touch the network.
+    './socialLinks': {
+      handlesFrom: (row) => ({
+        instagram: row && row.instagram ? row.instagram : null,
+        facebook: row && row.facebook ? row.facebook : null,
+        tiktok: row && row.tiktok ? row.tiktok : null,
+      }),
+      normaliseHandle: (raw) => ((raw || '').trim().replace(/^@+/, '') || null),
+      NO_SOCIALS: { instagram: null, facebook: null, tiktok: null },
+      handleProblem: () => null,
+    },
     './bookings': { currentAppUserId: async () => 'app-1' },
     './geo': { coarsenPoint: (point) => point },
     './signup': {

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Certificates } from '../components/Certificates';
+import { SocialFields } from '../components/SocialLinks';
 import { SportsPicker } from '../components/SportsPicker';
 import {
   Avatar, Button, Field, FormSheet, Row, SectionHeading, VoltButton,
@@ -180,6 +181,15 @@ export function EditProfileOverlay() {
           <TextInput value={profile.bio} onChangeText={(bio) => setProfile({ ...profile, bio })} multiline accessibilityLabel="Bio"
             placeholder="Tell people about yourself" placeholderTextColor={c.txt3} textAlignVertical="top"
             style={[t.body, { color: c.txt, minHeight: 100, borderWidth: 1, borderColor: c.line, borderRadius: 16, backgroundColor: c.surface, padding: 14 }]} />
+
+          {/* With the bio, not in a group of their own: the name, the words and
+              the accounts are the same answer to "who is this". */}
+          <SectionHeading>Find me on</SectionHeading>
+          <SocialFields
+            value={profile.socials}
+            disabled={busy}
+            onChange={(socials) => setProfile({ ...profile, socials })}
+          />
 
           {/* Group two: where you are. The area box and the map switch describe
               one thing between them, and the area is filled in from the very

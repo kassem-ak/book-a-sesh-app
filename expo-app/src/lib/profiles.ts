@@ -1,6 +1,8 @@
 import { currentAppUserId } from './bookings';
 import { GeoPoint } from './geo';
+import { markSocialLinksSchemaMissing, socialLinksSchemaReady } from './schema';
 import { clearSignupDraft, readSignupDraft, saveSignupDraft, SignupDraft, SignupRole } from './signup';
+import { handleProblem, handlesFrom, NO_SOCIALS, normaliseHandle, SocialHandles } from './socialLinks';
 import { supabase } from './supabase';
 
 export type Sport = { id: string; name: string; kind: 'sport' | 'hobby' };
@@ -22,6 +24,8 @@ export type Profile = {
   sharesLocation: boolean;
   /** How precisely that position is shown to other members. */
   shareLevel: ShareLevel;
+  /** Instagram, Facebook and TikTok handles. Public, like the bio. */
+  socials: SocialHandles;
 };
 
 /** 'exact' shows a pin. 'area' shows the same position snapped to a ~1.1 km
@@ -179,14 +183,32 @@ async function applySignup(authUid: string): Promise<boolean> {
 
 export async function fetchMyProfile(): Promise<Profile> {
   const { appId } = await realProfileIdentity();
+  // The social columns are asked for first and dropped on 42703. PostgREST
+  // refuses the whole query over one missing column, so a client shipped ahead
+  // of the migration would fail to load the profile editor entirely.
+  //
+  // Two whole calls rather than one with a conditional column list: the client
+  // reads the select string as a literal type, and a union of two strings
+  // parses as neither.
+  const readAccount = socialLinksSchemaReady()
+    ? supabase.from('users')
+        .select('id, name, avatar_url, city, instagram, facebook, tiktok')
+        .eq('id', appId).single()
+    : supabase.from('users')
+        .select('id, name, avatar_url, city')
+        .eq('id', appId).single();
   const [account, coach, partner, tags, sports, shared] = await Promise.all([
-    supabase.from('users').select('id, name, avatar_url, city').eq('id', appId).single(),
+    readAccount,
     supabase.from('coach_profiles').select('bio, headline, level, sport_id').eq('user_id', appId).maybeSingle(),
     supabase.from('partner_profiles').select('bio, sport_id').eq('user_id', appId).maybeSingle(),
     supabase.from('profile_tags').select('tag').eq('user_id', appId),
     fetchSports(),
     supabase.rpc('my_location_sharing'),
   ]);
+  if (account.error && (account.error as { code?: string }).code === '42703') {
+    markSocialLinksSchemaMissing();
+    return fetchMyProfile();
+  }
   for (const result of [account, coach, partner, tags]) if (result.error) throw result.error;
   const sharingRow = shared.error ? null : shared.data;
   const sharing = (Array.isArray(sharingRow) ? sharingRow[0] : sharingRow) as
@@ -207,6 +229,7 @@ export async function fetchMyProfile(): Promise<Profile> {
     // returns a single row; PostgREST gives it as an array.
     sharesLocation: sharing?.shared === true,
     shareLevel: sharing?.share_level === 'exact' ? 'exact' : 'area',
+    socials: handlesFrom(account.data as Record<string, unknown>),
   };
 }
 
@@ -220,9 +243,33 @@ export async function saveMyProfile(profile: Profile) {
   // An emptied area clears the column rather than storing '', so "unknown" has
   // one representation -- the same reason the Beirut default was removed.
   const city = profile.city.trim();
-  const account = await supabase.from('users')
-    .update({ name: profile.name.trim(), city: city || null })
-    .eq('id', appId).select('id').single();
+  // Normalised before the length check, because somebody who pasted a whole
+  // profile URL has not typed anything too long -- they have typed a URL.
+  // `?? NO_SOCIALS` because a Profile is also built from a draft saved before
+  // this field existed, and a missing object must mean "no accounts", not a
+  // save that throws on the way to the name field.
+  const given = profile.socials ?? NO_SOCIALS;
+  const socials = {
+    instagram: normaliseHandle(given.instagram),
+    facebook: normaliseHandle(given.facebook),
+    tiktok: normaliseHandle(given.tiktok),
+  };
+  for (const [platform, handle] of Object.entries(socials)) {
+    const problem = handleProblem(handle);
+    if (problem) throw new Error(`${platform[0].toUpperCase()}${platform.slice(1)}: ${problem}`);
+  }
+
+  const accountFields: Record<string, unknown> = { name: profile.name.trim(), city: city || null };
+  if (socialLinksSchemaReady()) Object.assign(accountFields, socials);
+
+  let account = await supabase.from('users')
+    .update(accountFields).eq('id', appId).select('id').single();
+  if (account.error && (account.error as { code?: string }).code === '42703') {
+    markSocialLinksSchemaMissing();
+    account = await supabase.from('users')
+      .update({ name: profile.name.trim(), city: city || null })
+      .eq('id', appId).select('id').single();
+  }
   if (account.error) throw account.error;
   // UPDATE first, INSERT only if there was no row -- NOT an upsert.
   //
