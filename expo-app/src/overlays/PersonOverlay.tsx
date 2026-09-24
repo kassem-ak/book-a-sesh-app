@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { CertificateTile, CertificateViewer, TILE_GAP } from '../components/Certificates';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, Card, Icon, IconButton, MicroBadge, Row, SectionHeading, Stars, VoltButton,
+  Avatar, Button, Card, Icon, IconButton, Row, SectionHeading, Stars, VoltButton,
 } from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
 import { Certification, fetchCertifications } from '../lib/coaching';
@@ -28,6 +29,7 @@ export function PersonOverlay() {
   // Credentials are extra detail, not the profile itself: a failed read leaves
   // the section absent rather than taking the whole profile down.
   const [certs, setCerts] = useState<Certification[]>([]);
+  const [viewingCert, setViewingCert] = useState<Certification | null>(null);
   // `null` is "not set", which the booking RPC treats as open -- so an empty
   // array and a null week mean different things and must not be conflated.
   const [hours, setHours] = useState<DayGroup[] | null>(null);
@@ -198,35 +200,18 @@ export function PersonOverlay() {
 
         {p.isCoach && certs.length > 0 && <>
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Certificates</SectionHeading>
-          <View style={{ gap: 10 }}>
+          {/* The same three-to-a-row grid the coach edits in, not a second
+              layout of the same certificates. One of these full width was a
+              page of scrolling for a credential you read at a glance, and it
+              showed one coach's paperwork bigger than their own profile.
+              Tapping a tile opens it full size, exactly as it does in the
+              editor -- a visitor just cannot delete one. */}
+          <Row style={{ flexWrap: 'wrap', gap: TILE_GAP }}>
             {certs.map((cert) => (
-              <Card key={cert.id} style={{ padding: 0, overflow: 'hidden' }}>
-                {cert.fileUrl && (
-                  <Image source={{ uri: cert.fileUrl }} accessibilityIgnoresInvertColors
-                    accessibilityLabel={`${cert.name} certificate`}
-                    style={{ width: '100%', height: 150, backgroundColor: c.surface }} resizeMode="cover" />
-                )}
-                <Row gap={10} style={{ alignItems: 'center', padding: 14 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[t.name, { color: c.txt }]}>{cert.name}</Text>
-                    {(cert.issuer || cert.year) && (
-                      <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>
-                        {[cert.issuer, cert.year].filter(Boolean).join(' · ')}
-                      </Text>
-                    )}
-                  </View>
-                  {/* Only an admin-approved certificate is called verified. An
-                      unreviewed one still shows -- hiding it would lose a real
-                      credential -- but it says what it is. */}
-                  <MicroBadge
-                    label={cert.status === 'approved' ? 'Verified' : 'Not yet reviewed'}
-                    bg={cert.status === 'approved' ? c.volt : c.surface2}
-                    fg={cert.status === 'approved' ? c.ink : c.txt2}
-                  />
-                </Row>
-              </Card>
+              <CertificateTile key={cert.id} cert={cert} onOpen={() => setViewingCert(cert)} />
             ))}
-          </View>
+          </Row>
+          <CertificateViewer cert={viewingCert} onClose={() => setViewingCert(null)} />
         </>}
 
         {p.isCoach && (
