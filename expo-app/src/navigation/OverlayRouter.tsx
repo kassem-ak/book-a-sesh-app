@@ -17,9 +17,9 @@ import {
   CreateEventOverlay,
   StartCommunityOverlay,
   RequestOverlay,
-  CommunityEditOverlay,
   EventSuggestionOverlay,
 } from '../overlays/CommunityOverlays';
+import { CommunityManageOverlay } from '../overlays/CommunityManageOverlay';
 import {
   ConversationOverlay,
   NotificationsOverlay,
@@ -65,8 +65,11 @@ export function OverlayRouter({ id }: { id: string }) {
       return <CreateEventOverlay />;
     case 'suggestEvent':
       return <EventSuggestionOverlay />;
+    // The old editor only held the description. Everything a community has --
+    // its name, privacy, sport, picture, gallery, the queue at its door and who
+    // runs it -- now lives on one screen, so there is one place to look.
     case 'editCommunity':
-      return <CommunityEditOverlay />;
+      return <CommunityManageOverlay />;
     case 'startCommunity':
       return <StartCommunityOverlay />;
     case 'request':

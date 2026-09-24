@@ -216,7 +216,7 @@ export function CommunityScreen() {
       )}
       <View style={{ gap: 11 }}>
         {communities.map((cm) => (
-          <CommunityCard key={cm.id} cm={cm} joined={s.joinedCommunities.includes(cm.id)} role={s.currentCommunityRole(cm.id)} onOpen={() => { s.set('communityId', cm.id); s.set('overlay', 'communityProfile'); }} onToggle={() => s.toggleCommunity(cm.id)} />
+          <CommunityCard key={cm.id} cm={cm} joined={s.joinedCommunities.includes(cm.id)} pending={s.pendingCommunities.includes(cm.id)} role={s.currentCommunityRole(cm.id)} onOpen={() => { s.set('communityId', cm.id); s.set('overlay', 'communityProfile'); }} onToggle={() => s.toggleCommunity(cm.id)} />
         ))}
       </View>
     </ScrollView>
@@ -244,7 +244,7 @@ function EventCard({ ev, onPress }: { ev: EventItem; onPress: () => void }) {
 
 const roleLabel: Record<CommunityRole, string> = { ADMIN: 'Admin', MODERATOR: 'Moderator', MEMBER: 'Member' };
 
-function CommunityCard({ cm, joined, role, onOpen, onToggle }: { cm: Community; joined: boolean; role: CommunityRole; onOpen: () => void; onToggle: () => void }) {
+function CommunityCard({ cm, joined, pending, role, onOpen, onToggle }: { cm: Community; joined: boolean; pending: boolean; role: CommunityRole; onOpen: () => void; onToggle: () => void }) {
   const { c, t } = useTheme();
   return (
     <Card onPress={onOpen}>
@@ -259,8 +259,30 @@ function CommunityCard({ cm, joined, role, onOpen, onToggle }: { cm: Community; 
           <Text style={[t.caption, { color: c.accent, marginTop: 4 }]}>{cm.members} members</Text>
           <Text style={[t.caption, { color: c.txt3, marginTop: 2 }]} numberOfLines={1}>{cm.about}</Text>
         </View>
-        <Pressable onPress={onToggle} accessibilityRole="button" accessibilityLabel={`${joined ? 'Leave' : 'Join'} ${cm.sport}`} style={{ minHeight: 44, justifyContent: 'center', borderRadius: 999, borderColor: c.line, borderWidth: 1, backgroundColor: joined ? 'transparent' : c.volt, paddingHorizontal: 16, paddingVertical: 9 }}>
-          <Text style={[t.labelSm, { color: joined ? c.txt2 : c.ink }]}>{joined ? 'Joined' : 'Join'}</Text>
+        {/* Three states, not two. A closed community answers "Join" with a
+            request, and a button that still says Join is a button that looks
+            like it did nothing. Pressing it again is a no-op the server
+            already treats as the same ask, so it is simply disabled. */}
+        <Pressable
+          onPress={onToggle}
+          disabled={pending}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: pending }}
+          accessibilityLabel={
+            pending ? `Waiting to be let into ${cm.sport}`
+              : `${joined ? 'Leave' : 'Join'} ${cm.sport}`
+          }
+          accessibilityHint={pending ? 'An admin or moderator has to answer' : undefined}
+          style={{
+            minHeight: 44, justifyContent: 'center', borderRadius: 999,
+            borderColor: c.line, borderWidth: 1,
+            backgroundColor: joined || pending ? 'transparent' : c.volt,
+            paddingHorizontal: 16, paddingVertical: 9,
+          }}
+        >
+          <Text style={[t.labelSm, { color: joined || pending ? c.txt2 : c.ink }]}>
+            {pending ? 'Asked' : joined ? 'Joined' : 'Join'}
+          </Text>
         </Pressable>
       </Row>
     </Card>

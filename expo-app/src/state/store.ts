@@ -8,14 +8,13 @@ import {
   createCommunity as createCommunityRemote,
   createEvent as createEventRemote,
   EventKind,
-  joinCommunity as joinCommunityRemote,
   leaveCommunity as leaveCommunityRemote,
   setEventAttendance,
   submitShopRegistration as submitShopRegistrationRemote,
   submitSportRequest as submitSportRequestRemote,
   suggestEvent as suggestEventRemote,
-  updateCommunityAbout as updateCommunityAboutRemote,
 } from '../lib/queries';
+import { requestMembership as requestMembershipRemote } from '../lib/communities';
 import {
   Cert,
   CoachPkg,
@@ -354,6 +353,9 @@ export interface SpotterState {
 
   // communities
   joinedCommunities: string[];
+  /** Closed communities I have asked to join and not been answered about.
+   *  Separate from joinedCommunities because asking is not being in. */
+  pendingCommunities: string[];
   joinedSubs: string[];
   goingEvents: string[];
   customCommunities: Community[];
@@ -446,7 +448,6 @@ export interface SpotterState {
   canModerateCommunity(id?: string): boolean;
   setCommunityMemberRole(communityId: string, memberId: string, role: CommunityRole): void;
   openEditCommunity(): void;
-  saveCommunityContent(): Promise<void>;
   openStartCommunity(): void;
   openRequest(): void;
   openCreateEvent(): void;
@@ -651,6 +652,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   shopDecisions: {},
 
   joinedCommunities: [],
+  pendingCommunities: [],
   joinedSubs: [],
   goingEvents: [],
   customCommunities: [],
@@ -722,15 +724,39 @@ export const useStore = create<SpotterState>((set, get) => ({
     const joined = s.joinedCommunities.includes(id);
     set({ writeBusy: `community:${id}`, writeError: null });
     try {
-      const role = joined ? await leaveCommunityRemote(id) : await joinCommunityRemote(id);
-      track(joined ? 'community_left' : 'community_joined');
+      if (joined) {
+        const role = await leaveCommunityRemote(id);
+        track('community_left');
+        set((state) => {
+          const communityRoles = { ...state.communityRoles };
+          delete communityRoles[id];
+          return {
+            joinedCommunities: state.joinedCommunities.filter((x) => x !== id),
+            communityRoles,
+            pendingCommunities: state.pendingCommunities.filter((x) => x !== id),
+            writeBusy: null,
+          };
+        });
+        return;
+      }
+      // Open or closed is the server's call, not this client's: one RPC either
+      // joins or queues a request, and a second copy of the rule here would be
+      // the one that goes stale.
+      const outcome = await requestMembershipRemote(id);
+      track('community_joined');
       set((state) => {
-        const communityRoles = { ...state.communityRoles };
-        if (joined) delete communityRoles[id];
-        else communityRoles[id] = roleFromDb(role);
+        if (outcome.status === 'pending') {
+          return {
+            pendingCommunities: state.pendingCommunities.includes(id)
+              ? state.pendingCommunities
+              : [...state.pendingCommunities, id],
+            writeBusy: null,
+          };
+        }
         return {
-          joinedCommunities: joined ? state.joinedCommunities.filter((x) => x !== id) : [...state.joinedCommunities, id],
-          communityRoles,
+          joinedCommunities: [...state.joinedCommunities, id],
+          communityRoles: { ...state.communityRoles, [id]: roleFromDb(outcome.role) },
+          pendingCommunities: state.pendingCommunities.filter((x) => x !== id),
           writeBusy: null,
         };
       });
@@ -840,19 +866,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   openEditCommunity: () => {
     const s = get();
     if (!s.canModerateCommunity(s.communityId)) return;
-    set({ overlay: 'editCommunity', editCommunityAbout: s.communityAbout(s.communityId) });
-  },
-  saveCommunityContent: async () => {
-    const s = get();
-    const about = s.editCommunityAbout.trim();
-    if (!s.canModerateCommunity(s.communityId) || about.length === 0 || isExplicit(about)) return;
-    set({ writeBusy: 'community-edit', writeError: null });
-    try {
-      await updateCommunityAboutRemote(s.communityId, about);
-      set({ communityAboutEdits: { ...s.communityAboutEdits, [s.communityId]: about }, overlay: 'community', writeBusy: null });
-    } catch (error) {
-      set(errorState(error));
-    }
+    set({ overlay: 'editCommunity' });
   },
 
   openStartCommunity: () => set({ overlay: 'startCommunity', commCreated: false, commName: '', writeError: null }),

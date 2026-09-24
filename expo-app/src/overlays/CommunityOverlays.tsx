@@ -174,33 +174,6 @@ export function EventSuggestionOverlay() {
   );
 }
 
-export function CommunityEditOverlay() {
-  const { c, t } = useTheme();
-  const s = useStore();
-  const blocked = isExplicit(s.editCommunityAbout);
-  const canSave = s.editCommunityAbout.trim().length > 0 && !blocked && s.canModerateCommunity(s.communityId);
-  if (!s.canModerateCommunity(s.communityId)) {
-    return (
-      <OverlayScaffold header={<OverlayHeader title="Edit details" onBack={() => s.set('overlay', 'community')} />}>
-        <SuccessBody tone="refused" title="You cannot edit this"
-          body="Only this community's admins and moderators can change these details. Ask one of them." />
-      </OverlayScaffold>
-    );
-  }
-  return (
-    <OverlayScaffold
-      header={<OverlayHeader title="Edit details" onBack={() => s.set('overlay', 'community')} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Edit blocked content to continue' : canSave ? 'Save details' : 'Add details first'} enabled={canSave} onPress={s.saveCommunityContent} /></View>}
-    >
-      <View style={{ paddingHorizontal: 18 }}>
-        <SectionHeading style={{ marginBottom: 11 }}>About</SectionHeading>
-        <Field value={s.editCommunityAbout} onChange={(v) => s.set('editCommunityAbout', v)} placeholder="What members should know..." />
-        {blocked && <Text style={[t.caption, { color: c.danger, marginTop: 8 }]}>Contains blocked content. Edit it to continue; nothing has been sent for review.</Text>}
-      </View>
-    </OverlayScaffold>
-  );
-}
-
 export function StartCommunityOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
