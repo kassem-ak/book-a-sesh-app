@@ -75,3 +75,31 @@ export function communitySchemaReady(): boolean {
 export function markCommunitySchemaMissing(): void {
   community = false;
 }
+
+// --- What an absence actually looks like on the wire -------------------------
+//
+// Checked against the live database rather than assumed, because the obvious
+// guess is wrong: a missing TABLE comes back as PGRST205, not 42P01. PostgREST
+// resolves the relation against its own schema cache and refuses before
+// Postgres is ever asked, so the Postgres code never happens. Getting this
+// wrong means the degradation path never runs and the read throws on every
+// load instead of going quiet once.
+
+/** A column the table does not have. */
+export function isMissingColumn(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === '42703';
+}
+
+/** A table that is not there. Both codes: a direct SQL path would still
+ *  produce 42P01. */
+export function isMissingTable(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === '42P01' || code === 'PGRST205';
+}
+
+/** A function that is not there. PostgREST answers PGRST202 from its schema
+ *  cache; Postgres answers 42883. */
+export function isMissingFunction(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === '42883' || code === 'PGRST202';
+}

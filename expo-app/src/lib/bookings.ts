@@ -6,7 +6,8 @@
 // this "My bookings".
 import { decidePartnerSession, fetchPartnerSessions, PartnerSession } from './partners';
 import {
-  fulfilmentSchemaReady, markFulfilmentSchemaMissing, markRatingsSchemaMissing, ratingsSchemaReady,
+  fulfilmentSchemaReady, isMissingColumn, isMissingTable, markFulfilmentSchemaMissing,
+  markRatingsSchemaMissing, ratingsSchemaReady,
 } from './schema';
 import { currentAppUserId, ensureAppSession } from './session';
 import { supabase } from './supabase';
@@ -322,10 +323,11 @@ export async function fetchSessionRatings(sessionIds: string[]): Promise<Session
     .from('reviews')
     .select('booking_id, author_id, subject_id, stars, skill_stars')
     .in('booking_id', ids);
-  // 42703 / 42P01: the migration has not run here. An archive with no ratings
-  // on it is still an archive; a thrown error is not.
+  // The migration has not run here. An archive with no ratings on it is still
+  // an archive; a thrown error is not. The codes are in lib/schema.ts because
+  // the obvious guess for a missing table is wrong.
   if (reviews.error) {
-    if (reviews.error.code === '42703' || reviews.error.code === '42P01') {
+    if (isMissingColumn(reviews.error) || isMissingTable(reviews.error)) {
       // Nothing to read, and nothing to write either: the form that would
       // write it is hidden until this comes back true.
       markRatingsSchemaMissing();
@@ -343,7 +345,7 @@ export async function fetchSessionRatings(sessionIds: string[]): Promise<Session
     for (const row of (feedback.data ?? []) as { session_id: string; author_id: string; body: string }[]) {
       notes.set(`${row.session_id}:${row.author_id}`, row.body);
     }
-  } else if (feedback.error.code !== '42703' && feedback.error.code !== '42P01') {
+  } else if (!isMissingColumn(feedback.error) && !isMissingTable(feedback.error)) {
     throw feedback.error;
   }
 

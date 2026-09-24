@@ -5,7 +5,10 @@
 // for the older screens; translating between the two anywhere but at the edge
 // is how 'ADMIN' ends up being compared against 'admin'.
 
-import { markCommunitySchemaMissing, communitySchemaReady } from './schema';
+import {
+  communitySchemaReady, isMissingColumn, isMissingFunction, isMissingTable,
+  markCommunitySchemaMissing,
+} from './schema';
 import { currentAppUserId } from './bookings';
 import { PickedAvatar } from './avatars';
 import { cleanNote } from './availability';
@@ -69,17 +72,11 @@ const GOVERNANCE_COLUMNS =
   'id, slug, name, about, official, members_count, privacy, sport_id, avatar_url, instagram, facebook, tiktok';
 const BASE_COLUMNS = 'id, slug, name, about, official, members_count';
 
-function missingColumn(error: unknown): boolean {
-  return (error as { code?: string } | null)?.code === '42703';
-}
+const missingColumn = isMissingColumn;
 
-/** An RPC the database does not have yet. Postgres says 42883; PostgREST
- *  answers PGRST202 when it cannot find the function in its schema cache, and
- *  which of the two comes back depends on where the lookup failed. */
-function missingFunction(error: unknown): boolean {
-  const code = (error as { code?: string } | null)?.code;
-  return code === '42883' || code === 'PGRST202';
-}
+const missingFunction = isMissingFunction;
+
+const missingTable = isMissingTable;
 
 /** The store calls a community by its slug, not its id.
  *
@@ -285,7 +282,7 @@ export async function fetchJoinRequests(communityId: string): Promise<JoinReques
   if (error) {
     // The table arrives with the governance migration. Until then a closed
     // community cannot exist, so there is nothing to queue.
-    if (missingColumn(error) || (error as { code?: string }).code === '42P01') {
+    if (missingColumn(error) || missingTable(error)) {
       markCommunitySchemaMissing();
       return [];
     }
@@ -343,7 +340,7 @@ export async function fetchPhotos(communityId: string): Promise<Photo[]> {
     .eq('community_id', communityId)
     .order('position', { ascending: true });
   if (error) {
-    if ((error as { code?: string }).code === '42P01') {
+    if (missingTable(error)) {
       markCommunitySchemaMissing();
       return [];
     }
@@ -439,7 +436,7 @@ export async function suggestCommunity(
     if ((error as { code?: string }).code === '23505') {
       throw new Error('You have already suggested this to them.');
     }
-    if ((error as { code?: string }).code === '42P01') {
+    if (missingTable(error)) {
       markCommunitySchemaMissing();
       throw new Error('Suggestions are not available yet.');
     }
@@ -466,7 +463,7 @@ export async function fetchSuggestionsForMe(): Promise<Suggestion[]> {
     .eq('to_user', me)
     .order('created_at', { ascending: false });
   if (error) {
-    if ((error as { code?: string }).code === '42P01') {
+    if (missingTable(error)) {
       markCommunitySchemaMissing();
       return [];
     }
