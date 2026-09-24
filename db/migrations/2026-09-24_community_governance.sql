@@ -125,16 +125,18 @@ begin
   where community_id = new.community_id and user_id = v_actor;
 
   if tg_op = 'UPDATE' and old.role is distinct from new.role then
-    if old.role = 'owner' or new.role = 'owner' then
-      raise exception 'The owner of a community cannot be changed here.'
-        using errcode = 'check_violation';
-    end if;
-    -- An admin may make admins and moderators. A moderator may make nobody:
-    -- they never reach here, because member_manage already refused them.
+    -- Only an admin may change what somebody is. A moderator never reaches
+    -- here, because member_manage already refused them -- this is the check
+    -- for the case a policy cannot express, which is "compared to the actor".
     if v_actor_role is distinct from 'owner' and v_actor_role is distinct from 'admin' then
       raise exception 'Only an admin can change what someone is in this community.'
         using errcode = 'insufficient_privilege';
     end if;
+    -- Ownership is deliberately NOT handled here. guard_community_roles
+    -- already enforces "only an owner can grant ownership" and "a community
+    -- must keep at least one owner", and it lets an owner hand the community
+    -- over. Refusing every owner change here would quietly delete that
+    -- ability, which is a capability the schema has always had.
   end if;
 
   return new;

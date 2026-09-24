@@ -47,3 +47,10 @@ alter table communities validate constraint communities_social_handles;
 -- nothing about why.
 grant update (instagram, facebook, tiktok) on users to authenticated;
 grant update (instagram, facebook, tiktok) on communities to authenticated;
+
+-- SELECT is granted per column too, and granting only UPDATE was the bug:
+-- the profile read asks for these three columns, took a 403, and broke profile
+-- setup for every signed-in user -- not just the social fields. They are public
+-- by design, sitting next to the name and the bio that anon already reads.
+grant select (instagram, facebook, tiktok) on users to authenticated, anon;
+grant select (instagram, facebook, tiktok) on communities to authenticated, anon;

@@ -60,7 +60,10 @@ export function CommunityProfileOverlay() {
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.bg }}>
       <View style={{ paddingTop: insets.top }}>
-        <OverlayHeader title={cm.sport} onBack={s.closeOverlay}
+        {/* `detail.name` is this community as it is now; `cm.sport` is the
+            Communities list as it was when that tab last loaded. After a
+            rename the two disagree, and the stale one was winning. */}
+        <OverlayHeader title={detail?.name || cm.sport} onBack={s.closeOverlay}
           // The edit control was threaded between the community name and its
           // verified tick, inside the identity line. A screen's own action
           // belongs in its header, not in the middle of its title.
@@ -83,7 +86,9 @@ export function CommunityProfileOverlay() {
                 bg={cm.tint} fontSize={18} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Row gap={8} style={{ alignItems: 'flex-start' }}>
-                  <Text style={[t.overlayTitle, { color: c.txt, flex: 1 }]}>{cm.sport}</Text>
+                  <Text style={[t.overlayTitle, { color: c.txt, flex: 1 }]}>
+                    {detail?.name || cm.sport}
+                  </Text>
                   {/* Verified check belongs to official communities only — it
                       was rendering unconditionally, next to a missing badge. */}
                   {cm.official && <Icon name="check-circle" size={17} color={c.accent} />}
@@ -113,7 +118,7 @@ export function CommunityProfileOverlay() {
 
             {detail && hasAnyHandle(detail.socials) && (
               <View style={{ marginTop: 13 }}>
-                <SocialRow handles={detail.socials} name={cm.sport} />
+                <SocialRow handles={detail.socials} name={detail.name || cm.sport} />
               </View>
             )}
           </Card>
@@ -129,7 +134,7 @@ export function CommunityProfileOverlay() {
                   aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: c.surface,
                 }}>
                   <Image source={{ uri: photo.url }} accessibilityIgnoresInvertColors
-                    accessibilityLabel={photo.caption ?? `${cm.sport} picture`}
+                    accessibilityLabel={photo.caption ?? `${detail?.name || cm.sport} picture`}
                     style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                 </View>
               ))}
