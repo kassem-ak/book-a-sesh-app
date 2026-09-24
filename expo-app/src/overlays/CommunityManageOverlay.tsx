@@ -110,9 +110,24 @@ export function CommunityManageOverlay() {
 
   // `detail.id` is the real uuid; `communityId` is whatever the store holds,
   // which is the slug. Writes use the former, always.
+  // Only what actually changed. A PATCH naming a column the caller never
+  // touched is still a write to that column as far as the grants are
+  // concerned, and `authenticated` may not write every column here -- so
+  // sending an unchanged name turned a description edit into a 403 and lost
+  // the description with it.
   const saveSettings = () => run('settings', async () => {
     if (!detail) return;
-    await updateCommunity(detail.id, { name, about, privacy, sportId, socials });
+    const changes: Parameters<typeof updateCommunity>[1] = {};
+    if (name !== detail.name) changes.name = name;
+    if (about !== detail.about) changes.about = about;
+    if (privacy !== detail.privacy) changes.privacy = privacy;
+    if (sportId !== detail.sportId) changes.sportId = sportId;
+    if (
+      socials.instagram !== detail.socials.instagram
+      || socials.facebook !== detail.socials.facebook
+      || socials.tiktok !== detail.socials.tiktok
+    ) changes.socials = socials;
+    await updateCommunity(detail.id, changes);
     setSaved(true);
   });
 
