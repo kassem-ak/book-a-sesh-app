@@ -37,6 +37,12 @@ alter table events
   add constraint events_fee_nonneg check (fee_cents >= 0) not valid;
 alter table events validate constraint events_fee_nonneg;
 
+-- Same omission the community columns had: `authenticated` is granted UPDATE
+-- per column, so a new column is unwritable until it is named. Without this
+-- the event editor would take a 403 on every one of these.
+grant update (privacy, invite_policy, description, cover_url, fee_cents)
+  on events to authenticated;
+
 -- ============================================================================
 -- 2. Invitations
 -- ============================================================================
@@ -177,6 +183,15 @@ create trigger trg_event_invitations_notify
 --
 -- Was `using (true)`. Now the row decides. `public` is the default, so nothing
 -- that is visible today stops being visible.
+
+-- can_see_event and can_invite_to_event are POLICY PREDICATES, and a policy is
+-- evaluated as the calling role -- so both roles need EXECUTE. Revoking it (as
+-- a security lint suggests for any SECURITY DEFINER function reachable over
+-- REST) does not hide them, it makes every read of events and event_photos
+-- fail outright. They stay SECURITY DEFINER because they read
+-- community_members from inside a policy and must not recurse.
+grant execute on function can_see_event(uuid, events) to anon, authenticated;
+grant execute on function can_invite_to_event(uuid, uuid) to anon, authenticated;
 
 drop policy if exists event_read on events;
 create policy event_read on events for select

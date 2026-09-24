@@ -66,8 +66,11 @@ comment on function award_loyalty(uuid, int, text) is
 -- Its two legitimate callers are both SECURITY DEFINER themselves
 -- (mark_event_payment_settled, settle_event_payment_by_hand) and run as this
 -- function's owner, so revoking from `authenticated` does not reach them.
-revoke all on function award_loyalty(uuid, int, text) from public;
-revoke all on function award_loyalty(uuid, int, text) from authenticated;
+-- `anon` must be named explicitly. Supabase grants EXECUTE to anon and
+-- authenticated in their own right, so `revoke from public` does not reach
+-- them -- verified after applying: award_loyalty was still callable
+-- unauthenticated, which is the whole balance given away.
+revoke execute on function award_loyalty(uuid, int, text) from public, anon, authenticated;
 grant execute on function award_loyalty(uuid, int, text) to service_role;
 
 -- One point per whole unit of currency spent, rounded down. A deliberate,
@@ -239,8 +242,8 @@ end $$;
 
 -- service_role only. An `authenticated` grant here would let anyone mark their
 -- own RSVP paid, which is the entire fee, given away.
-revoke all on function mark_event_payment_settled(uuid, uuid, text, int) from public;
-revoke all on function mark_event_payment_settled(uuid, uuid, text, int) from authenticated;
+revoke execute on function mark_event_payment_settled(uuid, uuid, text, int)
+  from public, anon, authenticated;
 grant execute on function mark_event_payment_settled(uuid, uuid, text, int) to service_role;
 
 -- A manager marking somebody paid by hand -- cash at the door, a bank
