@@ -49,3 +49,29 @@ export function scheduleNotesSchemaReady(): boolean {
 export function markScheduleNotesSchemaMissing(): void {
   scheduleNotes = false;
 }
+
+let socials = true;
+
+/** False once a read has proved the instagram/facebook/tiktok columns are not
+ *  there yet. They land on `users` and `communities` in one migration, so one
+ *  flag covers both. */
+export function socialLinksSchemaReady(): boolean {
+  return socials;
+}
+
+export function markSocialLinksSchemaMissing(): void {
+  socials = false;
+}
+
+let community = true;
+
+/** False once a read has proved the community-governance migration is not
+ *  applied: privacy, sport_id, avatar_url, the join-request queue, the gallery
+ *  and the suggestion inbox all arrive together, so one flag covers them. */
+export function communitySchemaReady(): boolean {
+  return community;
+}
+
+export function markCommunitySchemaMissing(): void {
+  community = false;
+}

@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissingSubject, OverlayHeader } from '../components/Overlay';
 import { ScrollAwareFab, useScrollAwareFab } from '../components/ScrollAwareFab';
 import {
   Avatar, Button, Card, Icon, IconButton, MicroBadge, Row, StripedPlaceholder,
 } from '../components/ui';
+import { SocialRow } from '../components/SocialLinks';
+import { CommunityDetail, fetchCommunity, fetchPhotos, Photo } from '../lib/communities';
+import { hasAnyHandle } from '../lib/socialLinks';
+import { useSports } from '../components/useSports';
 import { isMeetup } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
@@ -21,6 +25,26 @@ export function CommunityProfileOverlay() {
 
   const [shownEvents, setShownEvents] = useState(3);
   const { anim, onScroll, visible } = useScrollAwareFab();
+
+  // The parts a community gained after the store's Community shape was
+  // written: its picture, what it is about, who may walk in, its gallery and
+  // its accounts. Read here rather than widened into the list query, so a
+  // failure costs this section and not the whole Communities tab.
+  const [detail, setDetail] = useState<CommunityDetail | null>(null);
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const { sports } = useSports();
+  const detailId = cm?.id ?? null;
+  useEffect(() => {
+    if (!detailId) { setDetail(null); setPhotos([]); return; }
+    let active = true;
+    fetchCommunity(detailId)
+      .then((found) => { if (active) setDetail(found); })
+      .catch(() => { if (active) setDetail(null); });
+    fetchPhotos(detailId)
+      .then((found) => { if (active) setPhotos(found); })
+      .catch(() => { if (active) setPhotos([]); });
+    return () => { active = false; };
+  }, [detailId]);
 
 
   // After the hooks so hook order is stable: a community id that is not in the
@@ -49,7 +73,8 @@ export function CommunityProfileOverlay() {
         <View style={{ paddingHorizontal: 18 }}>
           <Card style={{ marginTop: 12, padding: 15 }}>
             <Row gap={12} style={{ alignItems: 'flex-start' }}>
-              <Avatar initials={cm.code} size={58} radius={17} bg={cm.tint} fontSize={18} />
+              <Avatar initials={cm.code} avatarUrl={detail?.avatarUrl} size={58} radius={17}
+                bg={cm.tint} fontSize={18} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Row gap={8} style={{ alignItems: 'flex-start' }}>
                   <Text style={[t.overlayTitle, { color: c.txt, flex: 1 }]}>{cm.sport}</Text>
@@ -59,16 +84,51 @@ export function CommunityProfileOverlay() {
                 </Row>
                 <Row gap={8} style={{ marginTop: 6, flexWrap: 'wrap' }}>
                   {cm.official && <MicroBadge label="Official Federation" bg={alpha(c.volt, 0.12)} fg={c.accent} />}
+                  {/* Worth saying before somebody presses Join and gets a wait
+                      instead of a welcome. */}
+                  {detail?.privacy === 'closed' && (
+                    <MicroBadge label="Closed" bg={c.surface2} fg={c.txt2} />
+                  )}
                   <Text style={[t.labelSm, { color: c.soft }]}>{cm.members} Members</Text>
                 </Row>
-                <Text style={[t.bodySm, { color: c.txt2, marginTop: 4 }]}>Sports, {cm.sport}</Text>
+                {/* What this community is actually about, once an admin has
+                    said. The old line repeated the community's own name back
+                    at the reader. */}
+                <Text style={[t.bodySm, { color: c.txt2, marginTop: 4 }]}>
+                  {sports?.find((sport) => sport.id === detail?.sportId)?.name ?? 'No sport set yet'}
+                </Text>
               </View>
             </Row>
 
             <Text style={[t.caption, { color: c.txt3, marginTop: 13, letterSpacing: 0.4 }]}>Bio:</Text>
-            <Text style={[t.bodySm, { color: c.soft, marginTop: 3, lineHeight: 20 }]}>{cm.about}</Text>
+            <Text style={[t.bodySm, { color: c.soft, marginTop: 3, lineHeight: 20 }]}>
+              {detail?.about || cm.about}
+            </Text>
 
+            {detail && hasAnyHandle(detail.socials) && (
+              <View style={{ marginTop: 13 }}>
+                <SocialRow handles={detail.socials} name={cm.sport} />
+              </View>
+            )}
           </Card>
+
+          {/* Three to a row, the same grid the certificates use. Five pictures
+              of what this community actually looks like beats a paragraph
+              saying so. */}
+          {photos.length > 0 && (
+            <Row style={{ flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
+              {photos.map((photo) => (
+                <View key={photo.id} style={{
+                  flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 96, maxWidth: '32%',
+                  aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: c.surface,
+                }}>
+                  <Image source={{ uri: photo.url }} accessibilityIgnoresInvertColors
+                    accessibilityLabel={photo.caption ?? `${cm.sport} picture`}
+                    style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                </View>
+              ))}
+            </Row>
+          )}
 
           {/* EVENTS — cards + Load More */}
           {(

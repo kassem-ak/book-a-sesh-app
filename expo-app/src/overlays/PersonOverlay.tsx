@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { CertificateTile, CertificateViewer, TILE_GAP } from '../components/Certificates';
+import { SocialRow } from '../components/SocialLinks';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Avatar, Button, Card, Icon, IconButton, Row, SectionHeading, Stars, VoltButton,
 } from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
 import { Certification, fetchCertifications } from '../lib/coaching';
+import { fetchSocialHandles, hasAnyHandle, NO_SOCIALS, SocialHandles } from '../lib/socialLinks';
 import { blackoutLabel, DayGroup, fetchBlackouts, groupWeek, periodLabel } from '../lib/availability';
 import { fetchCoachAvailability } from '../lib/queries';
 import { startConversation } from '../lib/chat';
@@ -30,6 +32,7 @@ export function PersonOverlay() {
   // the section absent rather than taking the whole profile down.
   const [certs, setCerts] = useState<Certification[]>([]);
   const [viewingCert, setViewingCert] = useState<Certification | null>(null);
+  const [socials, setSocials] = useState<SocialHandles>(NO_SOCIALS);
   // `null` is "not set", which the booking RPC treats as open -- so an empty
   // array and a null week mean different things and must not be conflated.
   const [hours, setHours] = useState<DayGroup[] | null>(null);
@@ -52,6 +55,19 @@ export function PersonOverlay() {
       .catch(() => { if (active) setDaysOff([]); });
     return () => { active = false; };
   }, [coachId]);
+
+  // Everyone has these, not only coaches, so this one is keyed on the person
+  // rather than on coachId -- and it fails to nothing for the same reason the
+  // three above do.
+  const personId = p?.id ?? null;
+  useEffect(() => {
+    if (!personId) { setSocials(NO_SOCIALS); return; }
+    let active = true;
+    fetchSocialHandles(personId)
+      .then((found) => { if (active) setSocials(found); })
+      .catch(() => { if (active) setSocials(NO_SOCIALS); });
+    return () => { active = false; };
+  }, [personId]);
 
   if (!p) return <MissingSubject title="Profile" message="This profile is no longer available." onBack={s.closeOverlay} />;
 
@@ -154,6 +170,12 @@ export function PersonOverlay() {
         {p.bio.trim().length > 0 && <>
           <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>About</SectionHeading>
           <Text style={[t.bodyLg, { color: c.soft, lineHeight: 22 }]}>{p.bio}</Text>
+        </>}
+
+        {/* Under the bio, where the rest of "who is this" already is. */}
+        {hasAnyHandle(socials) && <>
+          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Find them on</SectionHeading>
+          <SocialRow handles={socials} name={p.name} />
         </>}
 
         {/* Two lists, two headings. They used to be one, so a swimming coach
