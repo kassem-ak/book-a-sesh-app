@@ -251,7 +251,7 @@ language plpgsql security definer set search_path = public as $$
 declare v_actor uuid := require_app_user(); v_comm uuid;
 begin
   select community_id into v_comm from events where id = p_event;
-  if not can_manage_community(v_actor, v_comm) then
+  if not private.can_manage_community(v_actor, v_comm) then
     raise exception 'Only an admin or moderator can mark a fee paid.'
       using errcode = 'insufficient_privilege';
   end if;
@@ -268,5 +268,5 @@ grant execute on function settle_event_payment_by_hand(uuid, uuid) to authentica
 drop policy if exists attend_read on event_attendees;
 create policy attend_read on event_attendees for select
   using (exists (
-    select 1 from events e where e.id = event_id and can_see_event(current_app_user(), e)
+    select 1 from events e where e.id = event_id and can_see_event(private.current_app_user(), e)
   ));

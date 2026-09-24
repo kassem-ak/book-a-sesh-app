@@ -64,25 +64,29 @@ export function CommunityManageOverlay() {
     if (!communityId) return;
     setError(null);
     try {
-      // Four reads, and only the first is a precondition for the screen
-      // existing. A member list that fails must not blank the settings.
-      const [found, people, queue, gallery] = await Promise.all([
-        fetchCommunity(communityId),
-        fetchMembers(communityId).catch(() => [] as Member[]),
-        canModerate(role) ? fetchJoinRequests(communityId).catch(() => [] as JoinRequest[]) : Promise.resolve([]),
-        fetchPhotos(communityId).catch(() => [] as Photo[]),
-      ]);
+      // Sequential, not parallel, because the first read is what turns the
+      // slug the store holds into the uuid every other call needs. Firing them
+      // together sent "freedive" at a uuid column and the whole screen died on
+      // a 22P02.
+      const found = await fetchCommunity(communityId);
       setDetail(found);
+      if (!found) { setMembers([]); setRequests([]); setPhotos([]); return; }
+
+      // The rest are detail, not preconditions: a member list that fails must
+      // not blank the settings.
+      const [people, queue, gallery] = await Promise.all([
+        fetchMembers(found.id).catch(() => [] as Member[]),
+        canModerate(role) ? fetchJoinRequests(found.id).catch(() => [] as JoinRequest[]) : Promise.resolve([]),
+        fetchPhotos(found.id).catch(() => [] as Photo[]),
+      ]);
       setMembers(people);
       setRequests(queue);
       setPhotos(gallery);
-      if (found) {
-        setName(found.name);
-        setAbout(found.about);
-        setPrivacy(found.privacy);
-        setSportId(found.sportId);
-        setSocials(found.socials);
-      }
+      setName(found.name);
+      setAbout(found.about);
+      setPrivacy(found.privacy);
+      setSportId(found.sportId);
+      setSocials(found.socials);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -104,8 +108,11 @@ export function CommunityManageOverlay() {
     } finally { setBusy(null); }
   };
 
+  // `detail.id` is the real uuid; `communityId` is whatever the store holds,
+  // which is the slug. Writes use the former, always.
   const saveSettings = () => run('settings', async () => {
-    await updateCommunity(communityId!, { name, about, privacy, sportId, socials });
+    if (!detail) return;
+    await updateCommunity(detail.id, { name, about, privacy, sportId, socials });
     setSaved(true);
   });
 
@@ -177,7 +184,7 @@ export function CommunityManageOverlay() {
         busy={busy === 'kick'}
         busyLabel="Removing…"
         onConfirm={() => { if (dropping) void run('kick', async () => {
-          await removeMember(communityId, dropping.userId);
+          await removeMember(detail!.id, dropping.userId);
           setDropping(null);
         }); }}
         onCancel={() => setDropping(null)}
@@ -259,7 +266,7 @@ export function CommunityManageOverlay() {
             member={member}
             admin={admin}
             busy={!!busy}
-            onRole={(next) => void run('role', () => setMemberRole(communityId, member.userId, next))}
+            onRole={(next) => void run('role', () => setMemberRole(detail!.id, member.userId, next))}
             onRemove={() => setDropping(member)}
           />
         ))}
@@ -278,7 +285,7 @@ export function CommunityManageOverlay() {
               icon="image"
               enabled={!busy}
               onPress={() => pickPicture(async (picked) => {
-                await run('avatar', async () => { await setCommunityAvatar(communityId, picked); });
+                await run('avatar', async () => { await setCommunityAvatar(detail!.id, picked); });
               })}
             />
           </Row>
@@ -313,7 +320,7 @@ export function CommunityManageOverlay() {
           {photos.length < MAX_GALLERY && (
             <Button label="Add a picture" icon="plus" full enabled={!busy}
               onPress={() => pickPicture(async (picked) => {
-                await run('gallery', async () => { await addPhoto(communityId, picked); });
+                await run('gallery', async () => { await addPhoto(detail!.id, picked); });
               })} />
           )}
 

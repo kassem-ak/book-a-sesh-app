@@ -108,39 +108,39 @@ $$;
 drop policy if exists eventinv_read on event_invitations;
 create policy eventinv_read on event_invitations for select
   using (
-    user_id = current_app_user()
-    or invited_by = current_app_user()
+    user_id = private.current_app_user()
+    or invited_by = private.current_app_user()
     or exists (
       select 1 from events e
-      where e.id = event_id and can_manage_community(current_app_user(), e.community_id)
+      where e.id = event_id and private.can_manage_community(private.current_app_user(), e.community_id)
     )
   );
 
 drop policy if exists eventinv_send on event_invitations;
 create policy eventinv_send on event_invitations for insert
   with check (
-    invited_by = current_app_user()
-    and can_invite_to_event(current_app_user(), event_id)
+    invited_by = private.current_app_user()
+    and can_invite_to_event(private.current_app_user(), event_id)
   );
 
 -- The invited person answers it. A manager may withdraw one.
 drop policy if exists eventinv_answer on event_invitations;
 create policy eventinv_answer on event_invitations for update
   using (
-    user_id = current_app_user()
+    user_id = private.current_app_user()
     or exists (
       select 1 from events e
-      where e.id = event_id and can_manage_community(current_app_user(), e.community_id)
+      where e.id = event_id and private.can_manage_community(private.current_app_user(), e.community_id)
     )
   );
 
 drop policy if exists eventinv_withdraw on event_invitations;
 create policy eventinv_withdraw on event_invitations for delete
   using (
-    invited_by = current_app_user()
+    invited_by = private.current_app_user()
     or exists (
       select 1 from events e
-      where e.id = event_id and can_manage_community(current_app_user(), e.community_id)
+      where e.id = event_id and private.can_manage_community(private.current_app_user(), e.community_id)
     )
   );
 
@@ -180,7 +180,7 @@ create trigger trg_event_invitations_notify
 
 drop policy if exists event_read on events;
 create policy event_read on events for select
-  using (can_see_event(current_app_user(), events));
+  using (can_see_event(private.current_app_user(), events));
 
 -- Admins and moderators both run events -- that was already true and the spec
 -- keeps it. `event_manage` is unchanged and still reads can_manage_community.
@@ -209,18 +209,18 @@ alter table event_photos enable row level security;
 drop policy if exists eventphoto_read on event_photos;
 create policy eventphoto_read on event_photos for select
   using (exists (
-    select 1 from events e where e.id = event_id and can_see_event(current_app_user(), e)
+    select 1 from events e where e.id = event_id and can_see_event(private.current_app_user(), e)
   ));
 
 drop policy if exists eventphoto_manage on event_photos;
 create policy eventphoto_manage on event_photos for all
   using (exists (
     select 1 from events e
-    where e.id = event_id and can_manage_community(current_app_user(), e.community_id)
+    where e.id = event_id and private.can_manage_community(private.current_app_user(), e.community_id)
   ))
   with check (exists (
     select 1 from events e
-    where e.id = event_id and can_manage_community(current_app_user(), e.community_id)
+    where e.id = event_id and private.can_manage_community(private.current_app_user(), e.community_id)
   ));
 
 grant select, insert, update, delete on event_photos to authenticated;
@@ -258,7 +258,7 @@ create policy "a manager writes their own event's pictures"
     and exists (
       select 1 from events e
       where e.id = storage_event_id(name)
-        and can_manage_community(current_app_user(), e.community_id)
+        and private.can_manage_community(private.current_app_user(), e.community_id)
     )
   );
 
@@ -270,7 +270,7 @@ create policy "a manager removes their own event's pictures"
     and exists (
       select 1 from events e
       where e.id = storage_event_id(name)
-        and can_manage_community(current_app_user(), e.community_id)
+        and private.can_manage_community(private.current_app_user(), e.community_id)
     )
   );
 
@@ -304,13 +304,13 @@ alter table community_suggestions enable row level security;
 
 drop policy if exists commsug_read on community_suggestions;
 create policy commsug_read on community_suggestions for select
-  using (to_user = current_app_user() or from_user = current_app_user());
+  using (to_user = private.current_app_user() or from_user = private.current_app_user());
 
 -- Not to somebody who blocked you, and not from somebody you blocked.
 drop policy if exists commsug_send on community_suggestions;
 create policy commsug_send on community_suggestions for insert
   with check (
-    from_user = current_app_user()
+    from_user = private.current_app_user()
     and not exists (
       select 1 from user_blocks b
       where (b.blocker_id = to_user and b.blocked_id = from_user)
@@ -320,7 +320,7 @@ create policy commsug_send on community_suggestions for insert
 
 drop policy if exists commsug_dismiss on community_suggestions;
 create policy commsug_dismiss on community_suggestions for delete
-  using (to_user = current_app_user() or from_user = current_app_user());
+  using (to_user = private.current_app_user() or from_user = private.current_app_user());
 
 grant select, insert, delete on community_suggestions to authenticated;
 
