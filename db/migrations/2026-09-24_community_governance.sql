@@ -39,8 +39,15 @@ create index if not exists communities_sport_idx on communities (sport_id);
 -- on this community's content", which is still true of a moderator. What it
 -- must stop being is the check for "may change the community itself".
 
-create or replace function is_community_admin(p_user uuid, p_comm uuid)
-returns boolean language sql stable as $$
+-- SECURITY DEFINER with a fixed search_path, matching private.can_manage_community
+-- exactly. Not decoration: this function reads community_members and is used in
+-- a policy ON community_members, so without the definer bit the policy would
+-- re-enter itself. The search_path is pinned for the usual reason -- a
+-- SECURITY DEFINER function that resolves names through the caller's path is
+-- a privilege-escalation primitive.
+create or replace function private.is_community_admin(p_user uuid, p_comm uuid)
+returns boolean language sql stable security definer
+set search_path to 'private', 'public', 'extensions' as $$
   select exists (
     select 1 from community_members m
     where m.community_id = p_comm and m.user_id = p_user
@@ -48,7 +55,10 @@ returns boolean language sql stable as $$
   );
 $$;
 
-comment on function is_community_admin(uuid, uuid) is
+revoke all on function private.is_community_admin(uuid, uuid) from public;
+grant execute on function private.is_community_admin(uuid, uuid) to authenticated, service_role;
+
+comment on function private.is_community_admin(uuid, uuid) is
   'Owner or admin. The check for changing the community: its name, privacy, '
   'description, sport, picture, and who holds which role. A moderator is '
   'deliberately NOT included -- they police the room, they do not own it.';
@@ -57,28 +67,28 @@ comment on function is_community_admin(uuid, uuid) is
 -- change what it is about, which is not monitoring.
 drop policy if exists comm_manage on communities;
 create policy comm_manage on communities for update
-  using (is_community_admin(current_app_user(), id))
-  with check (is_community_admin(current_app_user(), id));
+  using (private.is_community_admin(private.current_app_user(), id))
+  with check (private.is_community_admin(private.current_app_user(), id));
 
 -- Roles: admins only. This is the escalation fix.
 drop policy if exists member_manage on community_members;
 create policy member_manage on community_members for update
-  using (is_community_admin(current_app_user(), community_id))
-  with check (is_community_admin(current_app_user(), community_id));
+  using (private.is_community_admin(private.current_app_user(), community_id))
+  with check (private.is_community_admin(private.current_app_user(), community_id));
 
 -- Subgroups are structure, not content, so they follow the community.
 drop policy if exists sub_manage on subgroups;
 create policy sub_manage on subgroups for all
-  using (is_community_admin(current_app_user(), community_id))
-  with check (is_community_admin(current_app_user(), community_id));
+  using (private.is_community_admin(private.current_app_user(), community_id))
+  with check (private.is_community_admin(private.current_app_user(), community_id));
 
 -- Kicking someone out IS moderation, so a moderator may do it. The existing
 -- policy only let a person delete their own row.
 drop policy if exists member_remove on community_members;
 create policy member_remove on community_members for delete
   using (
-    user_id = current_app_user()
-    or can_manage_community(current_app_user(), community_id)
+    user_id = private.current_app_user()
+    or private.can_manage_community(private.current_app_user(), community_id)
   );
 
 -- No one may assign a role at or above their own, and the owner's row is not
@@ -87,7 +97,7 @@ create policy member_remove on community_members for delete
 create or replace function community_members_guard_role()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
-  v_actor uuid := current_app_user();
+  v_actor uuid := private.current_app_user();
   v_actor_role community_role;
 begin
   -- A SECURITY DEFINER RPC acting with no app user (a backfill, the seed) is
@@ -165,20 +175,20 @@ alter table community_join_requests enable row level security;
 drop policy if exists joinreq_read on community_join_requests;
 create policy joinreq_read on community_join_requests for select
   using (
-    user_id = current_app_user()
-    or can_manage_community(current_app_user(), community_id)
+    user_id = private.current_app_user()
+    or private.can_manage_community(private.current_app_user(), community_id)
   );
 
 drop policy if exists joinreq_ask on community_join_requests;
 create policy joinreq_ask on community_join_requests for insert
-  with check (user_id = current_app_user());
+  with check (user_id = private.current_app_user());
 
 -- A manager answers it; the asker may withdraw it, which is the same UPDATE.
 drop policy if exists joinreq_answer on community_join_requests;
 create policy joinreq_answer on community_join_requests for update
   using (
-    user_id = current_app_user()
-    or can_manage_community(current_app_user(), community_id)
+    user_id = private.current_app_user()
+    or private.can_manage_community(private.current_app_user(), community_id)
   );
 
 grant select, insert, update on community_join_requests to authenticated;
@@ -241,7 +251,7 @@ begin
   if v_req.id is null then
     raise exception 'That request no longer exists.' using errcode = 'no_data_found';
   end if;
-  if not can_manage_community(v_actor, v_req.community_id) then
+  if not private.can_manage_community(v_actor, v_req.community_id) then
     raise exception 'Only an admin or moderator can answer that.'
       using errcode = 'insufficient_privilege';
   end if;
@@ -278,7 +288,7 @@ declare
   v_actor_role community_role;
   v_rows int;
 begin
-  if not can_manage_community(v_actor, p_community) then
+  if not private.can_manage_community(v_actor, p_community) then
     raise exception 'Only an admin or moderator can remove someone.'
       using errcode = 'insufficient_privilege';
   end if;
@@ -357,8 +367,8 @@ create policy commphoto_read on community_photos for select using (true);
 -- admins only, same as its name and its picture.
 drop policy if exists commphoto_manage on community_photos;
 create policy commphoto_manage on community_photos for all
-  using (is_community_admin(current_app_user(), community_id))
-  with check (is_community_admin(current_app_user(), community_id));
+  using (private.is_community_admin(private.current_app_user(), community_id))
+  with check (private.is_community_admin(private.current_app_user(), community_id));
 
 grant select, insert, update, delete on community_photos to authenticated;
 
@@ -399,7 +409,7 @@ create policy "an admin writes their own community's pictures"
   on storage.objects for insert to authenticated
   with check (
     bucket_id = 'communities'
-    and is_community_admin(current_app_user(), storage_community_id(name))
+    and private.is_community_admin(private.current_app_user(), storage_community_id(name))
   );
 
 drop policy if exists "an admin removes their own community's pictures" on storage.objects;
@@ -407,7 +417,7 @@ create policy "an admin removes their own community's pictures"
   on storage.objects for delete to authenticated
   using (
     bucket_id = 'communities'
-    and is_community_admin(current_app_user(), storage_community_id(name))
+    and private.is_community_admin(private.current_app_user(), storage_community_id(name))
   );
 
 -- ============================================================================

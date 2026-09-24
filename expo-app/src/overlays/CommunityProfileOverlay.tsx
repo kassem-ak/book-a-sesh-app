@@ -37,12 +37,18 @@ export function CommunityProfileOverlay() {
   useEffect(() => {
     if (!detailId) { setDetail(null); setPhotos([]); return; }
     let active = true;
-    fetchCommunity(detailId)
-      .then((found) => { if (active) setDetail(found); })
-      .catch(() => { if (active) setDetail(null); });
-    fetchPhotos(detailId)
-      .then((found) => { if (active) setPhotos(found); })
-      .catch(() => { if (active) setPhotos([]); });
+    // The gallery is keyed by the community's uuid, and `detailId` is the slug
+    // the store holds -- so it has to wait for the row that carries the real
+    // one. Fired in parallel it asked for photos of "freedive" and got a uuid
+    // cast error instead of a gallery.
+    void (async () => {
+      const found = await fetchCommunity(detailId).catch(() => null);
+      if (!active) return;
+      setDetail(found);
+      if (!found) { setPhotos([]); return; }
+      const gallery = await fetchPhotos(found.id).catch(() => [] as Photo[]);
+      if (active) setPhotos(gallery);
+    })();
     return () => { active = false; };
   }, [detailId]);
 

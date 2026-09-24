@@ -73,6 +73,30 @@ function missingColumn(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === '42703';
 }
 
+/** An RPC the database does not have yet. Postgres says 42883; PostgREST
+ *  answers PGRST202 when it cannot find the function in its schema cache, and
+ *  which of the two comes back depends on where the lookup failed. */
+function missingFunction(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === '42883' || code === 'PGRST202';
+}
+
+/** The store calls a community by its slug, not its id.
+ *
+ *  `fromRemoteCommunity` maps `id: row.slug ?? row.id`, so everything the UI
+ *  holds -- `s.communityId`, the keys in `communityRoles` -- is a slug like
+ *  "freedive". Sending that to `.eq('id', ...)` compares text against a uuid
+ *  column, which is not a no-match: Postgres raises 22P02 and the read throws.
+ *  That is what took the settings screen down.
+ *
+ *  So a reference is either, and the column is chosen to match it. Everything
+ *  after the first read uses the real uuid off the row. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function refColumn(ref: string): 'id' | 'slug' {
+  return UUID.test(ref) ? 'id' : 'slug';
+}
+
 function detailFrom(row: Record<string, unknown>): CommunityDetail {
   return {
     id: row.id as string,
@@ -90,12 +114,15 @@ function detailFrom(row: Record<string, unknown>): CommunityDetail {
   };
 }
 
-export async function fetchCommunity(communityId: string): Promise<CommunityDetail | null> {
+/** Takes a slug or an id. Every other function in this file takes the real
+ *  uuid, which callers get from the `id` on what this returns. */
+export async function fetchCommunity(ref: string): Promise<CommunityDetail | null> {
+  const column = refColumn(ref);
   // Two whole calls rather than one conditional column list: the client reads
   // the select string as a literal type, and a union of two parses as neither.
   const read = async (full: boolean) => (full
-    ? supabase.from('communities').select(GOVERNANCE_COLUMNS).eq('id', communityId).maybeSingle()
-    : supabase.from('communities').select(BASE_COLUMNS).eq('id', communityId).maybeSingle());
+    ? supabase.from('communities').select(GOVERNANCE_COLUMNS).eq(column, ref).maybeSingle()
+    : supabase.from('communities').select(BASE_COLUMNS).eq(column, ref).maybeSingle());
 
   let { data, error } = await read(communitySchemaReady());
   if (error && missingColumn(error)) {
@@ -198,7 +225,13 @@ export async function removeMember(communityId: string, userId: string): Promise
     p_community: communityId,
     p_user: userId,
   });
-  if (error) throw error;
+  if (error) {
+    if (missingFunction(error)) {
+      markCommunitySchemaMissing();
+      throw new Error('Removing someone is not available yet. The database is still being updated.');
+    }
+    throw error;
+  }
 }
 
 // --- Getting in -------------------------------------------------------------
@@ -209,13 +242,31 @@ export type JoinOutcome = { role: Role; status: 'joined' | 'pending' };
  *  the server knows which kind it is, and a client that decided for itself
  *  would be a second copy of the rule. */
 export async function requestMembership(
-  communityId: string, note?: string,
+  ref: string, note?: string,
 ): Promise<JoinOutcome> {
   const { data, error } = await supabase.rpc('request_community_membership', {
-    p_community: communityId,
+    p_community: ref,
     p_note: cleanNote(note) ?? null,
   });
-  if (error) throw error;
+
+  if (error) {
+    // The RPC arrives with the governance migration. Until it does, joining
+    // still has to work: every community is open, because nothing in the
+    // database can refuse anybody yet. Falling through to the old front door
+    // is the difference between "no closed communities" and "nobody can join
+    // anything", and only one of those is acceptable in production.
+    if (missingFunction(error)) {
+      markCommunitySchemaMissing();
+      const legacy = await supabase.rpc('set_community_membership', {
+        p_community: ref,
+        p_join: true,
+      });
+      if (legacy.error) throw legacy.error;
+      return { role: (legacy.data as Role) ?? 'member', status: 'joined' };
+    }
+    throw error;
+  }
+
   const row = (Array.isArray(data) ? data[0] : data) as
     { role?: Role; request_status?: string } | null;
   return {
@@ -273,7 +324,13 @@ export async function decideJoinRequest(requestId: string, approve: boolean): Pr
     p_request: requestId,
     p_approve: approve,
   });
-  if (error) throw error;
+  if (error) {
+    if (missingFunction(error)) {
+      markCommunitySchemaMissing();
+      throw new Error('Answering requests is not available yet. The database is still being updated.');
+    }
+    throw error;
+  }
 }
 
 // --- The gallery ------------------------------------------------------------
