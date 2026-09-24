@@ -30,6 +30,23 @@ alter table communities
 
 create index if not exists communities_sport_idx on communities (sport_id);
 
+-- `authenticated` is granted UPDATE per column, not on the table, and the new
+-- columns are not in that list -- so without this the settings screen gets a
+-- 403 on privacy, sport and picture even once the columns exist. A 403 is a
+-- grant, not a policy: RLS refusing a row changes nothing and reports success.
+--
+-- `name` joins them. hardening.sql granted (about, tint, code), which made the
+-- title unchangeable -- that reads as an oversight of the same list rather
+-- than a rule, because the editor of the day only touched `about` and nobody
+-- met the refusal. An admin editing the title is what the product asks for.
+--
+-- Deliberately still withheld, and this is the point of granting per column:
+--   slug          -- the public identifier, and what the client keys on
+--   official      -- platform-granted, never self-granted (H6)
+--   members_count -- maintained by the membership RPCs
+--   created_by    -- who made it is not editable after the fact
+grant update (name, privacy, sport_id, avatar_url) on communities to authenticated;
+
 -- ============================================================================
 -- 2. Admin is not moderator
 -- ============================================================================

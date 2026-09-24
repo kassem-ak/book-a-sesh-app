@@ -78,6 +78,12 @@ const missingFunction = isMissingFunction;
 
 const missingTable = isMissingTable;
 
+/** Refused by a GRANT rather than by a policy. PostgREST answers 42501, and
+ *  Postgres words it as "permission denied for table". */
+function deniedColumn(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === '42501';
+}
+
 /** The store calls a community by its slug, not its id.
  *
  *  `fromRemoteCommunity` maps `id: row.slug ?? row.id`, so everything the UI
@@ -163,6 +169,16 @@ export async function updateCommunity(
     if (missingColumn(error)) {
       markCommunitySchemaMissing();
       throw new Error('That setting is not available yet. The database is still being updated.');
+    }
+    // 403 is a column GRANT, not a policy: an RLS mismatch changes no rows and
+    // reports success. `authenticated` holds UPDATE on (about, tint, code)
+    // only, so a payload naming any other column is refused whole -- which is
+    // how an unchanged name made a description edit fail.
+    if (deniedColumn(error)) {
+      throw new Error(
+        'This database does not allow that field to be changed yet. '
+        + 'The description saves; the rest needs the community migration applied.',
+      );
     }
     throw error;
   }
