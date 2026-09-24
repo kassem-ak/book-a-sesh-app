@@ -1,10 +1,13 @@
-import React from 'react';
-import { Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Image, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, Segmented,
+  Avatar, Button, Card, Chip, Field, Icon, IconButton, MicroBadge, Row, SectionHeading, Segmented,
   StripedPlaceholder, VoltButton,
 } from '../components/ui';
+import {
+  EventDetail, EventPhoto, feeLabel, fetchEvent, fetchEventPhotos,
+} from '../lib/events';
 import { CommunityRole, EventSuggestion, isMeetup } from '../state/models';
 import * as D from '../state/sampleData';
 import { eventDayOptions, isExplicit, useStore } from '../state/store';
@@ -88,17 +91,51 @@ export function EventDetailOverlay() {
   const s = useStore();
   const ev = s.allEvents().find((item) => item.id === s.eventId);
   const going = ev ? s.goingEvents.includes(ev.id) : false;
+
+  // The parts of an event that live on the row rather than in the store's
+  // list: what it is about, what it costs, who can see it, and its pictures.
+  // Read here so a failure costs this section and not the whole page.
+  const [detail, setDetail] = useState<EventDetail | null>(null);
+  const [photos, setPhotos] = useState<EventPhoto[]>([]);
+  const evId = ev?.id ?? null;
+  useEffect(() => {
+    if (!evId) { setDetail(null); setPhotos([]); return; }
+    let active = true;
+    void (async () => {
+      const found = await fetchEvent(evId).catch(() => null);
+      if (!active) return;
+      setDetail(found);
+      if (!found) { setPhotos([]); return; }
+      const gallery = await fetchEventPhotos(found.id).catch(() => [] as EventPhoto[]);
+      if (active) setPhotos(gallery);
+    })();
+    return () => { active = false; };
+  }, [evId]);
+
+  const manages = s.canModerateCommunity(s.communityId);
   if (!ev) return <MissingSubject title="Event" message="This event is no longer listed." onBack={() => s.set('overlay', s.returnTo)} />;
   return (
     <OverlayScaffold
-      header={<OverlayHeader title={ev.type} onBack={() => s.set('overlay', s.returnTo)} />}
+      header={<OverlayHeader title={ev.type} onBack={() => s.set('overlay', s.returnTo)}
+        trailing={manages ? (
+          <IconButton icon="edit-2" accessibilityLabel="Edit this event"
+            onPress={() => s.set('overlay', 'manageEvent')} />
+        ) : undefined} />}
       bottomBar={
         <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
           {/* A byte-for-byte copy of VoltButton with no accessibilityRole --
               the most important control in the overlay was invisible to
               assistive tech. */}
+          {/* A fee is said out loud next to the button that commits to it.
+              BOOK'D cannot take the money, so the button must not imply it
+              has been taken. */}
+          {(detail?.feeCents ?? 0) > 0 && (
+            <Text style={[t.bodySm, { color: c.amberText, marginBottom: 10 }]}>
+              {feeLabel(detail!.feeCents)} per person, settled with the organiser directly.
+            </Text>
+          )}
           <Button
-            label={going ? "You're going" : "I'm going"}
+            label={going ? "You're going" : (detail?.feeCents ?? 0) > 0 ? `I'm going · ${feeLabel(detail!.feeCents)}` : "I'm going"}
             icon={going ? 'check' : 'user-plus'}
             tone={going ? 'secondary' : 'primary'}
             full
@@ -112,10 +149,28 @@ export function EventDetailOverlay() {
       }
     >
       <View style={{ paddingHorizontal: 18 }}>
-        <StripedPlaceholder caption="" height={180} radius={18} />
-        <View style={{ marginTop: 14 }}>
+        {detail?.coverUrl ? (
+          <Image source={{ uri: detail.coverUrl }} accessibilityIgnoresInvertColors
+            accessibilityLabel={`${ev.title} cover`}
+            style={{ width: '100%', height: 180, borderRadius: 18, backgroundColor: c.surface }}
+            resizeMode="cover" />
+        ) : (
+          <StripedPlaceholder caption="" height={180} radius={18} />
+        )}
+        <Row gap={8} style={{ marginTop: 14, flexWrap: 'wrap', alignItems: 'center' }}>
           <MicroBadge label={ev.type} bg={isMeetup(ev) ? alpha(c.volt, 0.12) : alpha(c.amber, 0.2)} fg={isMeetup(ev) ? c.accent : c.amberText} />
-        </View>
+          {/* Only worth saying when it is not the default. "Anyone" on every
+              event is noise; "Invited only" is the whole point of the row. */}
+          {detail && detail.privacy !== 'public' && (
+            <MicroBadge
+              label={detail.privacy === 'members' ? 'Members only' : 'Invited only'}
+              bg={c.surface2} fg={c.txt2}
+            />
+          )}
+          {(detail?.feeCents ?? 0) > 0 && (
+            <MicroBadge label={feeLabel(detail!.feeCents)} bg={alpha(c.amber, 0.2)} fg={c.amberText} />
+          )}
+        </Row>
         <Text style={[t.pageTitle, { fontSize: 22, color: c.txt, marginTop: 10 }]}>{ev.title}</Text>
         <View style={{ gap: 12, marginTop: 16 }}>
           <Row gap={12}><Icon name="calendar" size={18} color={c.accent} /><Text style={[t.body, { color: c.soft }]}>{ev.whenLabel}</Text></Row>
@@ -123,6 +178,27 @@ export function EventDetailOverlay() {
           <Row gap={12}><Icon name="user" size={18} color={c.accent} /><Text style={[t.body, { color: c.soft }]}>Hosted by {ev.host}</Text></Row>
           <Row gap={12}><Icon name="users" size={18} color={c.accent} /><Text style={[t.body, { color: c.soft }]}>{ev.attendees} going</Text></Row>
         </View>
+
+        {!!detail?.description && (
+          <Text style={[t.bodyLg, { color: c.soft, lineHeight: 22, marginTop: 16 }]}>
+            {detail.description}
+          </Text>
+        )}
+
+        {photos.length > 0 && (
+          <Row style={{ flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
+            {photos.map((photo) => (
+              <View key={photo.id} style={{
+                flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 96, maxWidth: '32%',
+                aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: c.surface,
+              }}>
+                <Image source={{ uri: photo.url }} accessibilityIgnoresInvertColors
+                  accessibilityLabel={photo.caption ?? `${ev.title} picture`}
+                  style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              </View>
+            ))}
+          </Row>
+        )}
       </View>
     </OverlayScaffold>
   );
