@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { Avatar, Button, Card, Icon, MicroBadge, Row } from '../components/ui';
 import { fetchConversations, type ConversationSummary } from '../lib/chat';
 import { fetchNotifications, type AppNotification } from '../lib/notifications';
+import { useMyCommunities } from '../components/useMyCommunities';
 import { useStore } from '../state/store';
 import { useTheme } from '../theme';
 
@@ -15,8 +16,10 @@ export function ChatScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [reloads, setReloads] = React.useState(0);
   // Only the ones this person is actually in: a thread they cannot read has
-  // no business in their conversation list.
-  const myCommunities = s.communities().filter((cm) => s.joinedCommunities.includes(cm.id));
+  // no business in their conversation list. The hook loads them, because
+  // arriving here without passing through the Community tab used to mean an
+  // empty store and no threads at all.
+  const { communities: myCommunities } = useMyCommunities();
 
   // Reloads whenever the last overlay closes: leaving a thread changes both its
   // unread badge and its preview line, and there is no push channel yet.
