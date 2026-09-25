@@ -386,3 +386,18 @@ export function feeLabel(cents: number, currency = '$'): string {
     ? `${currency}${cents / 100}`
     : `${currency}${(cents / 100).toFixed(2)}`;
 }
+
+/** Delete an event and everything hanging off it.
+ *
+ *  Admins and moderators both, like every other event action -- the community
+ *  runs its events, and the RPC checks that rather than trusting this call. */
+export async function deleteEvent(eventId: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_event', { p_event: eventId });
+  if (error) {
+    if (isMissingFunction(error)) {
+      markEventSchemaMissing();
+      throw new Error('Deleting an event is not available yet.');
+    }
+    throw error;
+  }
+}
