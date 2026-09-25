@@ -260,6 +260,11 @@ export function Root() {
           switching the screen behind without dismissing anything. Sighted
           users cannot do this, which is exactly why it went unnoticed. */}
       <View
+        // Three props because each platform honours a different one, and
+        // getting only the first two was the bug: `accessibilityElementsHidden`
+        // is iOS, `importantForAccessibility` is Android, and neither reaches
+        // react-native-web -- where this was actually caught.
+        aria-hidden={!!overlay}
         accessibilityElementsHidden={!!overlay}
         importantForAccessibility={overlay ? 'no-hide-descendants' : 'auto'}
         // `display: none` would unmount the bar's layout and make the screen

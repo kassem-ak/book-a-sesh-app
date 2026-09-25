@@ -137,7 +137,7 @@ export function ItemMenu({
  *  opens the list. */
 export function HoldableItem({
   children, actions, menuTitle, menuSubtitle, onPress, accessibilityLabel,
-  style, busy, showMore = true,
+  style, busy, showMore = true, morePlacement = 'corner',
 }: {
   children: React.ReactNode;
   actions: SafeItemAction[];
@@ -147,8 +147,13 @@ export function HoldableItem({
   accessibilityLabel: string;
   style?: StyleProp<ViewStyle>;
   busy?: boolean;
-  /** The visible dots. Off only where the container draws its own. */
+  /** The visible dots. Off only where the container draws its own, or where
+   *  the tile is too small to carry one without covering the picture. */
   showMore?: boolean;
+  /** Where the dots sit. 'corner' floats them over the top-right, which suits
+   *  a picture tile; 'inline' returns them as a normal row child, which suits
+   *  a card that already has something at its right edge. */
+  morePlacement?: 'corner' | 'inline';
 }) {
   const { c } = useTheme();
   const [open, setOpen] = useState(false);
@@ -156,9 +161,13 @@ export function HoldableItem({
     return <View style={style}>{children}</View>;
   }
 
+  const inline = showMore && morePlacement === 'inline';
   return (
-    <View style={style}>
+    // Inline puts the dots beside the item, so the wrapper has to be a row and
+    // the item has to take the space that is left.
+    <View style={[style, inline ? { flexDirection: 'row', alignItems: 'center' } : null]}>
       <Pressable
+        style={inline ? { flex: 1, minWidth: 0 } : undefined}
         onPress={onPress}
         onLongPress={() => setOpen(true)}
         // Long enough not to fire while somebody is scrolling with a finger
@@ -176,6 +185,10 @@ export function HoldableItem({
         {children}
       </Pressable>
 
+      {/* A long press is invisible, and on the web it is invisible AND
+          unfamiliar -- nobody holds a mouse button down on a card to see what
+          happens. The dots are the discoverable way in; holding is the
+          shortcut for people who already know. */}
       {showMore && (
         <Pressable
           onPress={() => setOpen(true)}
@@ -183,11 +196,13 @@ export function HoldableItem({
           accessibilityRole="button"
           accessibilityLabel={`More options for ${accessibilityLabel}`}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={{
-            position: 'absolute', top: 4, right: 4,
-            width: 36, height: 36, borderRadius: 18,
-            alignItems: 'center', justifyContent: 'center',
-          }}
+          style={morePlacement === 'inline'
+            ? { minHeight: TAP, minWidth: 40, alignItems: 'center', justifyContent: 'center' }
+            : {
+              position: 'absolute', top: 4, right: 4,
+              width: 36, height: 36, borderRadius: 18,
+              alignItems: 'center', justifyContent: 'center',
+            }}
         >
           <Icon name="more-horizontal" size={18} color={c.txt3} />
         </Pressable>

@@ -60,7 +60,10 @@ export function PhotoStrip({ photos, label, onRemove, busy, emptySlots = true }:
                 <HoldableItem
                   onPress={() => setViewing(photo)}
                   busy={busy}
-                  showMore={false}
+                  // Only where the gallery is editable. On a public profile
+                  // a dots button on every picture is clutter offering one
+                  // action the reader already has by tapping.
+                  showMore={!!onRemove}
                   menuTitle={photo.caption || `Picture ${index + 1}`}
                   menuSubtitle={label}
                   accessibilityLabel={photo.caption ?? `${label}, picture ${index + 1}`}

@@ -207,10 +207,10 @@ export function CertificateTile({ cert, busy, onOpen, onRemove }: {
       actions={actions}
       onPress={onOpen}
       busy={busy}
-      // The container already draws a badge top-left; a dots button top-right
-      // would collide with it on a 96pt tile, so the hold and the screen
-      // reader's own action are the ways in.
-      showMore={false}
+      // The badge sits top-LEFT, so the dots have the top-right corner to
+      // themselves. Hold still works; this is the way in for anyone who does
+      // not know that.
+      showMore
       menuTitle={cert.name}
       menuSubtitle={[cert.issuer, cert.year].filter(Boolean).join(' · ') || undefined}
       accessibilityLabel={`${cert.name}${cert.issuer ? `, ${cert.issuer}` : ''}`}

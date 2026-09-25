@@ -288,7 +288,7 @@ function CommunityCard({ cm, joined, pending, role, onOpen, onToggle }: { cm: Co
       <HoldableItem
         actions={actions}
         onPress={onOpen}
-        showMore={false}
+        morePlacement="inline"
         menuTitle={cm.sport}
         menuSubtitle={`${cm.members} members`}
         accessibilityLabel={cm.sport}
