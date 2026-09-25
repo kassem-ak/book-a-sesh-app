@@ -680,3 +680,49 @@ export function canPost(mode: ChatMode, role: Role | null | undefined): boolean 
   if (!role) return false;
   return mode === 'chatroom' || canModerate(role);
 }
+
+/** Keyed by SLUG, not by community id. The store identifies a community by its
+ *  slug everywhere, so a map keyed on the uuid would silently miss every row --
+ *  the same trap `resolveCommunityId` exists for. */
+export type ChatPreview = { slug: string; last: string; whenLabel: string };
+
+/** The newest message in each of my communities, for the conversation list.
+ *
+ *  One query, not one per community: `commmsg_read` already limits the rows to
+ *  communities I am in, so reading the recent tail and keeping the first of
+ *  each is cheaper than N round trips and needs no ids passed in. */
+export async function fetchCommunityChatPreviews(): Promise<Map<string, ChatPreview>> {
+  const previews = new Map<string, ChatPreview>();
+  if (!communitySchemaReady()) return previews;
+  const { data, error } = await supabase
+    .from('community_messages')
+    .select('community_id, body, created_at, community:communities(slug)')
+    .order('created_at', { ascending: false })
+    // Deep enough that a busy community cannot push a quiet one off the list
+    // in normal use, shallow enough to stay one cheap read.
+    .limit(300);
+  if (error) {
+    if (isMissingTable(error)) markCommunitySchemaMissing();
+    return previews;
+  }
+  for (const row of (data ?? []) as unknown as {
+    community_id: string; body: string; created_at: string;
+    community: { slug: string | null } | null;
+  }[]) {
+    const key = row.community?.slug ?? row.community_id;
+    // Ordered newest first, so the first one seen for a community is its
+    // latest and every later one is older.
+    if (previews.has(key)) continue;
+    previews.set(key, { slug: key, last: row.body, whenLabel: shortWhen(row.created_at) });
+  }
+  return previews;
+}
+
+/** "14:32" today, "4 Oct" before. Matches the direct-message rows beside it. */
+function shortWhen(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return '';
+  return new Date().toDateString() === at.toDateString()
+    ? at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    : at.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
