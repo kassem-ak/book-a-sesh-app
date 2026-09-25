@@ -446,6 +446,8 @@ export interface SpotterState {
   communities(): Community[];
   setRemoteCommunities(communities: Community[]): void;
   setRemoteCommunityMemberships(memberships: { communityId: string; role: string }[]): void;
+  /** Drop a community the server no longer has. */
+  forgetCommunity(id: string): void;
   setRemoteEvents(events: EventItem[]): void;
   communityById(id: string): Community | undefined;
   communityAbout(id: string): string;
@@ -848,6 +850,22 @@ export const useStore = create<SpotterState>((set, get) => ({
   communities: () => [...get().customCommunities, ...get().remoteCommunities],
   setRemoteCommunities: (communities) =>
     set((state) => ({ remoteCommunities: communities, loaded: { ...state.loaded, communities: true } })),
+  // Called after a delete succeeds. Without it the deleted community stayed
+  // in every list until the next full refresh -- the row was gone from the
+  // database and still on screen, which reads as "delete does not work".
+  forgetCommunity: (id) => set((state) => {
+    const communityRoles = { ...state.communityRoles };
+    delete communityRoles[id];
+    return {
+      customCommunities: state.customCommunities.filter((cm) => cm.id !== id),
+      remoteCommunities: state.remoteCommunities.filter((cm) => cm.id !== id),
+      joinedCommunities: state.joinedCommunities.filter((x) => x !== id),
+      pendingCommunities: state.pendingCommunities.filter((x) => x !== id),
+      communityRoles,
+      // Its events go with it; the server has already cascaded them away.
+      remoteEvents: state.remoteEvents.filter((e) => e.communityId !== id),
+    };
+  }),
   setRemoteCommunityMemberships: (memberships) => set({
     joinedCommunities: memberships.map((row) => row.communityId),
     communityRoles: Object.fromEntries(memberships.map((row) => [row.communityId, roleFromDb(row.role)])),
