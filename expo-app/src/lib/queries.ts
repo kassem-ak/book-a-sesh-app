@@ -476,13 +476,24 @@ export async function createBooking(
   if (coachId === await meOrNull()) {
     throw new Error('You cannot book a session with yourself.');
   }
-  return callRpc<string>('create_booking_for_coach', {
-    p_coach: coachId,
-    p_scheduled_for: scheduledFor,
-    p_slot_label: slotLabel,
-    p_package_id: packageId ?? null,
-    p_slot: slot ?? null,
-  });
+  try {
+    return await callRpc<string>('create_booking_for_coach', {
+      p_coach: coachId,
+      p_scheduled_for: scheduledFor,
+      p_slot_label: slotLabel,
+      p_package_id: packageId ?? null,
+      p_slot: slot ?? null,
+    });
+  } catch (error) {
+    // The clash message belongs here, not in the global error mapper. That
+    // mapper turned EVERY unique violation in the app into "that slot is
+    // already booked" -- including creating a community, which sent the reader
+    // hunting through a calendar. Here the code can only mean one thing.
+    if ((error as { code?: string } | null)?.code === '23505') {
+      throw new Error('That slot is already booked. Pick another time.');
+    }
+    throw error;
+  }
 }
 
 export async function submitShopRegistration(input: {

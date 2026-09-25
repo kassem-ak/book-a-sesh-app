@@ -130,7 +130,13 @@ export const errorMessage = (error: unknown): string => {
     const e = error as Record<string, unknown>;
     // Postgres constraint violations are accurate but unreadable — the raw
     // "duplicate key value violates unique constraint" text reached the banner.
-    if (e.code === '23505') return 'That slot is already booked. Pick another time.';
+    // Not "that slot is already booked". 23505 is ANY unique violation, and
+    // this mapper is global -- creating a community with a duplicate row
+    // reported a booking clash, which sends the reader looking for a calendar
+    // that has nothing to do with it. A generic duplicate needs generic words;
+    // the booking flow, which is where the specific wording belongs, says it
+    // for itself.
+    if (e.code === '23505') return 'That already exists.';
     if (e.code === '23503') return 'That item is no longer available.';
     if (e.code === '42501') return 'You do not have permission to do that.';
     const text = [e.message, e.error_description, e.details, e.hint].find(
