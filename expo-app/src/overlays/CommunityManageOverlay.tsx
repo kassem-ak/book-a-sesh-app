@@ -251,6 +251,10 @@ export function CommunityManageOverlay() {
           try {
             await deleteCommunity(detail!.id);
             setDeleting(false);
+            // The store keeps its own copy of the list, so the deleted
+            // community stayed on screen after the server had removed it --
+            // which reads as the delete having failed.
+            s.forgetCommunity(communityId);
             // Nothing to come back to: the screen behind this one is a
             // community that no longer exists.
             s.set('overlay', null);
