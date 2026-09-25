@@ -13,6 +13,7 @@ import {
   fetchJoinRequests, fetchMembers, fetchPhotos, isAdmin, JoinRequest, MAX_GALLERY, Member,
   Photo, removeMember, removePhoto, Role, setMemberRole, updateCommunity,
 } from '../lib/communities';
+import { ChatMode, CHAT_MODES } from '../lib/communities';
 import {
   deleteCommunity, fetchOfficialStatus, OfficialStatus, requestOfficialStatus,
 } from '../lib/communities';
@@ -55,6 +56,7 @@ export function CommunityManageOverlay() {
   const [privacy, setPrivacy] = useState<CommunityPrivacy>('open');
   const [sportId, setSportId] = useState<string | null>(null);
   const [socials, setSocials] = useState<SocialHandles>(NO_SOCIALS);
+  const [chatMode, setChatMode] = useState<ChatMode>('chatroom');
 
   const [dropping, setDropping] = useState<Member | null>(null);
   const [official, setOfficial] = useState<OfficialStatus>('none');
@@ -113,6 +115,7 @@ export function CommunityManageOverlay() {
       setPrivacy(found.privacy);
       setSportId(found.sportId);
       setSocials(found.socials);
+      setChatMode(found.chatMode);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -153,6 +156,7 @@ export function CommunityManageOverlay() {
       || socials.facebook !== detail.socials.facebook
       || socials.tiktok !== detail.socials.tiktok
     ) changes.socials = socials;
+    if (chatMode !== detail.chatMode) changes.chatMode = chatMode;
     await updateCommunity(detail.id, changes);
     setSaved(true);
   });
@@ -192,6 +196,7 @@ export function CommunityManageOverlay() {
     || socials.instagram !== detail.socials.instagram
     || socials.facebook !== detail.socials.facebook
     || socials.tiktok !== detail.socials.tiktok
+    || chatMode !== detail.chatMode
   );
 
   return (
@@ -445,6 +450,37 @@ export function CommunityManageOverlay() {
               ? 'Anyone can join without asking.'
               : 'People ask to join, and an admin or moderator answers. Everyone already in stays in.'}
           </Text>
+
+          {/* ---- The community's thread ---- */}
+          <SectionHeading style={{ marginTop: 8 }}>Community chat</SectionHeading>
+          <View style={{ gap: 8 }}>
+            {CHAT_MODES.map((option) => {
+              const on = chatMode === option.key;
+              return (
+                <Pressable
+                  key={option.key}
+                  onPress={() => setChatMode(option.key)}
+                  disabled={!!busy}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={`${option.label}. ${option.blurb}`}
+                  style={{
+                    minHeight: 48, padding: 12, borderRadius: radii.input, borderWidth: 1,
+                    borderColor: on ? c.volt : c.line,
+                    backgroundColor: on ? alpha(c.volt, 0.1) : c.surface,
+                  }}
+                >
+                  <Row gap={8} style={{ alignItems: 'center' }}>
+                    <Icon name={on ? 'check-circle' : 'circle'} size={16} color={on ? c.accent : c.txt3} />
+                    <Text style={[t.labelSm, { color: on ? c.accent : c.txt }]}>{option.label}</Text>
+                  </Row>
+                  <Text style={[t.caption, { color: c.txt2, marginTop: 4, marginLeft: 24 }]}>
+                    {option.blurb}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           <SectionHeading style={{ marginTop: 8 }}>Find us on</SectionHeading>
           <SocialFields
