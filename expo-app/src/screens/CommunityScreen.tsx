@@ -5,6 +5,7 @@ import {
   StatusLine, StripedPlaceholder,
 } from '../components/ui';
 import { HoldableItem, SafeItemAction } from '../components/ItemMenu';
+import { deleteEvent } from '../lib/events';
 import { PersonPicker } from '../components/PersonPicker';
 import { suggestCommunity } from '../lib/communities';
 import { Community, CommunityRole, EventItem, EventSuggestion } from '../state/models';
@@ -205,7 +206,20 @@ export function CommunityScreen() {
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 8 }}>
           {soon.map((ev) => (
-            <EventCard key={ev.id} ev={ev} onPress={() => s.openEvent(ev.id, null)} />
+            <EventCard
+              key={ev.id}
+              ev={ev}
+              manages={s.canModerateCommunity(ev.communityId)}
+              onPress={() => s.openEvent(ev.id, null)}
+              onDelete={() => void (async () => {
+                try {
+                  await deleteEvent(ev.id);
+                  s.forgetEvent(ev.id);
+                } catch (e) {
+                  s.set('writeError', e instanceof Error ? e.message : 'Could not delete that event.');
+                }
+              })()}
+            />
           ))}
         </ScrollView>
       )}
@@ -226,10 +240,61 @@ export function CommunityScreen() {
   );
 }
 
-function EventCard({ ev, onPress }: { ev: EventItem; onPress: () => void }) {
+function EventCard({ ev, onPress, manages, onDelete }: {
+  ev: EventItem;
+  onPress: () => void;
+  /** Whether this reader runs the community the event belongs to. */
+  manages: boolean;
+  onDelete: () => void;
+}) {
+  const { c, t } = useTheme();
+
+  // Managers get the menu; everyone else gets a plain card. Offering a menu
+  // whose only entry is "Open", which tapping already does, is a button that
+  // does nothing new.
+  const actions: SafeItemAction[] = manages ? [
+    { key: 'open', label: 'Open the event', icon: 'arrow-right', onPress },
+    {
+      key: 'delete',
+      label: 'Delete the event',
+      icon: 'trash-2' as const,
+      destructive: true as const,
+      confirm: {
+        title: `Delete ${ev.title}?`,
+        body: `${ev.attendees} ${ev.attendees === 1 ? 'person is' : 'people are'} going. `
+          + 'The event, its gallery and every invitation are deleted, and it disappears from '
+          + 'their calendars.',
+        confirmLabel: 'Delete it',
+      },
+      onPress: onDelete,
+    },
+  ] : [];
+
+  if (!manages) {
+    return (
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={ev.title} style={{ width: 216 }}>
+        <EventCardBody ev={ev} />
+      </Pressable>
+    );
+  }
+
+  return (
+    <HoldableItem
+      actions={actions}
+      onPress={onPress}
+      menuTitle={ev.title}
+      menuSubtitle={ev.whenLabel}
+      accessibilityLabel={ev.title}
+      style={{ width: 216 }}
+    >
+      <EventCardBody ev={ev} />
+    </HoldableItem>
+  );
+}
+
+function EventCardBody({ ev }: { ev: EventItem }) {
   const { c, t } = useTheme();
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={ev.title} style={{ width: 216 }}>
       <Card style={{ padding: 12 }}>
         <View>
           <StripedPlaceholder caption="" height={72} />
@@ -241,7 +306,6 @@ function EventCard({ ev, onPress }: { ev: EventItem; onPress: () => void }) {
         <Text style={[t.labelSm, { color: c.txt2, marginTop: 4 }]} numberOfLines={1}>{ev.whenLabel}</Text>
         <Text style={[t.caption, { color: c.txt3, marginTop: 5 }]} numberOfLines={1}>{ev.loc} · {ev.attendees} going</Text>
       </Card>
-    </Pressable>
   );
 }
 

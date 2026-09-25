@@ -12,6 +12,7 @@ import {
   inviteToEvent, MAX_EVENT_PHOTOS, PRIVACY_CHOICES, removeEventPhoto, setEventCover,
   updateEvent, withdrawInvitation,
 } from '../lib/events';
+import { deleteEvent } from '../lib/events';
 import { canModerate, Role } from '../lib/communities';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, isExplicit, useStore } from '../state/store';
@@ -51,6 +52,7 @@ export function EventManageOverlay() {
 
   const [dropping, setDropping] = useState<EventPhoto | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // The community the event belongs to decides who may run it. The store keys
   // roles by slug; `communityId` on the row is the uuid, so the community the
@@ -167,6 +169,37 @@ export function EventManageOverlay() {
         </View>
       }
     >
+      <ConfirmSheet
+        visible={deleting}
+        title={`Delete ${detail?.title ?? 'this event'}?`}
+        body={
+          `${detail?.attendeesCount ?? 0} `
+          + `${(detail?.attendeesCount ?? 0) === 1 ? 'person is' : 'people are'} going. `
+          + 'The event, its gallery and every invitation are deleted, and it disappears from '
+          + 'their calendars. This cannot be undone.'
+        }
+        confirmLabel="Delete it"
+        busy={busy === 'delete'}
+        busyLabel="Deleting…"
+        onConfirm={() => void (async () => {
+          setBusy('delete');
+          setError(null);
+          try {
+            await deleteEvent(detail!.id);
+            setDeleting(false);
+            // The store keeps its own copy of the event lists; without this
+            // the deleted event stays on the community page behind us.
+            s.forgetEvent(detail!.id);
+            // The screen behind this one is an event that no longer exists.
+            s.set('overlay', s.returnTo || 'communityProfile');
+            s.set('eventId', '');
+          } catch (e) {
+            track('write_failed', { error_code: analyticsErrorCode(e) });
+            setError(errorMessage(e));
+          } finally { setBusy(null); }
+        })()}
+        onCancel={() => setDeleting(false)}
+      />
       <ConfirmSheet
         visible={dropping !== null}
         title="Remove this picture?"
@@ -368,6 +401,21 @@ export function EventManageOverlay() {
         ))}
         <Button label="Invite someone" icon="user-plus" full enabled={!busy}
           onPress={() => setInviting(true)} />
+
+        {/* Last, because it is the one thing here that cannot be undone. */}
+        <SectionHeading style={{ marginTop: 18 }}>Delete this event</SectionHeading>
+        <Text style={[t.bodySm, { color: c.txt2 }]}>
+          The event, its gallery and every invitation go with it, and it disappears from the
+          calendars of everyone who said they were coming.
+        </Text>
+        <Button
+          label="Delete this event"
+          icon="trash-2"
+          tone="danger"
+          full
+          enabled={!busy}
+          onPress={() => setDeleting(true)}
+        />
       </View>
     </OverlayScaffold>
   );

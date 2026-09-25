@@ -448,6 +448,8 @@ export interface SpotterState {
   setRemoteCommunityMemberships(memberships: { communityId: string; role: string }[]): void;
   /** Drop a community the server no longer has. */
   forgetCommunity(id: string): void;
+  /** Drop an event the server no longer has. */
+  forgetEvent(id: string): void;
   setRemoteEvents(events: EventItem[]): void;
   communityById(id: string): Community | undefined;
   communityAbout(id: string): string;
@@ -866,6 +868,13 @@ export const useStore = create<SpotterState>((set, get) => ({
       remoteEvents: state.remoteEvents.filter((e) => e.communityId !== id),
     };
   }),
+  // Same reason as forgetCommunity: the server has removed it, and leaving it
+  // in the store means a successful delete looks like nothing happening.
+  forgetEvent: (id) => set((state) => ({
+    remoteEvents: state.remoteEvents.filter((e) => e.id !== id),
+    customEvents: state.customEvents.filter((e) => e.id !== id),
+    goingEvents: state.goingEvents.filter((x) => x !== id),
+  })),
   setRemoteCommunityMemberships: (memberships) => set({
     joinedCommunities: memberships.map((row) => row.communityId),
     communityRoles: Object.fromEntries(memberships.map((row) => [row.communityId, roleFromDb(row.role)])),
