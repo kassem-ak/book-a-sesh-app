@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ConfirmButton } from '../components/ItemMenu';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, VoltButton,
@@ -104,7 +105,17 @@ export function AdminAccountingOverlay() {
                   <Text style={[t.caption, { fontFamily: t.microBadge.fontFamily, color: c.ink }]}>Approve as {admin.split(' ')[0]}</Text>
                 </Pressable>
               ))}
-              <Button label="Withdraw" icon="corner-up-left" onPress={s.cancelProposal} />
+              {/* Withdrawing throws away the approvals other admins have
+                  already given. Re-proposing is possible, but it means asking
+                  each of them again. */}
+              <ConfirmButton label="Withdraw" icon="corner-up-left" tone="secondary"
+                confirm={{
+                  title: 'Withdraw this proposal?',
+                  body: 'The approvals already recorded against it are lost. You can propose the '
+                    + 'same change again, but every admin has to approve it again.',
+                  confirmLabel: 'Withdraw it',
+                }}
+                onPress={s.cancelProposal} />
             </Row>
           </Card>
         )}
@@ -165,8 +176,14 @@ export function AccountingExpenseOverlay() {
       bottomBar={
         <View style={{ padding: 16, backgroundColor: c.bg, gap: 12 }}>
           <VoltButton label="Save expense" enabled={s.canSaveExpense()} onPress={s.saveExpense} />
+          {/* 52 to match the Save above it: a danger Button defaults to 44. */}
           {editing && (
-            <Button label="Delete expense" icon="trash-2" tone="danger" height={52} full
+            <ConfirmButton label="Delete expense" icon="trash-2" full style={{ height: 52 }}
+              confirm={{
+                title: 'Delete this expense?',
+                body: 'It comes off the books. This cannot be undone.',
+                confirmLabel: 'Delete it',
+              }}
               onPress={s.deleteExpense} />
           )}
         </View>

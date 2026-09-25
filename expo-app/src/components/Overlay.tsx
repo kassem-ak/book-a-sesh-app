@@ -1,7 +1,7 @@
 import React, { ReactNode, useEffect, useRef } from 'react';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { motion, useTheme } from '../theme';
+import { motion, spacing, useTheme } from '../theme';
 import { Icon } from './ui';
 
 // Full-screen overlay that slides up 14px + fades over 280ms (matches `ovUp`).
@@ -73,7 +73,10 @@ export function OverlayHeader({
 }) {
   const { c, t } = useTheme();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12 }}>
+    // The gutter has to be the body's, not its own: every overlay pads its
+    // content to `spacing.screen`, so a narrower header left the chevron and
+    // title hanging left of everything beneath them.
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.screen, paddingVertical: 12 }}>
       <Pressable
         onPress={onBack}
         accessibilityRole="button"

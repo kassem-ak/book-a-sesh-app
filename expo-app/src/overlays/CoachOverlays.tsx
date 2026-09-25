@@ -1,6 +1,7 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, TextInput, View } from 'react-native';
+import { ConfirmButton, ConfirmIconButton } from '../components/ItemMenu';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, VoltButton,
@@ -336,12 +337,25 @@ export function CoachRequestsOverlay() {
                             enabled={busyId !== a.id}
                             onPress={() => decide(a.id, 'approved')}
                           />
-                          <Button
+                          {/* The client is notified either way, but only a
+                              refusal is the one they cannot undo from here. */}
+                          <ConfirmButton
                             label="Decline"
                             icon="x"
-                            tone="danger"
                             style={{ flex: 1 }}
                             accessibilityLabel={`Decline the request from ${a.clientName}`}
+                            confirm={{
+                              title: `Decline ${a.clientName}'s request?`,
+                              // NOT "the slot is released". decideApptRequest
+                              // writes `status` and nothing else -- the note
+                              // further down this screen says so, and the
+                              // grant is `update (status)` alone. Promising
+                              // the booking moves would be a lie the coach
+                              // acts on.
+                              body: 'It records your answer and they are told. Their booking is '
+                                + 'not changed by this — cancel it separately if that is what you mean.',
+                              confirmLabel: 'Decline it',
+                            }}
                             enabled={busyId !== a.id}
                             onPress={() => decide(a.id, 'declined')}
                           />
@@ -655,15 +669,19 @@ export function CoachPackagesOverlay() {
                             {each ? `$${each} per session` : 'Enter a number of sessions and a price'}
                           </Text>
                         </View>
-                        <Pressable
-                          onPress={() => run(() => removePackage(pkg.id), 'Could not remove that package.')}
-                          disabled={busy} accessibilityRole="button"
+                        <ConfirmIconButton
+                          icon="x"
                           accessibilityLabel={`Remove the ${pkg.sessions}-session package`}
-                          accessibilityState={{ disabled: busy }}
-                          style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: c.surface2,
-                            alignItems: 'center', justifyContent: 'center' }}>
-                          <Icon name="x" size={14} color={c.txt2} />
-                        </Pressable>
+                          confirm={{
+                            title: `Remove the ${pkg.sessions}-session package?`,
+                            body: 'It comes off your price list. Clients who already bought it keep what they paid for.',
+                            confirmLabel: 'Remove it',
+                          }}
+                          busy={busy}
+                          size={14}
+                          color={c.txt2}
+                          onPress={() => run(() => removePackage(pkg.id), 'Could not remove that package.')}
+                        />
                       </Row>
                       <Row gap={10} style={{ alignItems: 'center' }}>
                         <View style={{ width: 96 }}>
@@ -759,8 +777,16 @@ export function CoachPackagesOverlay() {
                         <RefundNegotiation request={request}
                           suggestedCents={suggested}
                           onSettled={load} />
-                        <Button label="Decline the cancellation" icon="x" tone="danger" enabled={!busy}
+                        {/* Refusing is the branch that ends in a "no" for
+                            somebody else and cannot be reversed here. */}
+                        <ConfirmButton label="Decline the cancellation" icon="x" enabled={!busy}
                           accessibilityLabel={`Decline the cancellation from ${pack.withName}`}
+                          confirm={{
+                            title: 'Decline this cancellation?',
+                            body: 'The package stays as it is and the client is told you have refused. '
+                              + 'They can ask again.',
+                            confirmLabel: 'Decline it',
+                          }}
                           onPress={() => run(
                             () => decideCancellation(request.id, 'rejected'),
                             'Could not decline that request.',
@@ -944,23 +970,19 @@ function PromoCard({
           </Text>
           <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{sub}</Text>
         </View>
-        <Pressable
-          onPress={disabled ? undefined : onRemove}
-          accessibilityRole="button"
+        <ConfirmIconButton
+          icon="x"
           accessibilityLabel={removeLabel}
-          accessibilityState={{ disabled }}
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 13,
-            backgroundColor: c.surface2,
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: disabled ? 0.5 : 1,
+          confirm={{
+            title: `Remove ${code}?`,
+            body: 'Nobody can use this code again. Bookings already made with it are unaffected.',
+            confirmLabel: 'Remove it',
           }}
-        >
-          <Icon name="x" size={12} color={c.txt2} />
-        </Pressable>
+          busy={disabled}
+          size={12}
+          color={c.txt2}
+          onPress={onRemove}
+        />
       </Row>
     </Card>
   );

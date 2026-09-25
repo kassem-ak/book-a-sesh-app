@@ -114,8 +114,8 @@ export function ChatScreen() {
                 <Row style={{ padding: 14 }} gap={13}>
                   <Avatar initials={chat.initials} />
                   <View style={{ flex: 1 }}>
-                    <Row style={{ justifyContent: 'space-between' }}>
-                      <Text style={[t.name, { color: c.txt }]}>{chat.name}</Text>
+                    <Row style={{ justifyContent: 'space-between' }} gap={8}>
+                      <Text style={[t.name, { color: c.txt, flex: 1 }]} numberOfLines={1}>{chat.name}</Text>
                       <Text style={[t.caption, { color: c.txt3 }]}>{chat.whenLabel}</Text>
                     </Row>
                     <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]} numberOfLines={1}>{chat.last}</Text>

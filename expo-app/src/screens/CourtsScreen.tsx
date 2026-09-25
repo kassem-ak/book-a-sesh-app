@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
-  Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Note, Row, StatusLine,
+  Avatar, Button, Card, Chip, Field, IconButton, MicroBadge, Note, Row, StatusLine,
   StripedPlaceholder,
 } from '../components/ui';
 import { Venue } from '../lib/courts';
@@ -26,8 +26,6 @@ const TABS: [Tab, string][] = [
   ['events', 'Events'],
   ['gallery', 'Gallery'],
 ];
-
-const TAP = { top: 8, bottom: 8, left: 8, right: 8 };
 
 // Court / tournament RSVP. The store resolves the subject from the loaded
 // venues and refuses to open when it cannot be priced or the venue is closed.
@@ -71,41 +69,6 @@ export function CourtsScreen() {
   return <VenueProfile venue={venue} entryTab={entryTab} onBack={() => setVenueId(null)} />;
 }
 
-// Small 40px surface icon button shared by both headers.
-function HeaderIconButton({
-  icon,
-  label,
-  onPress,
-  volt,
-}: {
-  icon: React.ComponentProps<typeof Icon>['name'];
-  label: string;
-  onPress: () => void;
-  volt?: boolean;
-}) {
-  const { c } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      hitSlop={TAP}
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: 13,
-        backgroundColor: volt ? c.volt : c.surface,
-        borderColor: volt ? c.volt : c.line,
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Icon name={icon} size={volt ? 18 : 19} color={volt ? c.ink : c.txt} />
-    </Pressable>
-  );
-}
-
 // ---- ALL Courts view -------------------------------------------------------
 function AllCourtsView({
   devicePoint,
@@ -141,17 +104,17 @@ function AllCourtsView({
           </View>
           <Row gap={9}>
             {venues.length > 0 && (
-              <HeaderIconButton
+              <IconButton
                 icon="image"
-                label="Browse venue galleries"
+                accessibilityLabel="Browse venue galleries"
                 onPress={() => onOpen(venues[0].id, 'gallery')}
               />
             )}
             {/* Venue registration reuses the shared registration form (handoff
                 v2 section 9), opened with regKind = 'venue'. */}
-            <HeaderIconButton
+            <IconButton
               icon="plus"
-              label="Register a venue"
+              accessibilityLabel="Register a venue"
               onPress={() => useStore.getState().openRegistration('venue')}
             />
           </Row>
@@ -218,8 +181,8 @@ function AllCourtsView({
                 <Card style={{ padding: 11 }}>
                   <StripedPlaceholder caption={v.name} height={126} />
                   <Row style={{ marginTop: 11, paddingHorizontal: 4, paddingBottom: 3 }} gap={10}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[t.name, { color: c.txt }]}>{v.name}</Text>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[t.name, { color: c.txt }]} numberOfLines={1}>{v.name}</Text>
                       {/* v2 meta format: "City · Sport" */}
                       <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>
                         {v.city} · {v.sport}
@@ -257,27 +220,10 @@ function VenueProfile({ venue, entryTab, onBack }: { venue: Venue; entryTab: Tab
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 26 }}>
         {/* v2 top bar: back · "Courts" · gallery icon · volt + */}
-        <Row style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14 }} gap={10}>
-          <Pressable
-            onPress={onBack}
-            accessibilityRole="button"
-            accessibilityLabel="Back to courts"
-            hitSlop={TAP}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 13,
-              backgroundColor: c.surface,
-              borderColor: c.line,
-              borderWidth: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Icon name="chevron-left" size={20} color={c.txt} />
-          </Pressable>
+        <Row style={{ paddingHorizontal: spacing.screen, paddingTop: 16, paddingBottom: 14 }} gap={10}>
+          <IconButton icon="chevron-left" accessibilityLabel="Back to courts" onPress={onBack} />
           <Text style={[t.overlayTitle, { color: c.txt, flex: 1 }]}>Courts</Text>
-          <HeaderIconButton icon="image" label="Open the gallery tab" onPress={() => setTab('gallery')} />
+          <IconButton icon="image" accessibilityLabel="Open the gallery tab" onPress={() => setTab('gallery')} />
         </Row>
 
         <StripedPlaceholder caption={v.name} height={176} radius={0} />
@@ -359,8 +305,8 @@ function VenueProfile({ venue, entryTab, onBack }: { venue: Venue; entryTab: Tab
                 <Card key={court.id} style={{ padding: 11 }}>
                   <StripedPlaceholder caption={court.name} height={112} />
                   <Row style={{ marginTop: 11, paddingHorizontal: 4, paddingBottom: 3 }} gap={10}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[t.sectionHeading, { fontSize: 13, letterSpacing: 0.4, color: c.txt }]}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[t.sectionHeading, { fontSize: 13, letterSpacing: 0.4, color: c.txt }]} numberOfLines={1}>
                         {court.name}
                       </Text>
                       <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]}>{capacityLabel(court.capacity)}</Text>

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { Certificates } from '../components/Certificates';
+import { ConfirmButton } from '../components/ItemMenu';
 import { SocialFields } from '../components/SocialLinks';
 import { SportsPicker } from '../components/SportsPicker';
 import {
@@ -230,10 +231,18 @@ export function EditProfileOverlay() {
             );
           })}
           {locating && <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3 }]}>Checking your location…</Text>}
+          {/* Confirmed because it deletes the stored position outright: turning
+              it back on needs the OS permission and a fresh capture, so this is
+              not the same kind of toggle as the two above it. */}
           {profile.sharesLocation && (
-            <Button label="Stop sharing and remove me from the map" icon="map-pin" tone="danger"
+            <ConfirmButton label="Stop sharing and remove me from the map" icon="map-pin"
               enabled={!locating && !busy}
-              accessibilityLabel="Stop sharing your location and remove you from the map"
+              confirm={{
+                title: 'Remove yourself from the map?',
+                body: 'Your stored position is deleted. People nearby will no longer find you, '
+                  + 'and distances stop showing on your profile.',
+                confirmLabel: 'Remove me',
+              }}
               onPress={() => void stopSharing()} />
           )}
 

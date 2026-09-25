@@ -3,8 +3,9 @@ import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, VoltButton,
+  Button, Card, ConfirmSheet, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, VoltButton,
 } from '../components/ui';
+import { ConfirmIconButton } from '../components/ItemMenu';
 import {
   DECISION_LABEL,
   FlagVerdict,
@@ -345,9 +346,33 @@ export function AdminCaseOverlay() {
                   These record your verdict on the case. They do not change the account or message anyone.
                 </Text>
                 <View style={{ gap: 9 }}>
-                  <Decision label="Record a temporary ban" bg={alpha(c.amber, 0.14)} fg={c.amberText} border={alpha(c.amber, 0.35)} busy={busy} onPress={() => decide('ban')} />
-                  <Decision label="Record a permanent suspension" bg={alpha(c.danger, 0.12)} fg={c.danger} border={alpha(c.danger, 0.4)} busy={busy} onPress={() => decide('suspend')} />
-                  <Decision label="Dismiss the report" bg={c.surface} fg={c.txt2} border={c.line} busy={busy} onPress={() => decide('dismiss')} />
+                  <Decision
+                    label="Record a temporary ban" bg={alpha(c.amber, 0.14)} fg={c.amberText} border={alpha(c.amber, 0.35)} busy={busy}
+                    confirm={{
+                      title: 'Record a temporary ban?',
+                      body: 'The case closes with a temporary ban against the account. The verdict cannot be changed from this screen afterwards, and enforcement is still a separate step.',
+                      confirmLabel: 'Record the ban',
+                    }}
+                    onPress={() => decide('ban')}
+                  />
+                  <Decision
+                    label="Record a permanent suspension" bg={alpha(c.danger, 0.12)} fg={c.danger} border={alpha(c.danger, 0.4)} busy={busy}
+                    confirm={{
+                      title: 'Record a permanent suspension?',
+                      body: 'The heaviest verdict here: the case closes with the account permanently suspended. Nothing on this screen undoes it, and enforcement is still a separate step.',
+                      confirmLabel: 'Record the suspension',
+                    }}
+                    onPress={() => decide('suspend')}
+                  />
+                  <Decision
+                    label="Dismiss the report" bg={c.surface} fg={c.txt2} border={c.line} busy={busy}
+                    confirm={{
+                      title: 'Dismiss this report?',
+                      body: 'The report closes with no verdict against the account and leaves the queue. You cannot reopen it from here.',
+                      confirmLabel: 'Dismiss the report',
+                    }}
+                    onPress={() => decide('dismiss')}
+                  />
                 </View>
               </>
             ) : (
@@ -454,8 +479,17 @@ export function SafetyCaseOverlay() {
                   These record your verdict on the flag. They do not change the account or message anyone.
                 </Text>
                 <View style={{ gap: 9 }}>
+                  {/* Reinstating restores the account, so it stays one press. */}
                   <Decision label="Record: reinstate" bg={alpha(c.volt, 0.12)} fg={c.accent} border={alpha(c.volt, 0.35)} busy={busy} onPress={() => decide('reinstated')} />
-                  <Decision label="Record: permanent suspension" bg={alpha(c.danger, 0.12)} fg={c.danger} border={alpha(c.danger, 0.4)} busy={busy} onPress={() => decide('suspended')} />
+                  <Decision
+                    label="Record: permanent suspension" bg={alpha(c.danger, 0.12)} fg={c.danger} border={alpha(c.danger, 0.4)} busy={busy}
+                    confirm={{
+                      title: 'Record a permanent suspension?',
+                      body: 'The flag closes with the account permanently suspended — the heaviest verdict on this screen, and one nothing here undoes. Enforcement is still a separate step.',
+                      confirmLabel: 'Record the suspension',
+                    }}
+                    onPress={() => decide('suspended')}
+                  />
                 </View>
               </>
             ) : (
@@ -705,18 +739,37 @@ function EvidenceCard({ item }: { item: ReportEvidence }) {
 }
 
 
-function Decision({ label, bg, fg, border, onPress, busy = false }: { label: string; bg: string; fg: string; border: string; onPress: () => void; busy?: boolean }) {
+// A verdict is written once and this screen offers no way back, so the
+// refusing directions carry a `confirm` and the button owns the sheet. Passing
+// the words rather than a boolean stops a ban and a suspension reading alike.
+function Decision({ label, bg, fg, border, onPress, busy = false, confirm }: { label: string; bg: string; fg: string; border: string; onPress: () => void; busy?: boolean; confirm?: { title: string; body: string; confirmLabel: string } }) {
   const { t } = useTheme();
+  const [asking, setAsking] = useState(false);
   return (
-    <Pressable
-      onPress={busy ? undefined : onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: busy, busy }}
-      style={{ height: 48, borderRadius: 14, backgroundColor: bg, borderColor: border, borderWidth: 1, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}
-    >
-      <Text style={[t.labelSm, { fontFamily: t.microBadge.fontFamily, color: fg }]}>{busy ? 'Saving…' : label}</Text>
-    </Pressable>
+    <>
+      <Pressable
+        onPress={busy ? undefined : () => { if (confirm) setAsking(true); else onPress(); }}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: busy, busy }}
+        style={{ height: 48, borderRadius: 14, backgroundColor: bg, borderColor: border, borderWidth: 1, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}
+      >
+        <Text style={[t.labelSm, { fontFamily: t.microBadge.fontFamily, color: fg }]}>{busy ? 'Saving…' : label}</Text>
+      </Pressable>
+      {confirm && (
+        <ConfirmSheet
+          visible={asking}
+          title={confirm.title}
+          body={confirm.body}
+          confirmLabel={confirm.confirmLabel}
+          confirmIcon="shield"
+          cancelLabel="Go back"
+          busy={busy}
+          onConfirm={() => { setAsking(false); onPress(); }}
+          onCancel={() => setAsking(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -751,15 +804,21 @@ function PromoCard({
           <Text style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: 15, letterSpacing: 0.5, color: c.accent }}>{code}</Text>
           <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{sub}</Text>
         </View>
-        <Pressable
-          onPress={disabled ? undefined : onRemove}
-          accessibilityRole="button"
+        {/* The code holds its own words because this card is the only place
+            that retires one, and there is no screen that turns it back on. */}
+        <ConfirmIconButton
+          icon="x"
           accessibilityLabel={removeLabel}
-          accessibilityState={{ disabled }}
-          style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.5 : 1 }}
-        >
-          <Icon name="x" size={12} color={c.txt2} />
-        </Pressable>
+          busy={disabled}
+          size={12}
+          color={c.txt2}
+          confirm={{
+            title: `Deactivate ${code}?`,
+            body: 'The code stops working for everyone on the platform. There is no control here that turns it back on.',
+            confirmLabel: 'Deactivate the code',
+          }}
+          onPress={onRemove}
+        />
       </Row>
     </Card>
   );
