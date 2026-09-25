@@ -124,6 +124,17 @@ export function CommunityProfileOverlay() {
             )}
           </Card>
 
+          {/* The thread sits under the identity block, where somebody who has
+              just read what the community is goes next. */}
+          <Button
+            label={detail?.chatMode === 'newsletter' ? 'Announcements' : 'Community chat'}
+            icon="message-circle"
+            full
+            style={{ marginTop: 12 }}
+            accessibilityLabel={`Open the ${detail?.name || cm.sport} community thread`}
+            onPress={() => s.set('overlay', 'communityChat')}
+          />
+
           {/* Five slots wide, always. The tile is the row divided by five,
               measured rather than guessed -- so the strip looks the same
               whether it holds one picture or five, and a tap opens the

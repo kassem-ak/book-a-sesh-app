@@ -37,6 +37,8 @@ export type CommunityDetail = {
   membersCount: number;
   official: boolean;
   socials: SocialHandles;
+  /** Whether the community's thread is a room or a noticeboard. */
+  chatMode: ChatMode;
 };
 
 export type Member = {
@@ -69,7 +71,8 @@ export type Photo = {
 export const MAX_GALLERY = 5;
 
 const GOVERNANCE_COLUMNS =
-  'id, slug, name, about, official, members_count, privacy, sport_id, avatar_url, instagram, facebook, tiktok';
+  'id, slug, name, about, official, members_count, privacy, sport_id, avatar_url, '
+  + 'instagram, facebook, tiktok, chat_mode';
 const BASE_COLUMNS = 'id, slug, name, about, official, members_count';
 
 const missingColumn = isMissingColumn;
@@ -125,6 +128,9 @@ function detailFrom(row: Record<string, unknown>): CommunityDetail {
     membersCount: (row.members_count as number) ?? 0,
     official: Boolean(row.official),
     socials: handlesFrom(row),
+    // Every community that predates the column is a room, which is what it
+    // was: there was nothing to stop a member posting.
+    chatMode: (row.chat_mode as ChatMode) ?? 'chatroom',
   };
 }
 
@@ -152,7 +158,8 @@ export async function fetchCommunity(ref: string): Promise<CommunityDetail | nul
  *  to find out which of the two happened. */
 export async function updateCommunity(
   communityId: string,
-  changes: Partial<Pick<CommunityDetail, 'name' | 'about' | 'privacy' | 'sportId' | 'avatarUrl'>>
+  changes: Partial<Pick<CommunityDetail,
+    'name' | 'about' | 'privacy' | 'sportId' | 'avatarUrl' | 'chatMode'>>
     & { socials?: SocialHandles },
 ): Promise<void> {
   const fields: Record<string, unknown> = {};
@@ -166,6 +173,7 @@ export async function updateCommunity(
     if (changes.privacy !== undefined) fields.privacy = changes.privacy;
     if (changes.sportId !== undefined) fields.sport_id = changes.sportId;
     if (changes.avatarUrl !== undefined) fields.avatar_url = changes.avatarUrl;
+    if (changes.chatMode !== undefined) fields.chat_mode = changes.chatMode;
     if (changes.socials) {
       fields.instagram = changes.socials.instagram;
       fields.facebook = changes.socials.facebook;
@@ -569,4 +577,106 @@ export async function requestOfficialStatus(communityId: string): Promise<void> 
     }
     throw error;
   }
+}
+
+// --- The community's own thread ----------------------------------------------
+//
+// A room or a noticeboard, decided by the admin. The difference is only who may
+// post: everybody reads, and everybody reading is a member either way.
+
+export type ChatMode = 'chatroom' | 'newsletter';
+
+export type CommunityMessage = {
+  id: string;
+  body: string;
+  authorId: string | null;
+  authorName: string;
+  authorAvatar: string | null;
+  createdAt: string;
+  mine: boolean;
+};
+
+export const CHAT_MODES: { key: ChatMode; label: string; blurb: string }[] = [
+  {
+    key: 'chatroom',
+    label: 'Open chatroom',
+    blurb: 'Every member can post. Nobody is notified for each message — the room would be unusable.',
+  },
+  {
+    key: 'newsletter',
+    label: 'Announcements only',
+    blurb: 'Only admins and moderators post, and every member is notified. Use it when the room gets loud.',
+  },
+];
+
+export async function fetchCommunityMessages(ref: string): Promise<CommunityMessage[]> {
+  if (!communitySchemaReady()) return [];
+  const communityId = await resolveCommunityId(ref);
+  const me = await currentAppUserId().catch(() => null);
+  const { data, error } = await supabase
+    .from('community_messages')
+    .select('id, body, author_id, created_at, author:users!community_messages_author_id_fkey(name, avatar_url)')
+    .eq('community_id', communityId)
+    // Oldest first: a thread reads downwards, and the newest belongs at the
+    // bottom where the composer is.
+    .order('created_at', { ascending: true })
+    // Enough history to scroll back through without pulling a year of it on
+    // every open.
+    .limit(200);
+  if (error) {
+    if (isMissingTable(error)) { markCommunitySchemaMissing(); return []; }
+    throw error;
+  }
+  return ((data ?? []) as unknown as {
+    id: string; body: string; author_id: string | null; created_at: string;
+    author: { name: string; avatar_url: string | null } | null;
+  }[]).map((row) => ({
+    id: row.id,
+    body: row.body,
+    authorId: row.author_id,
+    // A deleted account leaves its messages behind; the thread still has to
+    // read as a conversation.
+    authorName: row.author?.name ?? 'Someone who left',
+    authorAvatar: row.author?.avatar_url ?? null,
+    createdAt: row.created_at,
+    mine: !!me && row.author_id === me,
+  }));
+}
+
+export async function postCommunityMessage(ref: string, body: string): Promise<void> {
+  const text = body.trim();
+  if (!text) return;
+  if (text.length > 2000) throw new Error('That message is too long.');
+  const communityId = await resolveCommunityId(ref);
+  const me = await currentAppUserId();
+  const { error } = await supabase
+    .from('community_messages')
+    .insert({ community_id: communityId, author_id: me, body: text });
+  if (error) {
+    // The insert policy is the only thing that knows the mode, so a refusal
+    // here means announcements-only and this person does not run the place.
+    if ((error as { code?: string }).code === '42501') {
+      throw new Error('Only admins and moderators can post here.');
+    }
+    if (isMissingTable(error)) {
+      markCommunitySchemaMissing();
+      throw new Error('The community thread is not available yet.');
+    }
+    throw error;
+  }
+}
+
+export async function deleteCommunityMessage(messageId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('community_messages').delete().eq('id', messageId).select('id');
+  if (error) throw error;
+  // A policy-gated delete that matches nothing is not an error; it removed
+  // nothing and said it was fine.
+  if (!data?.length) throw new Error('That message is not yours to remove.');
+}
+
+/** Whether this person may post, mirroring `can_post_to_community`. */
+export function canPost(mode: ChatMode, role: Role | null | undefined): boolean {
+  if (!role) return false;
+  return mode === 'chatroom' || canModerate(role);
 }

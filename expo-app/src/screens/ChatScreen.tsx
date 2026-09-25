@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Button, Card, Icon, Row } from '../components/ui';
+import { Avatar, Button, Card, Icon, MicroBadge, Row } from '../components/ui';
 import { fetchConversations, type ConversationSummary } from '../lib/chat';
 import { fetchNotifications, type AppNotification } from '../lib/notifications';
 import { useStore } from '../state/store';
@@ -14,6 +14,9 @@ export function ChatScreen() {
   const [reminder, setReminder] = React.useState<AppNotification | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [reloads, setReloads] = React.useState(0);
+  // Only the ones this person is actually in: a thread they cannot read has
+  // no business in their conversation list.
+  const myCommunities = s.communities().filter((cm) => s.joinedCommunities.includes(cm.id));
 
   // Reloads whenever the last overlay closes: leaving a thread changes both its
   // unread badge and its preview line, and there is no push channel yet.
@@ -103,6 +106,33 @@ export function ChatScreen() {
         </Card>
       ) : (
         <View style={{ gap: 11 }}>
+          {/* A community's thread is a conversation, so it belongs in the list
+              of conversations rather than buried inside the community. It is
+              read-only for a member of an announcements-only community, which
+              the room itself says -- the row does not need to. */}
+          {myCommunities.map((cm) => (
+            <Pressable
+              key={`community-${cm.id}`}
+              onPress={() => { s.set('communityId', cm.id); s.set('overlay', 'communityChat'); }}
+              accessibilityRole="button"
+              accessibilityLabel={`Open the ${cm.sport} community thread`}
+            >
+              <Card>
+                <Row style={{ padding: 14 }} gap={13}>
+                  <Avatar initials={cm.code} bg={cm.tint} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Row style={{ justifyContent: 'space-between' }} gap={8}>
+                      <Text style={[t.name, { color: c.txt, flex: 1 }]} numberOfLines={1}>{cm.sport}</Text>
+                      <MicroBadge label="Community" bg={c.surface2} fg={c.txt2} />
+                    </Row>
+                    <Text style={[t.bodySm, { color: c.txt2, marginTop: 3 }]} numberOfLines={1}>
+                      {cm.members} members
+                    </Text>
+                  </View>
+                </Row>
+              </Card>
+            </Pressable>
+          ))}
           {chats.map((chat) => (
             <Pressable
               key={chat.id}
