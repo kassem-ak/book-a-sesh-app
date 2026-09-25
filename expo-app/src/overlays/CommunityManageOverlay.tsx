@@ -18,6 +18,7 @@ import {
 } from '../lib/communities';
 import { addPhoto, setCommunityAvatar } from '../lib/communities';
 import { pickAvatar, PickedAvatar } from '../lib/avatars';
+import { currentAppUserId } from '../lib/bookings';
 import { NO_SOCIALS, SocialHandles } from '../lib/socialLinks';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, isExplicit, useStore } from '../state/store';
@@ -37,14 +38,9 @@ export function CommunityManageOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const communityId = s.communityId;
-  const myRole = s.currentCommunityRole(communityId) as unknown as string | undefined;
-  // The store speaks upper case for the older screens; everything below this
-  // line is the database's own lower-case word.
-  const role = (myRole ? String(myRole).toLowerCase() : 'member') as Role;
-  const admin = isAdmin(role);
-
   const [detail, setDetail] = useState<CommunityDetail | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [meId, setMeId] = useState<string | null>(null);
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +61,29 @@ export function CommunityManageOverlay() {
   const [deleting, setDeleting] = useState(false);
 
   const { sports } = useSports();
+
+  // The store cannot answer "am I the owner". `roleFromDb` collapses 'owner'
+  // and 'admin' into a single 'ADMIN', so `currentCommunityRole` never returns
+  // owner -- which meant the Delete section, gated on it, rendered for nobody
+  // and the owner was told "only the owner can delete this community".
+  //
+  // The member list this screen already loads carries the real roles, so the
+  // answer comes from there.
+  useEffect(() => {
+    let active = true;
+    currentAppUserId()
+      .then((id) => { if (active) setMeId(id); })
+      .catch(() => { if (active) setMeId(null); });
+    return () => { active = false; };
+  }, []);
+
+  const role: Role = members.find((member) => member.userId === meId)?.role
+    // Until the member list lands, fall back to the store's coarser answer so
+    // the screen is not briefly a refusal. It cannot say 'owner', which is why
+    // the destructive section waits for the real thing.
+    ?? (String(s.currentCommunityRole(communityId) ?? 'member').toLowerCase() as Role);
+  const admin = isAdmin(role);
+  const owner = members.find((member) => member.userId === meId)?.role === 'owner';
 
   const load = useCallback(async () => {
     if (!communityId) return;
@@ -470,7 +489,7 @@ export function CommunityManageOverlay() {
 
         {/* ---- Ending it. Owner only, and last, because it is the one thing
                 on this screen that cannot be undone. ---- */}
-        {role === 'owner' && (
+        {owner && (
           <>
             <SectionHeading style={{ marginTop: 18 }}>Delete this community</SectionHeading>
             <Text style={[t.bodySm, { color: c.txt2 }]}>
@@ -487,7 +506,7 @@ export function CommunityManageOverlay() {
             />
           </>
         )}
-        {role !== 'owner' && admin && (
+        {!owner && admin && meId !== null && (
           <Text style={[t.caption, { color: c.txt3, marginTop: 18 }]}>
             Only the owner can delete this community.
           </Text>
