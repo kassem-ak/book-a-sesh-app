@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { DatePickerSheet } from './DatePickerSheet';
+import { ConfirmIconButton } from './ItemMenu';
 import { ConfirmSheet, Field, Icon, Row, SectionHeading, VoltButton } from './ui';
 import {
   addPeriod, Blackout, blackoutLabel, cleanNote, closeDate, daysInRange, fetchMyBlackouts,
@@ -132,8 +133,9 @@ export function CoachAvailability() {
   // Removing from a group removes from every day in it. The hours were added
   // across those days in one go, and taking them back one day at a time would
   // be a different gesture than the one that made them.
-  // Asked for when it spans more than one day: the grouped card reads like a
-  // single row, and the tap on it can take a week of working hours away.
+  // Always asked for. It used to be asked only when the group spanned several
+  // days, which made the same trash can safe or not depending on how the week
+  // happened to group -- and losing one day's hours is still losing them.
   const [dropping, setDropping] = useState<{ days: number[]; period: Period } | null>(null);
 
   const dropPeriod = (days: number[], period: Period) =>
@@ -158,8 +160,10 @@ export function CoachAvailability() {
         visible={dropping !== null}
         title="Remove these hours?"
         body={dropping
-          ? `${periodLabel(dropping.period)} comes off every day in `
-            + `${groupLabel(dropping.days)} — ${dropping.days.length} days. `
+          ? (dropping.days.length === 1
+            ? `${periodLabel(dropping.period)} comes off ${groupLabel(dropping.days)}. `
+            : `${periodLabel(dropping.period)} comes off every day in `
+              + `${groupLabel(dropping.days)} — ${dropping.days.length} days. `)
             + 'Sessions already booked in those hours are not affected.'
           : ''}
         confirmLabel="Remove them"
@@ -215,9 +219,7 @@ export function CoachAvailability() {
                   </Pressable>
                   <Pressable accessibilityRole="button" disabled={busy}
                     accessibilityLabel={`Remove ${periodLabel(period)} on ${groupLabel(group.days)}`}
-                    onPress={() => (group.days.length > 1
-                      ? setDropping({ days: group.days, period })
-                      : dropPeriod(group.days, period))}
+                    onPress={() => setDropping({ days: group.days, period })}
                     style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
                     <Icon name="trash-2" size={17} color={c.txt3} />
                   </Pressable>
@@ -353,12 +355,18 @@ export function CoachAvailability() {
               <Text style={[t.name, { color: c.txt }]}>{blackoutLabel(entry.date)}</Text>
               {entry.reason ? <Text style={[t.bodySm, { color: c.txt2 }]}>{entry.reason}</Text> : null}
             </View>
-            <Pressable accessibilityRole="button" disabled={busy}
+            <ConfirmIconButton
+              icon="trash-2"
               accessibilityLabel={`Reopen ${blackoutLabel(entry.date)}`}
+              confirm={{
+                title: `Reopen ${blackoutLabel(entry.date)}?`,
+                body: 'You become bookable on that day again.',
+                confirmLabel: 'Reopen it',
+              }}
+              busy={busy}
+              size={18}
               onPress={() => void run(() => openDate(entry.date))}
-              style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="trash-2" size={18} color={c.txt3} />
-            </Pressable>
+            />
           </Row>
         ))}
 

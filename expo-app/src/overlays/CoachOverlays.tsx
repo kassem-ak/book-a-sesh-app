@@ -1,6 +1,7 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, TextInput, View } from 'react-native';
+import { ConfirmIconButton } from '../components/ItemMenu';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, VoltButton,
@@ -655,15 +656,19 @@ export function CoachPackagesOverlay() {
                             {each ? `$${each} per session` : 'Enter a number of sessions and a price'}
                           </Text>
                         </View>
-                        <Pressable
-                          onPress={() => run(() => removePackage(pkg.id), 'Could not remove that package.')}
-                          disabled={busy} accessibilityRole="button"
+                        <ConfirmIconButton
+                          icon="x"
                           accessibilityLabel={`Remove the ${pkg.sessions}-session package`}
-                          accessibilityState={{ disabled: busy }}
-                          style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: c.surface2,
-                            alignItems: 'center', justifyContent: 'center' }}>
-                          <Icon name="x" size={14} color={c.txt2} />
-                        </Pressable>
+                          confirm={{
+                            title: `Remove the ${pkg.sessions}-session package?`,
+                            body: 'It comes off your price list. Clients who already bought it keep what they paid for.',
+                            confirmLabel: 'Remove it',
+                          }}
+                          busy={busy}
+                          size={14}
+                          color={c.txt2}
+                          onPress={() => run(() => removePackage(pkg.id), 'Could not remove that package.')}
+                        />
                       </Row>
                       <Row gap={10} style={{ alignItems: 'center' }}>
                         <View style={{ width: 96 }}>
@@ -944,23 +949,19 @@ function PromoCard({
           </Text>
           <Text style={[t.bodySm, { color: c.txt2, marginTop: 2 }]}>{sub}</Text>
         </View>
-        <Pressable
-          onPress={disabled ? undefined : onRemove}
-          accessibilityRole="button"
+        <ConfirmIconButton
+          icon="x"
           accessibilityLabel={removeLabel}
-          accessibilityState={{ disabled }}
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 13,
-            backgroundColor: c.surface2,
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: disabled ? 0.5 : 1,
+          confirm={{
+            title: `Remove ${code}?`,
+            body: 'Nobody can use this code again. Bookings already made with it are unaffected.',
+            confirmLabel: 'Remove it',
           }}
-        >
-          <Icon name="x" size={12} color={c.txt2} />
-        </Pressable>
+          busy={disabled}
+          size={12}
+          color={c.txt2}
+          onPress={onRemove}
+        />
       </Row>
     </Card>
   );

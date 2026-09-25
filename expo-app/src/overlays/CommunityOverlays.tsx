@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, Card, Chip, Field, Icon, IconButton, MicroBadge, Row, SectionHeading, Segmented,
-  StripedPlaceholder, VoltButton,
+  Avatar, Button, Card, Chip, ConfirmSheet, Field, Icon, IconButton, MicroBadge, Row,
+  SectionHeading, Segmented, StripedPlaceholder, VoltButton,
 } from '../components/ui';
 import {
   EventDetail, EventPhoto, feeLabel, fetchEvent, fetchEventPhotos,
@@ -97,6 +97,7 @@ export function EventDetailOverlay() {
   // Read here so a failure costs this section and not the whole page.
   const [detail, setDetail] = useState<EventDetail | null>(null);
   const [photos, setPhotos] = useState<EventPhoto[]>([]);
+  const [withdrawing, setWithdrawing] = useState(false);
   const evId = ev?.id ?? null;
   useEffect(() => {
     if (!evId) { setDetail(null); setPhotos([]); return; }
@@ -143,7 +144,19 @@ export function EventDetailOverlay() {
             accessibilityLabel={going
               ? `You are going to ${ev.title}. Press to change your mind.`
               : `Say you are going to ${ev.title}`}
-            onPress={() => s.toggleGoing(ev.id)}
+            onPress={() => (going ? setWithdrawing(true) : s.toggleGoing(ev.id))}
+          />
+          {/* Only withdrawing asks. Saying yes to an event is yours alone to
+              undo, but taking the place back reaches the organiser's headcount
+              and cannot be put right by pressing again if it filled. */}
+          <ConfirmSheet
+            visible={withdrawing}
+            title="Not going any more?"
+            body="Your place is given up and the organiser sees you are not coming."
+            confirmLabel="I'm not going"
+            confirmIcon="user-minus"
+            onConfirm={() => { setWithdrawing(false); s.toggleGoing(ev.id); }}
+            onCancel={() => setWithdrawing(false)}
           />
         </View>
       }

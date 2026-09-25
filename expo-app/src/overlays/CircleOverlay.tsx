@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { ConfirmButton } from '../components/ItemMenu';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { Avatar, Button, MicroBadge, Row, VoltButton } from '../components/ui';
+import { Avatar, MicroBadge, Row, VoltButton } from '../components/ui';
 import { CirclePerson, fetchCircle } from '../lib/social';
 import { initials } from '../state/models';
 import { errorMessage, useStore } from '../state/store';
@@ -70,12 +71,20 @@ export function CircleOverlay() {
                 </View>
               </Row>
             </Pressable>
-            <Button
+            {/* This row only ever offers the leaving direction, and it is the
+                one that quietly empties the list; following again is a press
+                on the profile away. */}
+            <ConfirmButton
               label="Following"
               icon="check"
-              accessibilityLabel={`Stop following ${person.name}`}
+              tone="secondary"
               busy={s.writeBusy === `follow:${person.id}`}
               busyLabel="Saving…"
+              confirm={{
+                title: `Stop following ${person.name}?`,
+                body: 'Their sessions and events stop showing up in your feed. You can follow them again any time.',
+                confirmLabel: 'Stop following',
+              }}
               onPress={() => void s.toggleFollow(person.id)}
             />
           </Row>

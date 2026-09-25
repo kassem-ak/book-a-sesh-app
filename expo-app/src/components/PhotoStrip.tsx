@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
+import { HoldableItem, SafeItemAction } from './ItemMenu';
 import { Icon, Row } from './ui';
 import { FormSheet } from './ui';
-import { alpha, useTheme } from '../theme';
+import { useTheme } from '../theme';
 
 // A community's five pictures, always five slots wide.
 //
@@ -53,11 +54,31 @@ export function PhotoStrip({ photos, label, onRemove, busy, emptySlots = true }:
           {slots.slice(0, STRIP_SLOTS).map((photo: StripPhoto | null, index) => (
             <View key={photo?.id ?? `empty-${index}`} style={{ width: tile, height: tile }}>
               {photo ? (
-                <Pressable
+                // A fifth of a phone wide leaves no room for a delete target
+                // that is not also a mis-tap. Tap opens the picture; hold
+                // lists what can be done to it.
+                <HoldableItem
                   onPress={() => setViewing(photo)}
-                  accessibilityRole="button"
+                  busy={busy}
+                  showMore={false}
+                  menuTitle={photo.caption || `Picture ${index + 1}`}
+                  menuSubtitle={label}
                   accessibilityLabel={photo.caption ?? `${label}, picture ${index + 1}`}
-                  accessibilityHint="Opens it full size"
+                  actions={[
+                    { key: 'view', label: 'View it full size', icon: 'maximize-2', onPress: () => setViewing(photo) },
+                    ...(onRemove ? [{
+                      key: 'remove',
+                      label: 'Remove it',
+                      icon: 'trash-2' as const,
+                      destructive: true as const,
+                      confirm: {
+                        title: 'Remove this picture?',
+                        body: 'It comes off the gallery and the file is deleted.',
+                        confirmLabel: 'Remove it',
+                      },
+                      onPress: () => onRemove(photo),
+                    }] : []),
+                  ] as SafeItemAction[]}
                   style={{
                     width: '100%', height: '100%', borderRadius: 10,
                     overflow: 'hidden', backgroundColor: c.surface2,
@@ -65,24 +86,7 @@ export function PhotoStrip({ photos, label, onRemove, busy, emptySlots = true }:
                 >
                   <Image source={{ uri: photo.url }} accessibilityIgnoresInvertColors
                     style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                  {onRemove && (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove picture ${index + 1}`}
-                      onPress={() => onRemove(photo)}
-                      disabled={busy}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      style={{
-                        position: 'absolute', top: 3, right: 3,
-                        width: 26, height: 26, borderRadius: 13,
-                        alignItems: 'center', justifyContent: 'center',
-                        backgroundColor: alpha(c.ink, 0.66),
-                      }}
-                    >
-                      <Icon name="x" size={13} color="#FFFFFF" />
-                    </Pressable>
-                  )}
-                </Pressable>
+                </HoldableItem>
               ) : (
                 <View style={{
                   width: '100%', height: '100%', borderRadius: 10,

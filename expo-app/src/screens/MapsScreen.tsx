@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Button, Field, IconButton } from '../components/ui';
+import { Avatar, Button, Chip, Field, IconButton } from '../components/ui';
 import { MapCanvas, MapMarker } from '../components/MapCanvas';
 import { useSports } from '../components/useSports';
 import { track } from '../lib/analytics';
@@ -119,17 +119,14 @@ export function MapsScreen({ loadError, onRetry }: { loadError?: string | null; 
 
       <View style={{ position: 'absolute', top: 24, left: 18, right: 18 }}>
         <Field value={query} onChange={setQuery} placeholder="Search this area" icon="search" />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 5, paddingHorizontal: 8, alignItems: 'center' }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 5, alignItems: 'center' }}>
           {areaFilters.map((label, index) => (
-            <Pressable key={label} onPress={() => {
-              track('maps_filter_used', { selected_index: index, active: filter !== label });
-              setFilter(filter === label ? null : label);
-            }} accessibilityRole="button" accessibilityLabel={`Filter by ${label === GYMS ? 'gyms' : label.toLowerCase()}`}
-              accessibilityState={{ selected: filter === label }} style={{ minHeight: 36, justifyContent: 'center' }}>
-              <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: alpha(c.volt, 0.24), backgroundColor: filter === label ? c.volt : alpha(c.volt, 0.1) }}>
-                <Text style={[t.microBadge, { fontSize: 10, color: filter === label ? c.ink : c.accent }]}>{label}</Text>
-              </View>
-            </Pressable>
+            <Chip key={label} label={label} active={filter === label}
+              accessibilityLabel={`Filter by ${label === GYMS ? 'gyms' : label.toLowerCase()}`}
+              onPress={() => {
+                track('maps_filter_used', { selected_index: index, active: filter !== label });
+                setFilter(filter === label ? null : label);
+              }} />
           ))}
         </ScrollView>
 

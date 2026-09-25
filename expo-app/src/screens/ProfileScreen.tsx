@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Avatar, Card, Icon, MicroBadge, Row, SectionHeading, Toggle } from '../components/ui';
+import { Avatar, Card, ConfirmSheet, Icon, IconButton, MicroBadge, Row, SectionHeading, Toggle } from '../components/ui';
 import { fetchMyBookings } from '../lib/bookings';
 import { signOutUser } from '../lib/session';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { initials } from '../state/models';
 import { errorMessage, useStore } from '../state/store';
-import { alpha, useTheme } from '../theme';
+import { alpha, radii, useTheme } from '../theme';
 
 export function ProfileScreen() {
   const { c, t } = useTheme();
@@ -22,6 +22,7 @@ export function ProfileScreen() {
   // `null` means "not loaded / could not load" and renders no badge at all —
   // the same contract as joinedCount. A count is never invented.
   const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -53,16 +54,12 @@ export function ProfileScreen() {
           </Text>
         </View>
         <Row gap={10}>
-          <Pressable
-            onPress={s.openNotifs}
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-            style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Icon name="bell" size={20} color={c.txt2} />
-          </Pressable>
-          <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="user" size={20} color={c.accent} />
+          <IconButton icon="bell" accessibilityLabel="Notifications" onPress={s.openNotifs} />
+          {/* Not a button: it marks which tab you are on. Left hand-rolled
+              because IconButton would put a pressable in the reader's path
+              for something nothing happens on. */}
+          <View style={{ width: 44, height: 44, borderRadius: radii.button, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="user" size={18} color={c.accent} />
           </View>
         </Row>
       </Row>
@@ -198,16 +195,29 @@ export function ProfileScreen() {
               // authEmail is nullable, and template-stringing it printed the
               // literal word "null" for any account without one.
               body={[s.authName, s.authEmail].filter(Boolean).join(' · ') || 'Signed in'}
-              onPress={() => {
-                void signOutUser().catch((error) => {
-                  track('write_failed', { error_code: analyticsErrorCode(error) });
-                  s.set('writeError', errorMessage(error));
-                });
-              }}
+              // A row, not a button, so ConfirmButton does not fit -- but the
+              // guarantee is the same: the press asks, it does not sign out.
+              onPress={() => setSigningOut(true)}
             />
           </>
         </>
       </Card>
+
+      <ConfirmSheet
+        visible={signingOut}
+        title="Sign out?"
+        body="You will need to sign in again to see your bookings and messages."
+        confirmLabel="Sign out"
+        confirmIcon="log-out"
+        onConfirm={() => {
+          setSigningOut(false);
+          void signOutUser().catch((error) => {
+            track('write_failed', { error_code: analyticsErrorCode(error) });
+            s.set('writeError', errorMessage(error));
+          });
+        }}
+        onCancel={() => setSigningOut(false)}
+      />
     </ScrollView>
   );
 }

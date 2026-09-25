@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  Avatar, Button, Card, Chip, Field, Icon, Note, Row, SectionHeading, Segmented, Stars,
+  Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Note, Row, SectionHeading, Segmented, Stars,
   StatusLine,
 } from '../components/ui';
 import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, parseGeoPoint } from '../lib/geo';
@@ -169,7 +169,9 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
       </Row>
 
       <Pressable onPress={() => s.set('sportMenu', !s.sportMenu)} accessibilityRole="button" accessibilityLabel="Choose sport or hobby" accessibilityState={{ expanded: s.sportMenu }}
-        style={{ flexDirection: 'row', alignItems: 'center', minHeight: 40, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 999, paddingHorizontal: 22 }}>
+        // Gutter and height match the Field directly below, so the two stacked
+        // controls start their text on the same line.
+        style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14 }}>
         <Text style={[t.labelSm, { color: c.soft, flex: 1 }]}>{s.sport === 'All' ? 'All sports and hobbies' : s.sport}</Text>
         <Icon name={s.sportMenu ? 'chevron-up' : 'chevron-down'} size={20} color={c.txt3} />
       </Pressable>
@@ -276,13 +278,21 @@ export function PersonCard({ p, distanceLabel, onPress }: { p: Person; distanceL
           </Row>}
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
-          {p.boosted && <View style={{ backgroundColor: alpha(c.amber, 0.2), borderColor: alpha(c.amber, 0.3), borderWidth: 1, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999 }}>
-            <Text style={[t.microBadge, { color: c.amberText }]}>BOOSTED</Text>
-          </View>}
-          {p.isCoach ? <>
-            <Text style={[t.price, { color: c.accent }]}>${p.price}</Text>
-            <Text style={[t.caption, { color: c.txt3 }]}>per session</Text>
-          </> : <Text style={[t.labelSm, { color: c.txt2 }]}>{p.level}</Text>}
+          {p.boosted && <MicroBadge label="BOOSTED" bg={alpha(c.amber, 0.2)} fg={c.amberText} />}
+          {/* A coach who has not set a rate is not a free coach. `$0 per
+              session` advertised exactly that, and it is the first thing a
+              member reads on the card. Say nothing until there is something
+              to say. */}
+          {p.isCoach ? (
+            Number(p.price) > 0 ? (
+              <>
+                <Text style={[t.price, { color: c.accent }]}>${p.price}</Text>
+                <Text style={[t.caption, { color: c.txt3 }]}>per session</Text>
+              </>
+            ) : (
+              <Text style={[t.caption, { color: c.txt3 }]}>Ask for a price</Text>
+            )
+          ) : <Text style={[t.labelSm, { color: c.txt2 }]}>{p.level}</Text>}
         </View>
       </Row>
     </Card>

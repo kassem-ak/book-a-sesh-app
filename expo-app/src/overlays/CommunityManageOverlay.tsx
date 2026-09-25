@@ -60,7 +60,6 @@ export function CommunityManageOverlay() {
   const [socials, setSocials] = useState<SocialHandles>(NO_SOCIALS);
 
   const [dropping, setDropping] = useState<Member | null>(null);
-  const [droppingPhoto, setDroppingPhoto] = useState<Photo | null>(null);
   const [official, setOfficial] = useState<OfficialStatus>('none');
   const [deleting, setDeleting] = useState(false);
 
@@ -238,20 +237,6 @@ export function CommunityManageOverlay() {
         })()}
         onCancel={() => setDeleting(false)}
       />
-      <ConfirmSheet
-        visible={droppingPhoto !== null}
-        title="Remove this picture?"
-        body="It comes off the community's gallery. The file is deleted."
-        confirmLabel="Remove it"
-        busy={busy === 'photo'}
-        busyLabel="Removing…"
-        onConfirm={() => { if (droppingPhoto) void run('photo', async () => {
-          await removePhoto(droppingPhoto);
-          setDroppingPhoto(null);
-        }); }}
-        onCancel={() => setDroppingPhoto(null)}
-      />
-
       <View style={{ paddingHorizontal: 18, gap: 16, paddingBottom: 24 }}>
         {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
         {loading && (
@@ -349,9 +334,11 @@ export function CommunityManageOverlay() {
             photos={photos}
             label={`${detail?.name ?? 'This community'} gallery`}
             busy={!!busy}
+            // PhotoStrip's hold-menu asks before it calls this, so the
+            // removal runs straight away rather than opening a second sheet.
             onRemove={(photo) => {
               const found = photos.find((candidate) => candidate.id === photo.id);
-              if (found) setDroppingPhoto(found);
+              if (found) void run('photo', () => removePhoto(found));
             }}
           />
 

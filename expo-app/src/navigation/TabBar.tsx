@@ -51,10 +51,10 @@ export function TabBar() {
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
             accessibilityLabel={item.label}
-            style={{ flex: 1, alignItems: 'center', gap: 4 }}
+            style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 4 }}
           >
             <Feather name={item.icon} size={23} color={active ? c.accent : c.txt3} />
-            <Text style={[t.navLabel, { color: active ? c.accent : c.txt3 }]}>{item.label}</Text>
+            <Text numberOfLines={1} style={[t.navLabel, { color: active ? c.accent : c.txt3 }]}>{item.label}</Text>
           </Pressable>
         );
       })}

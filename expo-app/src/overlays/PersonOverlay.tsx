@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { CertificateTile, CertificateViewer, TILE_GAP } from '../components/Certificates';
 import { SocialRow } from '../components/SocialLinks';
+import { ConfirmIconButton } from '../components/ItemMenu';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
-  Avatar, Button, Card, Icon, IconButton, Row, SectionHeading, Stars, VoltButton,
+  Avatar, Button, Card, ConfirmSheet, Icon, IconButton, Row, SectionHeading, Stars, VoltButton,
 } from '../components/ui';
 import { coachPackageOptions, initials, personMeta } from '../state/models';
 import { Certification, fetchCertifications } from '../lib/coaching';
@@ -20,6 +21,7 @@ export function PersonOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
   const [messaging, setMessaging] = useState(false);
+  const [blocking, setBlocking] = useState(false);
   const p = s.personById(s.openId);
 
   // EVERY hook runs before the missing-person return below. Root replaces the
@@ -100,14 +102,31 @@ export function PersonOverlay() {
               refuses. */}
           {/* Bare 22pt glyphs before this, 14pt apart: the two controls people
               press most on a profile were half the 44pt floor. */}
-          {!blocked && (
+          {/* Only the leaving direction asks. Following costs nothing and the
+              next press undoes it; dropping someone is the half nobody
+              notices until their sessions have stopped arriving. */}
+          {!blocked && (following ? (
+            <ConfirmIconButton
+              icon="user-check"
+              accessibilityLabel={`Stop following ${p.name}`}
+              size={18}
+              color={c.accent}
+              busy={s.writeBusy === `follow:${p.id}`}
+              confirm={{
+                title: `Stop following ${p.name}?`,
+                body: 'Their sessions and events stop showing up in your feed. You can follow them again any time.',
+                confirmLabel: 'Stop following',
+              }}
+              onPress={() => void s.toggleFollow(p.id)}
+            />
+          ) : (
             <IconButton
-              icon={following ? 'user-check' : 'user-plus'}
-              accessibilityLabel={following ? `Stop following ${p.name}` : `Follow ${p.name}`}
+              icon="user-plus"
+              accessibilityLabel={`Follow ${p.name}`}
               enabled={s.writeBusy !== `follow:${p.id}`}
               onPress={() => void s.toggleFollow(p.id)}
             />
-          )}
+          ))}
           <IconButton
             icon="message-square"
             accessibilityLabel={`Message ${p.name}`}
@@ -247,7 +266,13 @@ export function PersonOverlay() {
                       <Text style={[t.name, { color: c.txt }]}>{pkg.name}</Text>
                       <Text style={[t.bodySm, { color: c.txt2, marginTop: 1 }]}>{pkg.note}</Text>
                     </View>
-                    <Text style={[t.price, { color: c.accent }]}>${pkg.price}</Text>
+                    {/* Same reason as the Discover card: a coach who has not
+                        set a rate is not offering to work for nothing. */}
+                    {Number(pkg.price) > 0 ? (
+                      <Text style={[t.price, { color: c.accent }]}>${pkg.price}</Text>
+                    ) : (
+                      <Text style={[t.bodySm, { color: c.txt3 }]}>Ask</Text>
+                    )}
                   </Row>
                 </Card>
               ))}
@@ -264,8 +289,11 @@ export function PersonOverlay() {
           <Button label="Report" icon="flag" tone="danger" height={46} style={{ flex: 1 }}
             accessibilityLabel={`Report ${p.name}`}
             onPress={() => s.set('overlay', 'report')} />
+          {/* Only blocking asks. It cuts the follow both ways and the other
+              person is never told, so a mis-tap is a change neither of you
+              can see; unblocking only hands back what was taken. */}
           <Pressable
-            onPress={() => void s.toggleBlock(p.id)}
+            onPress={() => (blocked ? void s.toggleBlock(p.id) : setBlocking(true))}
             disabled={s.writeBusy === 'block'}
             accessibilityRole="button"
             accessibilityLabel={`${blocked ? 'Unblock' : 'Block'} ${p.name}`}
@@ -277,6 +305,16 @@ export function PersonOverlay() {
             </Text>
           </Pressable>
         </Row>
+        <ConfirmSheet
+          visible={blocking}
+          title={`Block ${p.name}?`}
+          body="They will not be able to message you or book you, and you will stop following each other. You can undo this in Safety."
+          confirmLabel="Block them"
+          confirmIcon="slash"
+          busy={s.writeBusy === 'block'}
+          onConfirm={() => { setBlocking(false); void s.toggleBlock(p.id); }}
+          onCancel={() => setBlocking(false)}
+        />
         {blocked && (
           <Text style={[t.caption, { color: c.txt3, marginTop: 8 }]}>
             Blocked. Neither of you can message the other, and they are not told.

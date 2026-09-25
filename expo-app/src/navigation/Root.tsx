@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ConfirmButton } from '../components/ItemMenu';
 import { BrandMark, Button } from '../components/ui';
 import { ensureAppSession, signOutUser } from '../lib/session';
 import { identify } from '../lib/analytics';
@@ -23,6 +24,18 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { OverlayRouter } from './OverlayRouter';
 import { SheetRouter } from './SheetRouter';
 import { TabBar } from './TabBar';
+
+// Both dead-end screens below offer the same escape hatch, so they ask the
+// same question -- worded once so the two cannot drift apart.
+const SIGN_OUT_CONFIRM = {
+  title: 'Sign out?',
+  body: 'You will need to sign in again to see your bookings and messages.',
+  confirmLabel: 'Sign out',
+};
+
+const signOut = () => {
+  void signOutUser().catch((error) => useStore.getState().set('writeError', errorMessage(error)));
+};
 
 export function Root() {
   assertSupabaseConfigured();
@@ -188,8 +201,7 @@ export function Root() {
               retryPeople();
               setModuleAttempt((attempt) => attempt + 1);
             }} />
-          <Button label="Sign out" icon="log-out" tone="danger"
-            onPress={() => { void signOutUser().catch((error) => useStore.getState().set('writeError', errorMessage(error))); }} />
+          <ConfirmButton label="Sign out" icon="log-out" confirm={SIGN_OUT_CONFIRM} onPress={signOut} />
         </View>
       </View>
       <ErrorBanner />
@@ -236,8 +248,7 @@ export function Root() {
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
               <Button label="Check again" icon="refresh-cw"
                 onPress={() => setModuleAttempt(moduleAttempt + 1)} />
-              <Button label="Sign out" icon="log-out" tone="danger"
-                onPress={() => { void signOutUser(); }} />
+              <ConfirmButton label="Sign out" icon="log-out" confirm={SIGN_OUT_CONFIRM} onPress={signOut} />
             </View>
           </View>
         )}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ConfirmButton } from '../components/ItemMenu';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Button, Card, Chip, Field, Icon, MicroBadge, Row, SectionHeading, VoltButton,
@@ -165,8 +166,14 @@ export function AccountingExpenseOverlay() {
       bottomBar={
         <View style={{ padding: 16, backgroundColor: c.bg, gap: 12 }}>
           <VoltButton label="Save expense" enabled={s.canSaveExpense()} onPress={s.saveExpense} />
+          {/* 52 to match the Save above it: a danger Button defaults to 44. */}
           {editing && (
-            <Button label="Delete expense" icon="trash-2" tone="danger" height={52} full
+            <ConfirmButton label="Delete expense" icon="trash-2" full style={{ height: 52 }}
+              confirm={{
+                title: 'Delete this expense?',
+                body: 'It comes off the books. This cannot be undone.',
+                confirmLabel: 'Delete it',
+              }}
               onPress={s.deleteExpense} />
           )}
         </View>

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
-  Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, StatusLine,
-  StripedPlaceholder,
+  Avatar, Button, Card, ConfirmSheet, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading,
+  StatusLine, StripedPlaceholder,
 } from '../components/ui';
+import { HoldableItem, SafeItemAction } from '../components/ItemMenu';
 import { Community, CommunityRole, EventItem, EventSuggestion } from '../state/models';
 import { fetchCommunities, fetchEvents, fetchEventSuggestions, fetchMyCommunityMemberships } from '../lib/queries';
 import { useStore } from '../state/store';
@@ -246,8 +247,45 @@ const roleLabel: Record<CommunityRole, string> = { ADMIN: 'Admin', MODERATOR: 'M
 
 function CommunityCard({ cm, joined, pending, role, onOpen, onToggle }: { cm: Community; joined: boolean; pending: boolean; role: CommunityRole; onOpen: () => void; onToggle: () => void }) {
   const { c, t } = useTheme();
+  const s = useStore();
+  const [leaving, setLeaving] = useState(false);
+
+  // Hold the card for everything you can do to it. The pill stays because
+  // join/leave is the one action worth a permanent target; the rest -- opening
+  // it, running it -- has never had a home outside the community itself.
+  const actions: SafeItemAction[] = [
+    { key: 'open', label: 'Open the community', icon: 'arrow-right', onPress: onOpen },
+    ...(joined && role !== 'MEMBER' ? [{
+      key: 'manage',
+      label: 'Community settings',
+      icon: 'settings' as const,
+      onPress: () => { s.set('communityId', cm.id); s.openEditCommunity(); },
+    }] : []),
+    ...(joined ? [{
+      key: 'leave',
+      label: `Leave ${cm.sport}`,
+      icon: 'log-out' as const,
+      destructive: true as const,
+      confirm: {
+        title: `Leave ${cm.sport}?`,
+        body: 'You lose access to members-only events and posts. If the community is closed '
+          + 'you will have to ask to join again.',
+        confirmLabel: 'Leave',
+      },
+      onPress: onToggle,
+    }] : []),
+  ];
+
   return (
-    <Card onPress={onOpen}>
+    <Card>
+      <HoldableItem
+        actions={actions}
+        onPress={onOpen}
+        showMore={false}
+        menuTitle={cm.sport}
+        menuSubtitle={`${cm.members} members`}
+        accessibilityLabel={cm.sport}
+      >
       <Row style={{ padding: 14 }} gap={12}>
         <Avatar initials={cm.code} size={52} radius={14} bg={cm.tint} />
         <View style={{ flex: 1 }}>
@@ -263,8 +301,11 @@ function CommunityCard({ cm, joined, pending, role, onOpen, onToggle }: { cm: Co
             request, and a button that still says Join is a button that looks
             like it did nothing. Pressing it again is a no-op the server
             already treats as the same ask, so it is simply disabled. */}
+        {/* Only leaving asks. Joining is one press and the same press undoes
+            it, but leaving a closed community means asking a moderator to be
+            let back in -- and the pill sits under a thumb aimed at the card. */}
         <Pressable
-          onPress={onToggle}
+          onPress={() => (joined ? setLeaving(true) : onToggle())}
           disabled={pending}
           accessibilityRole="button"
           accessibilityState={{ disabled: pending }}
@@ -285,6 +326,18 @@ function CommunityCard({ cm, joined, pending, role, onOpen, onToggle }: { cm: Co
           </Text>
         </Pressable>
       </Row>
+      </HoldableItem>
+      {/* Outside the Row but still inside the Card: the sheet is a Modal, so
+          nothing in it reaches the card underneath. */}
+      <ConfirmSheet
+        visible={leaving}
+        title={`Leave ${cm.sport}?`}
+        body="You lose access to members-only events and posts. If the community is closed you will have to ask to join again."
+        confirmLabel="Leave"
+        confirmIcon="log-out"
+        onConfirm={() => { setLeaving(false); onToggle(); }}
+        onCancel={() => setLeaving(false)}
+      />
     </Card>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, Text, TextInput, View } from 'react-native';
+import { ConfirmIconButton } from '../components/ItemMenu';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Avatar, Button, ConfirmSheet, Field, Icon, MicroBadge, Row, SectionHeading, VoltButton,
@@ -352,12 +353,17 @@ export function EventManageOverlay() {
               bg={invite.status === 'approved' ? alpha(c.volt, 0.14) : c.surface2}
               fg={invite.status === 'approved' ? c.accent : c.txt2}
             />
-            <Pressable accessibilityRole="button" disabled={!!busy}
+            <ConfirmIconButton
+              icon="x"
               accessibilityLabel={`Withdraw the invitation to ${invite.name}`}
+              confirm={{
+                title: `Withdraw the invitation to ${invite.name}?`,
+                body: 'They stop being able to see this event if it is invitation only.',
+                confirmLabel: 'Withdraw it',
+              }}
+              busy={!!busy}
               onPress={() => void run('invite', () => withdrawInvitation(invite.id))}
-              style={{ minHeight: 44, width: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
-              <Icon name="x" size={17} color={c.txt3} />
-            </Pressable>
+            />
           </Row>
         ))}
         <Button label="Invite someone" icon="user-plus" full enabled={!busy}

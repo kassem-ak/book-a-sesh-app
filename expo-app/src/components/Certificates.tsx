@@ -4,6 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import {
   Button, ConfirmSheet, Field, FormSheet, Icon, MicroBadge, Row, SectionHeading, VoltButton,
 } from './ui';
+import { HoldableItem, SafeItemAction } from './ItemMenu';
 import { PickedAvatar } from '../lib/avatars';
 import {
   addCertification, Certification, fetchCertifications, isPdf, pickCertificateFile,
@@ -76,7 +77,10 @@ export function Certificates({ coachId }: { coachId: string }) {
   // Asked for first. This deletes the uploaded file as well as the row, and
   // nothing in the app can put either back -- while "Mark done", which is
   // reversible, already asks.
-  const [dropping, setDropping] = useState<Certification | null>(null);
+  // The confirmation moved onto the tile itself: HoldableItem will not run a
+  // destructive action without asking, so a second sheet here would make the
+  // reader answer the same question twice.
+  //
   // The one being looked at. A tile is a thumbnail, and a certificate is a
   // document somebody wants to actually read.
   const [viewing, setViewing] = useState<Certification | null>(null);
@@ -86,7 +90,6 @@ export function Certificates({ coachId }: { coachId: string }) {
     setError(null);
     try {
       await removeCertification(cert.id, cert.fileUrl);
-      setDropping(null);
       setAttempt(attempt + 1);
     } catch (e) { setError(errorMessage(e)); }
     finally { setBusy(false); }
@@ -94,19 +97,6 @@ export function Certificates({ coachId }: { coachId: string }) {
 
   return (
     <View style={{ gap: 16 }}>
-      <ConfirmSheet
-        visible={dropping !== null}
-        title="Remove this certificate?"
-        body={dropping
-          ? `${dropping.name} and the photo you uploaded with it are deleted for good. `
-            + 'You would have to upload it again to get it back.'
-          : ''}
-        confirmLabel="Remove it"
-        busy={busy}
-        busyLabel="Removing…"
-        onConfirm={() => { if (dropping) void drop(dropping); }}
-        onCancel={() => setDropping(null)}
-      />
       <CertificateViewer cert={viewing} onClose={() => setViewing(null)} />
       <SectionHeading>Your certificates</SectionHeading>
       {error && <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>}
@@ -132,7 +122,7 @@ export function Certificates({ coachId }: { coachId: string }) {
         {certs?.map((cert) => (
           <CertificateTile key={cert.id} cert={cert} busy={busy}
             onOpen={() => setViewing(cert)}
-            onRemove={() => setDropping(cert)} />
+            onRemove={() => void drop(cert)} />
         ))}
       </Row>
 
@@ -191,12 +181,39 @@ export function CertificateTile({ cert, busy, onOpen, onRemove }: {
   const { c, t } = useTheme();
   const approved = cert.status === 'approved';
   const pdf = isPdf(cert.fileUrl);
+
+  // Hold the tile rather than aim at a trash can on it. The delete button was
+  // the smallest target on a third-of-a-phone tile and sat one mis-tap from
+  // destroying a credential somebody had to upload and wait to have verified.
+  const actions: SafeItemAction[] = [
+    { key: 'open', label: 'View the certificate', icon: 'maximize-2', onPress: onOpen },
+    ...(onRemove ? [{
+      key: 'remove',
+      label: 'Remove it',
+      icon: 'trash-2' as const,
+      destructive: true as const,
+      confirm: {
+        title: `Remove ${cert.name}?`,
+        body: 'The certificate and its file are deleted. If it was verified you will have to '
+          + 'upload it and be reviewed again.',
+        confirmLabel: 'Remove it',
+      },
+      onPress: onRemove,
+    }] : []),
+  ];
+
   return (
-    <Pressable
+    <HoldableItem
+      actions={actions}
       onPress={onOpen}
-      accessibilityRole="button"
+      busy={busy}
+      // The container already draws a badge top-left; a dots button top-right
+      // would collide with it on a 96pt tile, so the hold and the screen
+      // reader's own action are the ways in.
+      showMore={false}
+      menuTitle={cert.name}
+      menuSubtitle={[cert.issuer, cert.year].filter(Boolean).join(' · ') || undefined}
       accessibilityLabel={`${cert.name}${cert.issuer ? `, ${cert.issuer}` : ''}`}
-      accessibilityHint="Opens the certificate"
       style={{
       flexGrow: 1,
       flexShrink: 1,
@@ -242,17 +259,6 @@ export function CertificateTile({ cert, busy, onOpen, onRemove }: {
             fg={approved ? c.ink : '#FFFFFF'}
           />
         </View>
-        {onRemove && <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${cert.name}`}
-          onPress={onRemove} disabled={busy}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          style={{
-            position: 'absolute', top: 4, right: 4,
-            width: 32, height: 32, borderRadius: 16,
-            alignItems: 'center', justifyContent: 'center',
-            backgroundColor: alpha(c.ink, 0.66),
-          }}>
-          <Icon name="trash-2" size={15} color="#FFFFFF" />
-        </Pressable>}
       </View>
 
       <View style={{ padding: 8, gap: 1 }}>
@@ -261,7 +267,7 @@ export function CertificateTile({ cert, busy, onOpen, onRemove }: {
           {[cert.issuer, cert.year].filter(Boolean).join(' · ') || 'No issuer'}
         </Text>
       </View>
-    </Pressable>
+    </HoldableItem>
   );
 }
 
