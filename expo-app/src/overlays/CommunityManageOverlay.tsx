@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
+import { ConfirmButton } from '../components/ItemMenu';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import { PhotoStrip } from '../components/PhotoStrip';
 import { SocialFields } from '../components/SocialLinks';
@@ -280,8 +281,15 @@ export function CommunityManageOverlay() {
               <Button label="Let them in" icon="check" tone="primary" enabled={!busy}
                 accessibilityLabel={`Approve ${request.name}`}
                 onPress={() => void run('request', () => decideJoinRequest(request.id, true))} />
-              <Button label="Decline" icon="x" tone="danger" enabled={!busy}
+              {/* Turning somebody away reaches them and cannot be taken back
+                  from here, so it asks. Letting them in stays one press. */}
+              <ConfirmButton label="Decline" icon="x" enabled={!busy}
                 accessibilityLabel={`Decline ${request.name}`}
+                confirm={{
+                  title: `Decline ${request.name}?`,
+                  body: 'They are told their request was turned down. They can ask again later.',
+                  confirmLabel: 'Decline',
+                }}
                 onPress={() => void run('request', () => decideJoinRequest(request.id, false))} />
             </Row>
           </View>

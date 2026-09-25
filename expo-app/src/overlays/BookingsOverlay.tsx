@@ -956,6 +956,27 @@ function SessionCard({
   const kind = kindTint(booking.kind, c);
   const when = formatSessionWhen(booking);
   const cancellable = Boolean(onAskCancel) && canCancel(booking.status);
+  // One two-step confirm serves two different decisions: dropping a session
+  // you already have, and turning down one somebody just asked you for. The
+  // mechanism underneath is the same call, but the person reading it pressed
+  // a different word, so the words here follow the button, not the call.
+  const ask = booking.needsAnswer && onAccept
+    ? {
+      question: 'Decline this session? They are told you cannot make it.',
+      keep: 'Back',
+      keepLabel: `Leave the request from ${booking.withName} unanswered`,
+      confirm: 'Yes, decline',
+      working: 'Declining…',
+      confirmLabel: `Confirm declining training with ${booking.withName} on ${when}`,
+    }
+    : {
+      question: 'Cancel this session?',
+      keep: 'Keep',
+      keepLabel: `Keep your session with ${booking.withName} on ${when}`,
+      confirm: 'Yes, cancel',
+      working: 'Cancelling…',
+      confirmLabel: `Confirm cancelling your session with ${booking.withName} on ${when}`,
+    };
   return (
     <Card style={{ padding: 14, borderLeftWidth: 3, borderLeftColor: kind.rail }}>
       <Row gap={11}>
@@ -1015,7 +1036,10 @@ function SessionCard({
         </Text>
       )}
 
-      {booking.needsAnswer && onAccept && (
+      {/* Hidden while the confirm row is up. Both render "Decline", so asking
+          "are you sure?" underneath the button that asked it left two Declines
+          on screen and no way to tell which one was the real answer. */}
+      {booking.needsAnswer && onAccept && !confirming && (
         <Row style={{ marginTop: 10, justifyContent: 'space-between' }} gap={10}>
           <Text style={[t.caption, { color: c.txt2, flex: 1 }]}>
             {booking.withName.split(' ')[0]} asked you to train.
@@ -1033,20 +1057,20 @@ function SessionCard({
 
       {cancellable && confirming ? (
         <Row style={{ marginTop: 10, justifyContent: 'space-between' }} gap={10}>
-          <Text style={[t.caption, { color: c.txt2, flex: 1 }]}>Cancel this session?</Text>
+          <Text style={[t.caption, { color: c.txt2, flex: 1 }]}>{ask.question}</Text>
           <Row gap={14}>
             <TextAction
-              label="Keep"
+              label={ask.keep}
               icon="check"
-              accessibilityLabel={`Keep your session with ${booking.withName} on ${when}`}
+              accessibilityLabel={ask.keepLabel}
               onPress={busy ? undefined : onKeep}
             />
             <TextAction
-              label={busy ? 'Cancelling…' : 'Yes, cancel'}
+              label={busy ? ask.working : ask.confirm}
               icon="x-circle"
               tone="danger"
               busy={busy}
-              accessibilityLabel={`Confirm cancelling your session with ${booking.withName} on ${when}`}
+              accessibilityLabel={ask.confirmLabel}
               onPress={busy ? undefined : onConfirmCancel}
             />
           </Row>

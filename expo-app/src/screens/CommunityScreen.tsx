@@ -5,6 +5,8 @@ import {
   StatusLine, StripedPlaceholder,
 } from '../components/ui';
 import { HoldableItem, SafeItemAction } from '../components/ItemMenu';
+import { PersonPicker } from '../components/PersonPicker';
+import { suggestCommunity } from '../lib/communities';
 import { Community, CommunityRole, EventItem, EventSuggestion } from '../state/models';
 import { fetchCommunities, fetchEvents, fetchEventSuggestions, fetchMyCommunityMemberships } from '../lib/queries';
 import { useStore } from '../state/store';
@@ -249,12 +251,17 @@ function CommunityCard({ cm, joined, pending, role, onOpen, onToggle }: { cm: Co
   const { c, t } = useTheme();
   const s = useStore();
   const [leaving, setLeaving] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
 
   // Hold the card for everything you can do to it. The pill stays because
   // join/leave is the one action worth a permanent target; the rest -- opening
   // it, running it -- has never had a home outside the community itself.
   const actions: SafeItemAction[] = [
     { key: 'open', label: 'Open the community', icon: 'arrow-right', onPress: onOpen },
+    // Any community, by any user, to any user -- a suggestion carries no
+    // access, so suggesting a closed one is fine and is the point: the person
+    // then asks to join it.
+    { key: 'suggest', label: 'Suggest it to someone', icon: 'send', onPress: () => setSuggesting(true) },
     ...(joined && role !== 'MEMBER' ? [{
       key: 'manage',
       label: 'Community settings',
@@ -327,6 +334,14 @@ function CommunityCard({ cm, joined, pending, role, onOpen, onToggle }: { cm: Co
         </Pressable>
       </Row>
       </HoldableItem>
+      <PersonPicker
+        visible={suggesting}
+        title="Suggest this community"
+        subtitle={cm.sport}
+        actionLabel="Suggest"
+        onClose={() => setSuggesting(false)}
+        onPick={(userId) => suggestCommunity(cm.id, userId)}
+      />
       {/* Outside the Row but still inside the Card: the sheet is a Modal, so
           nothing in it reaches the card underneath. */}
       <ConfirmSheet

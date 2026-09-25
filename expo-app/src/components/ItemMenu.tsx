@@ -212,8 +212,14 @@ export function HoldableItem({
  *  confirmation is part of the component, not something to remember. */
 export function ConfirmButton({
   label, icon, confirm, onPress, busy, busyLabel, full, tone = 'danger', enabled = true, style,
+  accessibilityLabel,
 }: {
   label: string;
+  /** Says WHICH one. Four of these sit in lists where every row reads
+   *  "Decline", and a screen reader hears the same word repeated with nothing
+   *  to tell the rows apart. Defaults to the label for the single-button
+   *  cases where the label is already unambiguous. */
+  accessibilityLabel?: string;
   icon: IconName;
   confirm: { title: string; body: string; confirmLabel: string };
   onPress: () => void;
@@ -236,7 +242,7 @@ export function ConfirmButton({
         busyLabel={busyLabel}
         enabled={enabled && !busy}
         style={style}
-        accessibilityLabel={label}
+        accessibilityLabel={accessibilityLabel ?? label}
         onPress={() => setAsking(true)}
       />
       <ConfirmSheet

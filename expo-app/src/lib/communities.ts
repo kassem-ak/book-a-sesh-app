@@ -100,6 +100,17 @@ export function refColumn(ref: string): 'id' | 'slug' {
   return UUID.test(ref) ? 'id' : 'slug';
 }
 
+/** A slug or an id in, the real uuid out. */
+export async function resolveCommunityId(ref: string): Promise<string> {
+  if (UUID.test(ref)) return ref;
+  const { data, error } = await supabase
+    .from('communities').select('id').eq('slug', ref).maybeSingle();
+  if (error) throw error;
+  const found = (data as { id?: string } | null)?.id;
+  if (!found) throw new Error('That community is no longer listed.');
+  return found;
+}
+
 function detailFrom(row: Record<string, unknown>): CommunityDetail {
   return {
     id: row.id as string,
@@ -436,10 +447,14 @@ export async function setCommunityAvatar(
  *  a suggestion carries no access, so suggesting a closed one is fine -- the
  *  point is that they then ask to join it. */
 export async function suggestCommunity(
-  communityId: string, toUserId: string, note?: string,
+  ref: string, toUserId: string, note?: string,
 ): Promise<void> {
   const me = await currentAppUserId();
   if (me === toUserId) throw new Error('You are already looking at it.');
+  // The store hands out slugs, and community_id is a uuid column -- sending
+  // "freedive" at it raises 22P02 rather than simply matching nothing. Every
+  // entry point has to resolve, so this one resolves for its caller.
+  const communityId = await resolveCommunityId(ref);
   const { error } = await supabase.from('community_suggestions').insert({
     community_id: communityId,
     from_user: me,

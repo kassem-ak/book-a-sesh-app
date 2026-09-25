@@ -105,7 +105,17 @@ export function AdminAccountingOverlay() {
                   <Text style={[t.caption, { fontFamily: t.microBadge.fontFamily, color: c.ink }]}>Approve as {admin.split(' ')[0]}</Text>
                 </Pressable>
               ))}
-              <Button label="Withdraw" icon="corner-up-left" onPress={s.cancelProposal} />
+              {/* Withdrawing throws away the approvals other admins have
+                  already given. Re-proposing is possible, but it means asking
+                  each of them again. */}
+              <ConfirmButton label="Withdraw" icon="corner-up-left" tone="secondary"
+                confirm={{
+                  title: 'Withdraw this proposal?',
+                  body: 'The approvals already recorded against it are lost. You can propose the '
+                    + 'same change again, but every admin has to approve it again.',
+                  confirmLabel: 'Withdraw it',
+                }}
+                onPress={s.cancelProposal} />
             </Row>
           </Card>
         )}

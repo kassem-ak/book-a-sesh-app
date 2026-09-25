@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { CalendarItem, calendarWhen, fetchCalendar } from '../lib/calendar';
 import { decidePartnerSession } from '../lib/partners';
+import { ConfirmButton } from '../components/ItemMenu';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Button, Card, ErrorNote, Icon, MicroBadge, Row, SectionHeading, VoltButton,
@@ -422,8 +423,15 @@ export function NotificationsOverlay() {
                       busy={answering === item.id} busyLabel="Saving…"
                       enabled={answering === null}
                       onPress={() => void answer(item, 'accepted')} />
-                    <Button label="Decline" icon="x" tone="danger" style={{ flex: 1 }}
+                    {/* Accepting can be walked back by cancelling; a refusal
+                        reaches the other person and stops here. */}
+                    <ConfirmButton label="Decline" icon="x" style={{ flex: 1 }}
                       accessibilityLabel={`Decline ${item.title}`}
+                      confirm={{
+                        title: 'Decline this session?',
+                        body: 'They are told you are not training together this time.',
+                        confirmLabel: 'Decline it',
+                      }}
                       busy={answering === item.id} busyLabel="Saving…"
                       enabled={answering === null}
                       onPress={() => void answer(item, 'declined')} />

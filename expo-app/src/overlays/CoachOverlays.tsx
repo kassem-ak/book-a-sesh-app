@@ -1,7 +1,7 @@
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { ConfirmIconButton } from '../components/ItemMenu';
+import { ConfirmButton, ConfirmIconButton } from '../components/ItemMenu';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Avatar, Button, Card, ErrorNote, Icon, MicroBadge, Note, Row, SectionHeading, VoltButton,
@@ -337,12 +337,25 @@ export function CoachRequestsOverlay() {
                             enabled={busyId !== a.id}
                             onPress={() => decide(a.id, 'approved')}
                           />
-                          <Button
+                          {/* The client is notified either way, but only a
+                              refusal is the one they cannot undo from here. */}
+                          <ConfirmButton
                             label="Decline"
                             icon="x"
-                            tone="danger"
                             style={{ flex: 1 }}
                             accessibilityLabel={`Decline the request from ${a.clientName}`}
+                            confirm={{
+                              title: `Decline ${a.clientName}'s request?`,
+                              // NOT "the slot is released". decideApptRequest
+                              // writes `status` and nothing else -- the note
+                              // further down this screen says so, and the
+                              // grant is `update (status)` alone. Promising
+                              // the booking moves would be a lie the coach
+                              // acts on.
+                              body: 'It records your answer and they are told. Their booking is '
+                                + 'not changed by this — cancel it separately if that is what you mean.',
+                              confirmLabel: 'Decline it',
+                            }}
                             enabled={busyId !== a.id}
                             onPress={() => decide(a.id, 'declined')}
                           />
@@ -764,8 +777,16 @@ export function CoachPackagesOverlay() {
                         <RefundNegotiation request={request}
                           suggestedCents={suggested}
                           onSettled={load} />
-                        <Button label="Decline the cancellation" icon="x" tone="danger" enabled={!busy}
+                        {/* Refusing is the branch that ends in a "no" for
+                            somebody else and cannot be reversed here. */}
+                        <ConfirmButton label="Decline the cancellation" icon="x" enabled={!busy}
                           accessibilityLabel={`Decline the cancellation from ${pack.withName}`}
+                          confirm={{
+                            title: 'Decline this cancellation?',
+                            body: 'The package stays as it is and the client is told you have refused. '
+                              + 'They can ask again.',
+                            confirmLabel: 'Decline it',
+                          }}
                           onPress={() => run(
                             () => decideCancellation(request.id, 'rejected'),
                             'Could not decline that request.',

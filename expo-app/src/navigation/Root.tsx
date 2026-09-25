@@ -253,7 +253,22 @@ export function Root() {
           </View>
         )}
       </View>
-      <TabBar />
+      {/* Hidden from assistive tech while an overlay is up.
+          An overlay covers the screen, but the tab bar underneath stayed in
+          the accessibility tree: a screen reader could reach and activate
+          Discover or Chat through a sheet that was visually on top of them,
+          switching the screen behind without dismissing anything. Sighted
+          users cannot do this, which is exactly why it went unnoticed. */}
+      <View
+        accessibilityElementsHidden={!!overlay}
+        importantForAccessibility={overlay ? 'no-hide-descendants' : 'auto'}
+        // `display: none` would unmount the bar's layout and make the screen
+        // behind reflow every time a sheet opens; this only hides it from the
+        // reader, which is the actual defect.
+        pointerEvents={overlay ? 'none' : 'auto'}
+      >
+        <TabBar />
+      </View>
       {overlay ? <OverlayRouter id={overlay} /> : null}
       {/* handoff v2: bottom sheets sit above overlays */}
       {sheet ? <SheetRouter id={sheet} /> : null}
