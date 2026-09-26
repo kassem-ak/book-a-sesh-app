@@ -7,11 +7,11 @@ import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Ov
 import {
   Avatar, Button, Card, ConfirmSheet, Icon, IconButton, Row, SectionHeading, Stars, VoltButton,
 } from '../components/ui';
-import { coachPackageOptions, initials, personMeta } from '../state/models';
+import { coachPackageOptions, initials, Person, personMeta } from '../state/models';
 import { Certification, fetchCertifications } from '../lib/coaching';
 import { fetchSocialHandles, hasAnyHandle, NO_SOCIALS, SocialHandles } from '../lib/socialLinks';
 import { blackoutLabel, DayGroup, fetchBlackouts, groupWeek, periodLabel } from '../lib/availability';
-import { fetchCoachAvailability } from '../lib/queries';
+import { fetchCoachAvailability, fetchPerson } from '../lib/queries';
 import { startConversation } from '../lib/chat';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { useStore } from '../state/store';
@@ -22,7 +22,28 @@ export function PersonOverlay() {
   const s = useStore();
   const [messaging, setMessaging] = useState(false);
   const [blocking, setBlocking] = useState(false);
-  const p = s.personById(s.openId);
+
+  // The people list is a browsing list, not a directory: it is sorted and
+  // filtered for Discover, it is empty until a Discover tab has been opened,
+  // and `withoutMe` takes you out of it on purpose. Anything that opens a
+  // profile by id from somewhere else -- a community member, your own Profile
+  // card -- therefore found nothing here and got "no longer available" for
+  // somebody who plainly exists. Fall through to reading the one row.
+  const stored = s.personById(s.openId);
+  const [fetched, setFetched] = useState<Person | null>(null);
+  const [looking, setLooking] = useState(false);
+  const wanted = s.openId;
+  useEffect(() => {
+    if (!wanted || stored) { setFetched(null); setLooking(false); return; }
+    let active = true;
+    setLooking(true);
+    fetchPerson(wanted)
+      .then((found) => { if (active) setFetched(found); })
+      .catch(() => { if (active) setFetched(null); })
+      .finally(() => { if (active) setLooking(false); });
+    return () => { active = false; };
+  }, [wanted, stored]);
+  const p = stored ?? fetched;
 
   // EVERY hook runs before the missing-person return below. Root replaces the
   // people list on refresh, so `p` can go from defined to undefined while this
@@ -71,7 +92,21 @@ export function PersonOverlay() {
     return () => { active = false; };
   }, [personId]);
 
-  if (!p) return <MissingSubject title="Profile" message="This profile is no longer available." onBack={s.closeOverlay} />;
+  if (!p) {
+    return (
+      <MissingSubject
+        title="Profile"
+        message={looking ? 'Loading…' : 'This profile is no longer available.'}
+        onBack={s.closeOverlay}
+      />
+    );
+  }
+
+  // Your own profile, opened from the Profile tab. Same page everybody else
+  // sees -- that is the point of it -- minus the half that only makes sense
+  // pointed at somebody else: you cannot message, follow, book, report or
+  // block yourself, and the database refuses all five anyway.
+  const self = p.id === s.authUserId;
 
   // start_conversation reuses an existing thread, so tapping twice is safe.
   const message = async () => {
@@ -95,7 +130,16 @@ export function PersonOverlay() {
   ).filter(([value]) => value.trim());
   return (
     <OverlayScaffold
-      header={<OverlayHeader title={p.isCoach ? 'Coach' : 'Training partner'} onBack={s.closeOverlay} trailing={
+      header={<OverlayHeader
+        title={self ? 'Your profile' : p.isCoach ? 'Coach' : 'Training partner'}
+        onBack={s.closeOverlay}
+        trailing={self ? (
+          <IconButton
+            icon="edit-2"
+            accessibilityLabel="Edit your profile"
+            onPress={() => s.set('overlay', 'editProfile')}
+          />
+        ) : (
         <Row gap={14} style={{ alignItems: 'center' }}>
           {/* Blocking someone removes the follow server-side, so offering to
               follow them here would be offering something the database
@@ -134,8 +178,8 @@ export function PersonOverlay() {
             onPress={message}
           />
         </Row>
-      } />}
-      bottomBar={
+        )} />}
+      bottomBar={self ? undefined : (
         <View style={{ backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1, padding: 16 }}>
           {/* No price on the Book button. It quoted the per-session rate, which
               is only one of the things a session can cost -- a package makes it
@@ -161,7 +205,7 @@ export function PersonOverlay() {
             </View>
           )}
         </View>
-      }
+      )}
     >
       <View style={{ paddingHorizontal: 18 }}>
         <Row gap={14}>
@@ -193,7 +237,7 @@ export function PersonOverlay() {
 
         {/* Under the bio, where the rest of "who is this" already is. */}
         {hasAnyHandle(socials) && <>
-          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>Find them on</SectionHeading>
+          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>{self ? 'Find you on' : 'Find them on'}</SectionHeading>
           <SocialRow handles={socials} name={p.name} />
         </>}
 
@@ -208,7 +252,7 @@ export function PersonOverlay() {
           : p.tags.length > 0 && <TagRow heading="Looking for" tags={p.tags} />}
 
         {p.isCoach && hours !== null && hours.length > 0 && <>
-          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>When they coach</SectionHeading>
+          <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>{self ? 'When you coach' : 'When they coach'}</SectionHeading>
           <Card style={{ padding: 14, gap: 10 }}>
             {hours.map((group) => (
               <Row key={group.days.join('-')} gap={12} style={{ alignItems: 'flex-start' }}>
@@ -280,6 +324,7 @@ export function PersonOverlay() {
           </>
         )}
 
+        {!self && <>
         {/* Safety.
             Both stores require an app carrying user-generated content to offer
             a way to report and a way to block. Reporting already existed but
@@ -320,6 +365,7 @@ export function PersonOverlay() {
             Blocked. Neither of you can message the other, and they are not told.
           </Text>
         )}
+        </>}
 
       </View>
     </OverlayScaffold>
