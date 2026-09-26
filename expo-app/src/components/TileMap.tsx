@@ -35,13 +35,22 @@ const MAX_ZOOM = 18;
 // dashboard. Restrict yours to www.app-bookd.com, or it can be used on any site.
 export type MapTheme = 'dark' | 'light';
 
+// CARTO was the default here until it began requiring an account. It does not
+// fail loudly when you have no key: it answers 200 with a 2.5 KB tile reading
+// "API KEY REQUIRED", so the map drew a full grid of watermarks and looked, to
+// anyone opening the Maps tab, like the app was broken. A default has to be a
+// provider that is actually keyless, or the fallback is worse than no map.
+//
+// Esri's basemap service is keyless and serves both a dark and a light canvas.
+// Note the axis order: {z}/{y}/{x}, not the usual {z}/{x}/{y}. The substitution
+// below is by name, so the template controls the order.
 const DEFAULT_TILES = {
-  dark: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-  light: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+  dark: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+  light: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
 };
 
 export const MAP_ATTRIBUTION =
-  process.env.EXPO_PUBLIC_MAP_ATTRIBUTION || '© OpenStreetMap contributors © CARTO';
+  process.env.EXPO_PUBLIC_MAP_ATTRIBUTION || '© Esri © OpenStreetMap contributors';
 
 const template = (theme: MapTheme) =>
   (theme === 'dark'
