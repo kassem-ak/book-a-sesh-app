@@ -118,9 +118,15 @@ test('zoomToFit picks a zoom that actually fits, and is not fooled by one point'
   assert.equal(zoomToFit(spread, 0, 0, 11), 11, 'no layout yet, so keep the fallback');
 });
 
+// The default provider has to be one that actually serves tiles without a key.
+// CARTO was the default until it started answering 200 with a 2.5 KB
+// "API KEY REQUIRED" watermark, which drew a full grid of them and looked like
+// a broken app rather than a missing account. Esri is keyless and orders its
+// path {z}/{y}/{x}, so this also pins the axis order -- swapping x and y here
+// is a silent bug that moves every pin to the wrong part of the world.
 test('tile urls follow the slippy-map scheme, in both themes', () => {
-  assert.equal(tileUrl(20, 13, 5, 'dark'), 'https://basemaps.cartocdn.com/dark_all/5/20/13.png');
-  assert.equal(tileUrl(20, 13, 5, 'light'), 'https://basemaps.cartocdn.com/light_all/5/20/13.png');
+  assert.equal(tileUrl(20, 13, 5, 'dark'), 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/5/13/20');
+  assert.equal(tileUrl(20, 13, 5, 'light'), 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/5/13/20');
 });
 
 test('a configured provider replaces the default, key and all', () => {
@@ -137,7 +143,7 @@ test('a configured provider replaces the default, key and all', () => {
 test('one configured theme does not drag the other off the default', () => {
   const half = load({ EXPO_PUBLIC_MAP_TILES_DARK: 'https://api.example.com/d/{z}/{x}/{y}.png' });
   assert.equal(half.__test.tileUrl(1, 2, 3, 'dark'), 'https://api.example.com/d/3/1/2.png');
-  assert.equal(half.__test.tileUrl(1, 2, 3, 'light'), 'https://basemaps.cartocdn.com/light_all/3/1/2.png');
+  assert.equal(half.__test.tileUrl(1, 2, 3, 'light'), 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/3/2/1');
 });
 
 test('attribution falls back rather than rendering empty', () => {
