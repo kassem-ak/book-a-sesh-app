@@ -63,7 +63,10 @@ test('every field the form collects reaches the server', async () => {
     privacy: 'closed',
     sportId: SPORT,
     chatMode: 'newsletter',
-    socials: { instagram: 'thecrew', facebook: 'the.crew', tiktok: 'crewtok' },
+    socials: {
+      instagram: 'thecrew', facebook: 'the.crew', tiktok: 'crewtok',
+      website: 'https://thecrew.example',
+    },
   });
   assert.deepEqual(rpcBody(h.calls), {
     p_name: 'The Crew',
@@ -74,6 +77,7 @@ test('every field the form collects reaches the server', async () => {
     p_instagram: 'thecrew',
     p_facebook: 'the.crew',
     p_tiktok: 'crewtok',
+    p_website: 'https://thecrew.example',
   });
 });
 
@@ -92,6 +96,7 @@ test('a name on its own sends the defaults, not gaps', async () => {
     p_instagram: null,
     p_facebook: null,
     p_tiktok: null,
+    p_website: null,
   });
 });
 

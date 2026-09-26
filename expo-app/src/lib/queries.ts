@@ -400,7 +400,12 @@ export async function createCommunity(draft: {
   privacy?: string;
   sportId?: string | null;
   chatMode?: string;
-  socials?: { instagram: string | null; facebook: string | null; tiktok: string | null };
+  socials?: {
+    instagram: string | null;
+    facebook: string | null;
+    tiktok: string | null;
+    website: string | null;
+  };
 }) {
   return firstRow(await callRpc<unknown[]>('create_community_with_owner', {
     p_name: draft.name,
@@ -411,6 +416,7 @@ export async function createCommunity(draft: {
     p_instagram: draft.socials?.instagram ?? null,
     p_facebook: draft.socials?.facebook ?? null,
     p_tiktok: draft.socials?.tiktok ?? null,
+    p_website: draft.socials?.website ?? null,
   }));
 }
 

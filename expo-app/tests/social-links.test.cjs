@@ -100,3 +100,79 @@ test('reducing on every keystroke destroys a typed link', () => {
     'one character at a time does not -- which is why the field commits on blur',
   );
 });
+
+// --- the website, which is the one entry that really is a URL ----------------
+//
+// The handles are safe by construction: this app builds their URL, so the value
+// can only ever point at instagram.com, facebook.com or tiktok.com. A website
+// points wherever it says, and the profile turns it into a tap target -- so
+// what it refuses matters more than what it accepts.
+
+test('a typed site gets the scheme nobody types', () => {
+  const { normaliseWebsite } = load();
+  assert.equal(normaliseWebsite('bookd.com'), 'https://bookd.com');
+  assert.equal(normaliseWebsite('  bookd.com/coach  '), 'https://bookd.com/coach');
+  assert.equal(normaliseWebsite('http://bookd.com'), 'http://bookd.com', 'http is left alone');
+  assert.equal(normaliseWebsite('https://bookd.com/'), 'https://bookd.com', 'a trailing slash goes');
+  assert.equal(normaliseWebsite(''), null);
+  assert.equal(normaliseWebsite(null), null);
+});
+
+// The important half. A scheme somebody actually typed is never replaced --
+// rewriting 'javascript:alert(1)' into 'https://javascript:alert(1)' would hide
+// the problem instead of reporting it.
+test('a dangerous scheme is kept intact so it can be refused', () => {
+  const { normaliseWebsite, websiteProblem } = load();
+  for (const bad of ['javascript:alert(1)', 'data:text/html,<script>', 'file:///etc/passwd']) {
+    const cleaned = normaliseWebsite(bad);
+    assert.equal(cleaned, bad, `${bad} must not be dressed up as https`);
+    assert.match(websiteProblem(cleaned), /http and https/);
+  }
+});
+
+test('a web address with credentials in it is refused', () => {
+  const { normaliseWebsite, websiteProblem } = load();
+  // Renders as the host and goes somewhere else -- the oldest trick there is.
+  assert.match(websiteProblem(normaliseWebsite('https://bookd.com@evil.example')), /username and password/);
+});
+
+test('what is not a web address is refused', () => {
+  const { normaliseWebsite, websiteProblem } = load();
+  for (const bad of ['not a web address', 'localhost', 'https://nodot']) {
+    assert.ok(websiteProblem(normaliseWebsite(bad)), `${bad} must be refused`);
+  }
+  assert.match(websiteProblem(`https://${'a'.repeat(250)}.com`), /longer than/);
+});
+
+test('a real site passes', () => {
+  const { normaliseWebsite, websiteProblem } = load();
+  for (const good of ['bookd.com', 'https://www.bookd.co.uk/coach/kassem?ref=1', 'http://sub-domain.bookd.io:8443/x']) {
+    assert.equal(websiteProblem(normaliseWebsite(good)), null, good);
+  }
+});
+
+// A website must never go through the handle reducer: that keeps the last path
+// segment, so "https://bookd.com/coach" would be stored as "coach".
+test('each platform is cleaned by its own rule', () => {
+  const { normaliseValue } = load();
+  assert.equal(normaliseValue('instagram', 'https://instagram.com/kassem'), 'kassem');
+  assert.equal(normaliseValue('website', 'https://bookd.com/coach'), 'https://bookd.com/coach');
+});
+
+test('a website links to itself, a handle gets its platform prefixed', () => {
+  const { socialUrl, socialLabel } = load();
+  assert.equal(socialUrl('instagram', 'kassem'), 'https://instagram.com/kassem');
+  assert.equal(socialUrl('website', 'https://bookd.com/a?b=c'), 'https://bookd.com/a?b=c',
+    'no re-encoding -- that would break the path and the query');
+  assert.equal(socialLabel('website', 'https://www.bookd.com/coach'), 'bookd.com/coach');
+  assert.equal(socialLabel('instagram', 'kassem'), 'kassem');
+});
+
+// Three screens each compared the handles field by field, so adding the website
+// was detected on two of them and silently ignored on the third.
+test('a changed website counts as a change', () => {
+  const { socialsDiffer, NO_SOCIALS } = load();
+  assert.equal(socialsDiffer(NO_SOCIALS, NO_SOCIALS), false);
+  assert.equal(socialsDiffer(NO_SOCIALS, { ...NO_SOCIALS, website: 'https://bookd.com' }), true);
+  assert.equal(socialsDiffer(NO_SOCIALS, { ...NO_SOCIALS, tiktok: 'x' }), true);
+});

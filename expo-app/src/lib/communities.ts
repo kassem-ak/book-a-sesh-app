@@ -72,7 +72,7 @@ export const MAX_GALLERY = 5;
 
 const GOVERNANCE_COLUMNS =
   'id, slug, name, about, official, members_count, privacy, sport_id, avatar_url, '
-  + 'instagram, facebook, tiktok, chat_mode';
+  + 'instagram, facebook, tiktok, website, chat_mode';
 const BASE_COLUMNS = 'id, slug, name, about, official, members_count';
 
 const missingColumn = isMissingColumn;
@@ -178,6 +178,7 @@ export async function updateCommunity(
       fields.instagram = changes.socials.instagram;
       fields.facebook = changes.socials.facebook;
       fields.tiktok = changes.socials.tiktok;
+      fields.website = changes.socials.website;
     }
   }
   if (!Object.keys(fields).length) return;

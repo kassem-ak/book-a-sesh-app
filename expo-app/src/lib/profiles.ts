@@ -2,7 +2,10 @@ import { currentAppUserId } from './bookings';
 import { GeoPoint } from './geo';
 import { markSocialLinksSchemaMissing, socialLinksSchemaReady } from './schema';
 import { clearSignupDraft, readSignupDraft, saveSignupDraft, SignupDraft, SignupRole } from './signup';
-import { handleProblem, handlesFrom, NO_SOCIALS, normaliseHandle, SocialHandles } from './socialLinks';
+import {
+  handlesFrom, NO_SOCIALS, normaliseHandle, normaliseWebsite, SOCIAL_PLATFORMS,
+  SocialHandles, valueProblem,
+} from './socialLinks';
 import { supabase } from './supabase';
 
 export type Sport = { id: string; name: string; kind: 'sport' | 'hobby' };
@@ -192,7 +195,7 @@ export async function fetchMyProfile(): Promise<Profile> {
   // parses as neither.
   const readAccount = socialLinksSchemaReady()
     ? supabase.from('users')
-        .select('id, name, avatar_url, city, instagram, facebook, tiktok')
+        .select('id, name, avatar_url, city, instagram, facebook, tiktok, website')
         .eq('id', appId).single()
     : supabase.from('users')
         .select('id, name, avatar_url, city')
@@ -249,14 +252,18 @@ export async function saveMyProfile(profile: Profile) {
   // this field existed, and a missing object must mean "no accounts", not a
   // save that throws on the way to the name field.
   const given = profile.socials ?? NO_SOCIALS;
+  // The website is cleaned by its own rule, not the handle one -- running the
+  // handle reducer over it would keep the last path segment and throw the site
+  // away.
   const socials = {
     instagram: normaliseHandle(given.instagram),
     facebook: normaliseHandle(given.facebook),
     tiktok: normaliseHandle(given.tiktok),
+    website: normaliseWebsite(given.website),
   };
-  for (const [platform, handle] of Object.entries(socials)) {
-    const problem = handleProblem(handle);
-    if (problem) throw new Error(`${platform[0].toUpperCase()}${platform.slice(1)}: ${problem}`);
+  for (const platform of SOCIAL_PLATFORMS) {
+    const problem = valueProblem(platform.key, socials[platform.key]);
+    if (problem) throw new Error(`${platform.label}: ${problem}`);
   }
 
   const accountFields: Record<string, unknown> = { name: profile.name.trim(), city: city || null };

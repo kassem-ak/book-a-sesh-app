@@ -5,6 +5,7 @@ import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Ov
 import {
   CommunityDraft, CommunityFields, draftDiffers, EMPTY_COMMUNITY_DRAFT,
 } from '../components/CommunityFields';
+import { socialsDiffer } from '../lib/socialLinks';
 import { PhotoStrip } from '../components/PhotoStrip';
 import {
   Avatar, Button, ConfirmSheet, Icon, MicroBadge, Row, SectionHeading, VoltButton,
@@ -157,11 +158,7 @@ export function CommunityManageOverlay() {
     if (draft.about !== saved.about) changes.about = draft.about;
     if (draft.privacy !== saved.privacy) changes.privacy = draft.privacy;
     if (draft.sportId !== saved.sportId) changes.sportId = draft.sportId;
-    if (
-      draft.socials.instagram !== saved.socials.instagram
-      || draft.socials.facebook !== saved.socials.facebook
-      || draft.socials.tiktok !== saved.socials.tiktok
-    ) changes.socials = draft.socials;
+    if (socialsDiffer(draft.socials, saved.socials)) changes.socials = draft.socials;
     if (draft.chatMode !== saved.chatMode) changes.chatMode = draft.chatMode;
     await updateCommunity(detail.id, changes);
     setSaved(true);
