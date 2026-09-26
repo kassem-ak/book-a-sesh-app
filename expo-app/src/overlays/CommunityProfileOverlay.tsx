@@ -4,19 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissingSubject, OverlayHeader } from '../components/Overlay';
 import { ScrollAwareFab, useScrollAwareFab } from '../components/ScrollAwareFab';
 import {
-  Avatar, Button, Card, Icon, IconButton, MicroBadge, Row, SectionHeading, StripedPlaceholder,
+  Avatar, Button, Card, Icon, IconButton, MicroBadge, Row, StripedPlaceholder,
 } from '../components/ui';
-import { HoldableItem, SafeItemAction } from '../components/ItemMenu';
 import { PhotoStrip } from '../components/PhotoStrip';
 import { SocialRow } from '../components/SocialLinks';
-import {
-  canModerate, CommunityDetail, fetchCommunity, fetchMembers, fetchPhotos, isAdmin, Member,
-  Photo, removeMember, Role, setMemberRole,
-} from '../lib/communities';
-import { currentAppUserId } from '../lib/bookings';
+import { CommunityDetail, fetchCommunity, fetchPhotos, Photo } from '../lib/communities';
 import { hasAnyHandle } from '../lib/socialLinks';
 import { useSports } from '../components/useSports';
-import { initials, isMeetup } from '../state/models';
+import { isMeetup } from '../state/models';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -28,6 +23,9 @@ export function CommunityProfileOverlay() {
   const cm = s.communityById(s.communityId);
   const events = s.allEvents().filter((e) => e.communityId === cm?.id);
   const canManage = s.canModerateCommunity(cm?.id);
+  // Membership, not management: an ordinary member sees the people and the
+  // thread, and somebody who has not joined sees neither.
+  const joined = !!cm && s.joinedCommunities.includes(cm.id);
 
   const [shownEvents, setShownEvents] = useState(3);
   const { anim, onScroll, visible } = useScrollAwareFab();
@@ -39,19 +37,7 @@ export function CommunityProfileOverlay() {
   const [detail, setDetail] = useState<CommunityDetail | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const { sports } = useSports();
-  // Who is here. Members only -- `member_read` refuses a non-member, so this
-  // comes back empty for them rather than needing a second rule in the client.
-  const [members, setMembers] = useState<Member[]>([]);
-  const [meId, setMeId] = useState<string | null>(null);
-  const [memberBusy, setMemberBusy] = useState<string | null>(null);
-  const [reloadMembers, setReloadMembers] = useState(0);
   const detailId = cm?.id ?? null;
-
-  useEffect(() => {
-    let active = true;
-    currentAppUserId().then((id) => { if (active) setMeId(id); }).catch(() => {});
-    return () => { active = false; };
-  }, []);
   useEffect(() => {
     if (!detailId) { setDetail(null); setPhotos([]); return; }
     let active = true;
@@ -64,33 +50,12 @@ export function CommunityProfileOverlay() {
       if (!active) return;
       setDetail(found);
       if (!found) { setPhotos([]); return; }
-      const [gallery, people] = await Promise.all([
-        fetchPhotos(found.id).catch(() => [] as Photo[]),
-        fetchMembers(found.id).catch(() => [] as Member[]),
-      ]);
-      if (!active) return;
-      setPhotos(gallery);
-      setMembers(people);
+      const gallery = await fetchPhotos(found.id).catch(() => [] as Photo[]);
+      if (active) setPhotos(gallery);
     })();
     return () => { active = false; };
-  }, [detailId, reloadMembers]);
+  }, [detailId]);
 
-
-  // My own role, from the list itself rather than the store -- the store
-  // collapses owner and admin into one word and cannot answer "am I the
-  // owner", which is the bug that hid the delete button on the settings
-  // screen.
-  const myRole: Role | null = members.find((member) => member.userId === meId)?.role ?? null;
-
-  const act = async (userId: string, write: () => Promise<void>) => {
-    setMemberBusy(userId);
-    try {
-      await write();
-      setReloadMembers((n) => n + 1);
-    } catch (e) {
-      s.set('writeError', e instanceof Error ? e.message : 'That did not work.');
-    } finally { setMemberBusy(null); }
-  };
 
   // After the hooks so hook order is stable: a community id that is not in the
   // fetched list used to resolve to an invented sample community.
@@ -162,6 +127,21 @@ export function CommunityProfileOverlay() {
             )}
           </Card>
 
+          {/* Members and the thread, side by side under the identity block --
+              the two things a member of this community came here for. Neither
+              is offered to somebody who is not in it: the members page would
+              refuse them and the thread is unreadable. */}
+          {joined && (
+            <Button
+              label={`Members · ${cm.members}`}
+              icon="users"
+              full
+              style={{ marginTop: 12 }}
+              accessibilityLabel={`See the ${cm.members} members of ${detail?.name || cm.sport}`}
+              onPress={() => s.set('overlay', 'communityMembers')}
+            />
+          )}
+
           {/* The thread sits under the identity block, where somebody who has
               just read what the community is goes next. */}
           <Button
@@ -187,37 +167,6 @@ export function CommunityProfileOverlay() {
             </View>
           )}
 
-          {/* Who is here.
-              Members only, and enforced in the database rather than here:
-              `member_read` refuses a non-member, so this list simply comes back
-              empty for them and there is no second rule in the client to keep
-              in step with the first. */}
-          {members.length > 0 && (
-            <>
-              <SectionHeading style={{ marginTop: 22, marginBottom: 11 }}>
-                Members · {members.length}
-              </SectionHeading>
-              <View style={{ gap: 10 }}>
-                {members.map((member) => (
-                  <MemberRow
-                    key={member.userId}
-                    member={member}
-                    mine={member.userId === meId}
-                    // Admins and moderators manage the room. A plain member
-                    // sees exactly the same list and no way to act on it.
-                    manages={canModerate(myRole)}
-                    admin={isAdmin(myRole)}
-                    busy={memberBusy === member.userId}
-                    onOpen={() => s.openPerson(member.userId)}
-                    onRole={(next: Exclude<Role, 'owner'>) => void act(member.userId, () =>
-                      setMemberRole(detail!.id, member.userId, next))}
-                    onRemove={() => void act(member.userId, () =>
-                      removeMember(detail!.id, member.userId))}
-                  />
-                ))}
-              </View>
-            </>
-          )}
         </View>
       </ScrollView>
 
@@ -227,100 +176,3 @@ export function CommunityProfileOverlay() {
     </View>
   );
 }
-
-// One member, and what can be done to them.
-//
-// Everybody in the community sees the same list. Only an admin or moderator
-// gets the menu, and only an admin sees the role entries -- a moderator
-// polices the room, they do not decide who runs it. The database enforces both
-// regardless of what this renders.
-function MemberRow({ member, mine, manages, admin, busy, onOpen, onRole, onRemove }: {
-  member: Member;
-  mine: boolean;
-  manages: boolean;
-  admin: boolean;
-  busy: boolean;
-  onOpen: () => void;
-  onRole: (role: Exclude<Role, 'owner'>) => void;
-  onRemove: () => void;
-}) {
-  const { c, t } = useTheme();
-  const owner = member.role === 'owner';
-
-  const actions: SafeItemAction[] = !manages || mine ? [] : [
-    { key: 'open', label: 'Open their profile', icon: 'user', onPress: onOpen },
-    ...(admin && !owner ? (['admin', 'moderator', 'member'] as const)
-      .filter((role) => role !== member.role)
-      .map((role) => ({
-        key: `role-${role}`,
-        label: `Make them ${ROLE_LABEL[role].toLowerCase()}`,
-        icon: 'shield' as const,
-        onPress: () => onRole(role),
-      })) : []),
-    ...(owner ? [] : [{
-      key: 'remove',
-      label: 'Remove from the community',
-      icon: 'user-minus' as const,
-      destructive: true as const,
-      confirm: {
-        title: `Remove ${member.name}?`,
-        body: 'They lose access to members-only events and posts. If the community is closed '
-          + 'they will have to ask to join again.',
-        confirmLabel: 'Remove them',
-      },
-      onPress: onRemove,
-    }]),
-  ];
-
-  const body = (
-    <Row gap={10} style={{ alignItems: 'center', paddingVertical: 2 }}>
-      <Avatar initials={initials(member.name)} avatarUrl={member.avatarUrl} size={38} fontSize={14} />
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={1} style={[t.name, { color: c.txt }]}>{member.name}</Text>
-      </View>
-      {mine && <MicroBadge label="You" bg={c.surface2} fg={c.txt2} />}
-      {member.role !== 'member' && (
-        <MicroBadge
-          label={ROLE_LABEL[member.role]}
-          bg={alpha(c.volt, 0.14)}
-          fg={c.accent}
-        />
-      )}
-    </Row>
-  );
-
-  // A member with nothing to do to this row gets a plain press that opens the
-  // profile, not a menu whose only entry is the thing pressing already does.
-  if (!actions.length) {
-    return (
-      <Pressable
-        onPress={onOpen}
-        accessibilityRole="button"
-        accessibilityLabel={`${member.name}, ${ROLE_LABEL[member.role].toLowerCase()}`}
-      >
-        {body}
-      </Pressable>
-    );
-  }
-
-  return (
-    <HoldableItem
-      actions={actions}
-      onPress={onOpen}
-      busy={busy}
-      morePlacement="inline"
-      menuTitle={member.name}
-      menuSubtitle={ROLE_LABEL[member.role]}
-      accessibilityLabel={`${member.name}, ${ROLE_LABEL[member.role].toLowerCase()}`}
-    >
-      {body}
-    </HoldableItem>
-  );
-}
-
-const ROLE_LABEL: Record<Role, string> = {
-  owner: 'Owner',
-  admin: 'Admin',
-  moderator: 'Moderator',
-  member: 'Member',
-};
