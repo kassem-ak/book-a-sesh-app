@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Text, View } from 'react-native';
+import { CommunityFields } from '../components/CommunityFields';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Avatar, Button, Card, Chip, ConfirmSheet, Field, Icon, IconButton, MicroBadge, Row,
@@ -263,26 +264,78 @@ export function EventSuggestionOverlay() {
   );
 }
 
+// Starting a community.
+//
+// The same form the settings screen shows, not a cut-down one. It used to ask
+// for a name and nothing else, so you made the community and then had to go
+// and find the settings to say what sport it was about, who could join and what
+// it was for -- and most never did, which is why the list filled with crews
+// that were a name and a blank description.
+//
+// The picture and the gallery are the two things that genuinely cannot be set
+// here: both upload into storage under the community's own uuid and the bucket
+// policy checks you administer it, so the row has to exist first. That is why
+// the success step goes on to the settings screen rather than stopping.
 export function StartCommunityOverlay() {
   const { c, t } = useTheme();
   const s = useStore();
-  const blocked = isExplicit(s.commName);
-  const canCreate = s.commName.trim().length > 0 && !blocked;
+  const draft = s.commDraft;
+  const blocked = isExplicit(draft.name) || isExplicit(draft.about);
+  const canCreate = draft.name.trim().length > 0 && !blocked;
+  const busy = s.writeBusy === 'community-create';
+
   if (s.commCreated) {
     return (
-      <OverlayScaffold header={<OverlayHeader title="Start community" onBack={() => s.set('overlay', 'community')} />}>
-        <SuccessBody title="Community created" body="You are the admin. Edit details and host the first event." />
+      <OverlayScaffold
+        header={<OverlayHeader title="Start community" onBack={() => s.set('overlay', 'community')} />}
+        bottomBar={(
+          <View style={{ padding: 16, backgroundColor: c.bg, gap: 10 }}>
+            <VoltButton
+              label="Add a picture and a gallery"
+              icon="image"
+              onPress={() => s.set('overlay', 'editCommunity')}
+            />
+            <Button label="Not now" full onPress={() => s.set('overlay', 'community')} />
+          </View>
+        )}
+      >
+        <SuccessBody
+          title="Community created"
+          body={'You are the owner, and everything you filled in is saved. '
+            + 'The one thing left is the pictures — those need the community to exist first, '
+            + 'which it now does.'}
+        />
       </OverlayScaffold>
     );
   }
+
   return (
     <OverlayScaffold
-      header={<OverlayHeader title="Start community" onBack={s.closeOverlay} />}
-      bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton label={blocked ? 'Edit blocked content to continue' : canCreate ? 'Create community' : 'Name it first'} enabled={canCreate} onPress={s.submitCommunity} /></View>}
+      header={<OverlayHeader title="Start community" subtitle="You will be its owner" onBack={s.closeOverlay} />}
+      bottomBar={(
+        <View style={{ padding: 16, backgroundColor: c.bg }}>
+          <VoltButton
+            icon="users"
+            busy={busy}
+            busyLabel="Creating…"
+            label={blocked
+              ? 'Edit blocked content to continue'
+              : canCreate ? 'Create community' : 'Name it first'}
+            enabled={canCreate && !busy}
+            onPress={s.submitCommunity}
+          />
+        </View>
+      )}
     >
-      <View style={{ paddingHorizontal: 18 }}>
-        <SectionHeading style={{ marginBottom: 11 }}>Community name</SectionHeading>
-        <Field value={s.commName} onChange={(v) => s.set('commName', v)} placeholder="Downtown Padel Crew..." />
+      <View style={{ paddingHorizontal: 18, gap: 8, paddingBottom: 24 }}>
+        <CommunityFields
+          value={draft}
+          busy={busy}
+          onChange={(next) => s.set('commDraft', next)}
+        />
+        <Text style={[t.caption, { color: c.txt3, marginTop: 14 }]}>
+          A picture and the five-photo gallery come next, once the community exists.
+        </Text>
         {/* The official-entity form is deliberately not offered. Creating a
             community above is real -- it writes to the server -- but that form
             only appends to the in-memory store, so the application is lost on

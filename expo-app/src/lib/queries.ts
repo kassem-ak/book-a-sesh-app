@@ -383,8 +383,35 @@ export async function setEventAttendance(eventId: string, going: boolean) {
   return callRpc<number>('set_event_attendance', { p_event: eventId, p_going: going });
 }
 
-export async function createCommunity(name: string) {
-  return firstRow(await callRpc<unknown[]>('create_community_with_owner', { p_name: name }));
+/** Start a community, fully described.
+ *
+ *  Every field goes in the one call. Creating with a name and then PATCHing the
+ *  rest would leave a half-made community in everyone's list whenever the
+ *  second request failed -- named, and about nothing. The insert carries the
+ *  lot or none of it.
+ *
+ *  The picture and the gallery are not here and cannot be: both upload into
+ *  storage under the community's own uuid and the bucket policy checks the
+ *  caller administers that community, so the row has to exist first. The create
+ *  flow lands on the settings screen afterwards, which is where they live. */
+export async function createCommunity(draft: {
+  name: string;
+  about?: string;
+  privacy?: string;
+  sportId?: string | null;
+  chatMode?: string;
+  socials?: { instagram: string | null; facebook: string | null; tiktok: string | null };
+}) {
+  return firstRow(await callRpc<unknown[]>('create_community_with_owner', {
+    p_name: draft.name,
+    p_about: draft.about ?? '',
+    p_privacy: draft.privacy ?? 'open',
+    p_sport_id: draft.sportId ?? null,
+    p_chat_mode: draft.chatMode ?? 'chatroom',
+    p_instagram: draft.socials?.instagram ?? null,
+    p_facebook: draft.socials?.facebook ?? null,
+    p_tiktok: draft.socials?.tiktok ?? null,
+  }));
 }
 
 export async function updateCommunityAbout(communityId: string, about: string) {

@@ -15,6 +15,7 @@ import {
   suggestEvent as suggestEventRemote,
 } from '../lib/queries';
 import { requestMembership as requestMembershipRemote } from '../lib/communities';
+import { CommunityDraft, EMPTY_COMMUNITY_DRAFT } from '../components/CommunityFields';
 import {
   Cert,
   CoachPkg,
@@ -385,6 +386,9 @@ export interface SpotterState {
   evtCreated: boolean;
   eventSuggested: boolean;
   commName: string;
+  /** Everything else the create form now collects. Held here beside
+   *  `commName` so the overlay stays stateless like its neighbours. */
+  commDraft: CommunityDraft;
   commCreated: boolean;
   editCommunityAbout: string;
   reqName: string;
@@ -687,6 +691,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   evtCreated: false,
   eventSuggested: false,
   commName: '',
+  commDraft: EMPTY_COMMUNITY_DRAFT,
   commCreated: false,
   editCommunityAbout: '',
   reqName: '',
@@ -902,7 +907,10 @@ export const useStore = create<SpotterState>((set, get) => ({
     set({ overlay: 'editCommunity' });
   },
 
-  openStartCommunity: () => set({ overlay: 'startCommunity', commCreated: false, commName: '', writeError: null }),
+  openStartCommunity: () => set({
+    overlay: 'startCommunity', commCreated: false,
+    commName: '', commDraft: EMPTY_COMMUNITY_DRAFT, writeError: null,
+  }),
   openRequest: () => set({ overlay: 'request', reqSent: false, reqName: '', reqType: 'Hobby', writeError: null }),
   openCreateEvent: () => {
     const s = get();
@@ -1010,11 +1018,14 @@ export const useStore = create<SpotterState>((set, get) => ({
   },
   submitCommunity: async () => {
     const s = get();
-    const name = s.commName.trim();
-    if (name === '' || isExplicit(name)) return;
+    const draft = s.commDraft;
+    const name = draft.name.trim();
+    // The description goes through the same word filter the name does. It used
+    // not to exist at creation, so this is the first time there is one to check.
+    if (name === '' || isExplicit(name) || isExplicit(draft.about)) return;
     set({ writeBusy: 'community-create', writeError: null });
     try {
-      const row = await createCommunityRemote(name);
+      const row = await createCommunityRemote({ ...draft, name });
       track('community_created');
       const community = communityFromRemote(row);
       set({
