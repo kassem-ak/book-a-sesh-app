@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { Icon, IconName, Row } from './ui';
@@ -62,6 +62,58 @@ export function SocialRow({ handles, name }: { handles: SocialHandles; name: str
  *  person who pasted a URL should find out before they have filled in the
  *  other two. The value handed back is already normalised, so what the field
  *  shows and what the database gets are the same string. */
+// One handle field.
+//
+// It keeps what is being typed and only reduces it to a handle when the field
+// is left. Normalising on every keystroke looks tidy and cannot work: the
+// reducer takes the last path segment of anything URL-shaped, so typing a link
+// by hand rewrites the field under the cursor after the second slash --
+// "https://instagram.com/name" becomes "https:instagram.comname", one character
+// at a time. Only pasting ever survived, while the label above promises that
+// typing a link works too.
+function HandleInput({ value, disabled, invalid, placeholder, label, onCommit }: {
+  value: string;
+  disabled?: boolean;
+  invalid: boolean;
+  placeholder: string;
+  label: string;
+  onCommit: (handle: string) => void;
+}) {
+  const { c, t } = useTheme();
+  const [text, setText] = useState(value);
+  // The saved value wins whenever it changes underneath -- loading a community,
+  // or the commit below rewriting a pasted URL into a handle.
+  useEffect(() => { setText(value); }, [value]);
+
+  const commit = () => {
+    const handle = normaliseHandle(text) ?? '';
+    setText(handle);
+    if (handle !== value) onCommit(handle);
+  };
+
+  return (
+    <TextInput
+      value={text}
+      editable={!disabled}
+      autoCapitalize="none"
+      autoCorrect={false}
+      onChangeText={setText}
+      // Leaving the field is when a pasted URL collapses to a handle, in front
+      // of the person who pasted it rather than silently at save time.
+      onBlur={commit}
+      onSubmitEditing={commit}
+      placeholder={placeholder}
+      placeholderTextColor={c.txt3}
+      accessibilityLabel={label}
+      style={[t.body, {
+        color: c.txt, backgroundColor: c.surface, minHeight: 48,
+        borderColor: invalid ? c.danger : c.line, borderWidth: 1,
+        borderRadius: radii.input, paddingHorizontal: 14,
+      }]}
+    />
+  );
+}
+
 export function SocialFields({ value, onChange, disabled, subject }: {
   value: SocialHandles;
   onChange: (next: SocialHandles) => void;
@@ -85,25 +137,13 @@ export function SocialFields({ value, onChange, disabled, subject }: {
               <Icon name={platform.icon as IconName} size={14} color={c.txt3} />
               <Text style={[t.caption, { color: c.txt3 }]}>{platform.label}</Text>
             </Row>
-            <TextInput
+            <HandleInput
               value={current}
-              editable={!disabled}
-              autoCapitalize="none"
-              autoCorrect={false}
-              // Normalised on the way in, so a pasted URL collapses to a handle
-              // in front of the person who pasted it rather than silently at
-              // save time.
-              onChangeText={(text) => onChange({
-                ...value, [platform.key]: normaliseHandle(text) ?? '',
-              })}
+              disabled={disabled}
+              invalid={!!problem}
               placeholder={platform.prefix + platform.hint}
-              placeholderTextColor={c.txt3}
-              accessibilityLabel={`${platform.label} username`}
-              style={[t.body, {
-                color: c.txt, backgroundColor: c.surface, minHeight: 48,
-                borderColor: problem ? c.danger : c.line, borderWidth: 1,
-                borderRadius: radii.input, paddingHorizontal: 14,
-              }]}
+              label={`${platform.label} username`}
+              onCommit={(handle) => onChange({ ...value, [platform.key]: handle })}
             />
             {problem && (
               <Text accessibilityRole="alert" style={[t.caption, { color: c.danger }]}>

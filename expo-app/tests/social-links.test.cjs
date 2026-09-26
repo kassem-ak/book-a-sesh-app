@@ -78,3 +78,25 @@ test('hasAnyHandle is false only when all three are empty', () => {
   assert.equal(hasAnyHandle({ instagram: null, facebook: null, tiktok: null }), false);
   assert.equal(hasAnyHandle({ instagram: null, facebook: 'page', tiktok: null }), true);
 });
+
+// The field used to run the reducer on every keystroke. That looks tidy and
+// cannot work: the reducer takes the last path segment of anything URL-shaped,
+// so typing a link by hand rewrites the field under the cursor from the second
+// slash onward. Only pasting ever survived, while the label promises both.
+//
+// SocialLinks now normalises on blur instead, which is what keeps the second
+// case below from being what the person is left with. This pins the reason.
+test('reducing on every keystroke destroys a typed link', () => {
+  const { normaliseHandle } = load();
+  const perKeystroke = (raw) => {
+    let field = '';
+    for (const ch of raw) field = normaliseHandle(field + ch) ?? '';
+    return field;
+  };
+  const link = 'https://instagram.com/kassem';
+  assert.equal(normaliseHandle(link), 'kassem', 'the whole string reduces correctly');
+  assert.equal(
+    perKeystroke(link), 'https:instagram.comkassem',
+    'one character at a time does not -- which is why the field commits on blur',
+  );
+});
