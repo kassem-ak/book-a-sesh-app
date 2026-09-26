@@ -3,7 +3,8 @@ import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { Icon, IconName, Row } from './ui';
 import {
-  handleProblem, normaliseHandle, SOCIAL_PLATFORMS, SocialHandles, socialUrl,
+  normaliseValue, SOCIAL_PLATFORMS, SocialHandles, socialLabel, SocialPlatform,
+  socialUrl, valueProblem,
 } from '../lib/socialLinks';
 import { radii, useTheme } from '../theme';
 
@@ -19,7 +20,10 @@ export function SocialRow({ handles, name }: { handles: SocialHandles; name: str
   const { c, t } = useTheme();
   const shown = SOCIAL_PLATFORMS
     .map((platform) => ({ ...platform, handle: handles[platform.key] }))
-    .filter((platform) => platform.handle);
+    // A stored value that the rule now refuses is not rendered as a link. Rows
+    // predate the rule, and one bad row must not put a tappable
+    // 'javascript:' target on somebody's profile.
+    .filter((platform) => platform.handle && !valueProblem(platform.key, platform.handle));
   if (!shown.length) return null;
 
   const open = (url: string) => {
@@ -37,7 +41,7 @@ export function SocialRow({ handles, name }: { handles: SocialHandles; name: str
           key={platform.key}
           onPress={() => open(socialUrl(platform.key, platform.handle!))}
           accessibilityRole="link"
-          accessibilityLabel={`${name} on ${platform.label}, ${platform.handle}`}
+          accessibilityLabel={`${name} on ${platform.label}, ${socialLabel(platform.key, platform.handle!)}`}
           accessibilityHint="Opens in your browser"
           style={{
             flexDirection: 'row', alignItems: 'center', gap: 7,
@@ -48,7 +52,7 @@ export function SocialRow({ handles, name }: { handles: SocialHandles; name: str
         >
           <Icon name={platform.icon as IconName} size={15} color={c.txt2} />
           <Text numberOfLines={1} style={[t.bodySm, { color: c.txt2, maxWidth: 140 }]}>
-            {platform.prefix}{platform.handle}
+            {platform.prefix}{socialLabel(platform.key, platform.handle!)}
           </Text>
         </Pressable>
       ))}
@@ -71,13 +75,14 @@ export function SocialRow({ handles, name }: { handles: SocialHandles; name: str
 // "https://instagram.com/name" becomes "https:instagram.comname", one character
 // at a time. Only pasting ever survived, while the label above promises that
 // typing a link works too.
-function HandleInput({ value, disabled, invalid, placeholder, label, onCommit }: {
+function HandleInput({ value, platform, disabled, invalid, placeholder, label, onCommit }: {
   value: string;
+  platform: SocialPlatform;
   disabled?: boolean;
   invalid: boolean;
   placeholder: string;
   label: string;
-  onCommit: (handle: string) => void;
+  onCommit: (value: string) => void;
 }) {
   const { c, t } = useTheme();
   const [text, setText] = useState(value);
@@ -86,9 +91,11 @@ function HandleInput({ value, disabled, invalid, placeholder, label, onCommit }:
   useEffect(() => { setText(value); }, [value]);
 
   const commit = () => {
-    const handle = normaliseHandle(text) ?? '';
-    setText(handle);
-    if (handle !== value) onCommit(handle);
+    // Each kind is cleaned its own way: a handle loses its URL and its @, a
+    // website gains the https:// nobody types.
+    const cleaned = normaliseValue(platform, text) ?? '';
+    setText(cleaned);
+    if (cleaned !== value) onCommit(cleaned);
   };
 
   return (
@@ -130,7 +137,7 @@ export function SocialFields({ value, onChange, disabled, subject }: {
       </Text>
       {SOCIAL_PLATFORMS.map((platform) => {
         const current = value[platform.key] ?? '';
-        const problem = handleProblem(current || null);
+        const problem = valueProblem(platform.key, current || null);
         return (
           <View key={platform.key} style={{ gap: 6 }}>
             <Row gap={7} style={{ alignItems: 'center' }}>
@@ -139,11 +146,12 @@ export function SocialFields({ value, onChange, disabled, subject }: {
             </Row>
             <HandleInput
               value={current}
+              platform={platform.key}
               disabled={disabled}
               invalid={!!problem}
               placeholder={platform.prefix + platform.hint}
-              label={`${platform.label} username`}
-              onCommit={(handle) => onChange({ ...value, [platform.key]: handle })}
+              label={platform.kind === 'url' ? 'Website address' : `${platform.label} username`}
+              onCommit={(next) => onChange({ ...value, [platform.key]: next })}
             />
             {problem && (
               <Text accessibilityRole="alert" style={[t.caption, { color: c.danger }]}>

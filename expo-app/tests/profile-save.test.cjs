@@ -18,6 +18,21 @@ const { createClient } = require('@supabase/supabase-js');
 const APP_ID = '00000000-0000-4000-8000-000000000001';
 const SPORTS = [{ id: 'sport-1', name: 'Boxing', kind: 'sport' }, { id: 'sport-2', name: 'Yoga', kind: 'sport' }];
 
+/** Load a dependency for real. Only for modules that touch nothing. */
+function realModule(relative) {
+  const filename = join(__dirname, relative);
+  const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exports = {};
+  runInNewContext(code, {
+    exports,
+    require: () => ({}),
+    Object, Array, JSON, String, Number, Boolean, Math, RegExp,
+  }, { filename });
+  return exports;
+}
+
 function harness({ profileRowExists = true } = {}) {
   const calls = [];
   const supabase = createClient('https://example.invalid', 'test-key', {
@@ -45,17 +60,11 @@ function harness({ profileRowExists = true } = {}) {
   const dependencies = {
     './supabase': { supabase },
     './schema': { socialLinksSchemaReady: () => true, markSocialLinksSchemaMissing: () => {} },
-    // profiles.ts borrows the handle helpers; none of them touch the network.
-    './socialLinks': {
-      handlesFrom: (row) => ({
-        instagram: row && row.instagram ? row.instagram : null,
-        facebook: row && row.facebook ? row.facebook : null,
-        tiktok: row && row.tiktok ? row.tiktok : null,
-      }),
-      normaliseHandle: (raw) => ((raw || '').trim().replace(/^@+/, '') || null),
-      NO_SOCIALS: { instagram: null, facebook: null, tiktok: null },
-      handleProblem: () => null,
-    },
+    // profiles.ts borrows the handle helpers; none of them touch the network,
+    // so the real module is loaded rather than re-implemented. A hand-written
+    // stub of the cleaning rules is a second copy of them that drifts -- this
+    // one already spelled normaliseHandle differently from the real thing.
+    './socialLinks': realModule('../src/lib/socialLinks.ts'),
     './bookings': { currentAppUserId: async () => APP_ID },
     './geo': { coarsenPoint: (point) => point },
     './signup': { readSignupDraft: async () => null, saveSignupDraft: async () => {}, clearSignupDraft: async () => {} },

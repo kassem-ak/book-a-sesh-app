@@ -4,7 +4,7 @@ import { SocialFields } from './SocialLinks';
 import { Icon, Row, SectionHeading, Segmented } from './ui';
 import { useSports } from './useSports';
 import { ChatMode, CHAT_MODES, CommunityPrivacy } from '../lib/communities';
-import { NO_SOCIALS, SocialHandles } from '../lib/socialLinks';
+import { NO_SOCIALS, SocialHandles, socialsDiffer } from '../lib/socialLinks';
 import { alpha, radii, useTheme } from '../theme';
 
 // Everything a community is, on one form.
@@ -47,9 +47,7 @@ export function draftDiffers(a: CommunityDraft, b: CommunityDraft): boolean {
     || a.privacy !== b.privacy
     || a.sportId !== b.sportId
     || a.chatMode !== b.chatMode
-    || a.socials.instagram !== b.socials.instagram
-    || a.socials.facebook !== b.socials.facebook
-    || a.socials.tiktok !== b.socials.tiktok;
+    || socialsDiffer(a.socials, b.socials);
 }
 
 export function CommunityFields({ value, onChange, busy = false }: {
