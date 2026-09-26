@@ -254,6 +254,21 @@ export async function saveCoachBasics(basics: CoachBasics): Promise<void> {
   if (saved.error) throw saved.error;
 }
 
+/** Stop being a coach.
+ *
+ *  An RPC, not a delete. coach_profiles has no DELETE policy, so a delete from
+ *  here would match no row, change nothing and report success -- the button
+ *  would have worked every time and done nothing, ever.
+ *
+ *  The server refuses while sessions are still booked or requests are still
+ *  waiting on an answer, and says which. Those messages are written to be read
+ *  by the person pressing the button, so they are shown as they arrive. */
+export async function stopCoaching(): Promise<void> {
+  await realProfileIdentity();
+  const { error } = await supabase.rpc('stop_coaching');
+  if (error) throw error;
+}
+
 export async function becomeCoach(headline: string): Promise<void> {
   const { appId } = await realProfileIdentity();
   const { error } = await supabase.from('coach_profiles').insert({
