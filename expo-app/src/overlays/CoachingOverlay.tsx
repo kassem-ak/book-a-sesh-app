@@ -73,8 +73,12 @@ export function CoachingOverlay() {
             <Text style={[t.bodySm, { color: c.txt2 }]}>
               Coaching adds a public coach profile, so people can find you in Discover and book sessions with you. It is free, and you keep your member profile.
             </Text>
+            {/* This used to read "there is no undo in the app, so ask us if
+                you change your mind" -- a support ticket standing in for a
+                button. Profile now has the button, and the cost of using it is
+                stated here rather than discovered on the way back. */}
             <Text style={[t.caption, { color: c.txt3 }]}>
-              Once you become a coach you stay one — there is no undo in the app, so ask us if you change your mind.
+              You can stop coaching later from your Profile, once nobody is still waiting on a session — but your rating and session count start again from zero.
             </Text>
             <SectionHeading>What do you coach?</SectionHeading>
             <Field value={headline} onChange={setHeadline} label="Coach headline"

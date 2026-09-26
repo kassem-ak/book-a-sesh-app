@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Avatar, Card, ConfirmSheet, Icon, IconButton, MicroBadge, Row, SectionHeading, Toggle } from '../components/ui';
 import { fetchMyBookings } from '../lib/bookings';
+import { stopCoaching } from '../lib/coaching';
 import { signOutUser } from '../lib/session';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { initials } from '../state/models';
@@ -25,6 +26,8 @@ export function ProfileScreen() {
   // the same contract as joinedCount. A count is never invented.
   const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [stopBusy, setStopBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -103,10 +106,6 @@ export function ProfileScreen() {
         </Pressable>
       </Card>
 
-      {s.authUid && <Card style={{ marginTop: 10, paddingHorizontal: 15 }}>
-        <GroupRow icon="edit-2" title="Edit profile" body="Photo, name, bio and interests" onPress={() => s.set('overlay', 'editProfile')} />
-      </Card>}
-
       {/* coach tools — free for every coach */}
       {isCoach && (
         <>
@@ -125,6 +124,26 @@ export function ProfileScreen() {
               <ToolRow icon="book-open" title="What you teach" body="Your subjects and experience" onPress={() => s.set('overlay', 'coachSubjects')} />
               <ToolRow icon="calendar" title="When you coach" body="Working hours · days off" onPress={() => s.set('overlay', 'coachHours')} />
               <ToolRow icon="tag" title="Packages, pricing & promos" body="Set prices · answer cancellations" onPress={() => s.set('overlay', 'coachPackages')} />
+              {/* Last, under the tools it takes away, and the one row here
+                  that is not a place to go. The server refuses while anyone is
+                  still owed a session or an answer, so the wording promises
+                  nothing the next screen has to take back. */}
+              <RowDivider />
+              <Pressable
+                onPress={() => setStopping(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Stop coaching"
+                accessibilityHint="Removes your coach profile and takes you out of Discover"
+                style={{ flexDirection: 'row', alignItems: 'center', minHeight: 44 }}
+              >
+                <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: alpha(c.danger, 0.12), alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="user-minus" size={18} color={c.danger} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[t.name, { color: c.danger }]}>Stop coaching</Text>
+                  <Text style={[t.bodySm, { color: c.txt2 }]}>Leave Discover · keep your account</Text>
+                </View>
+              </Pressable>
             </View>
           </Card>
         </>
@@ -232,6 +251,39 @@ export function ProfileScreen() {
           });
         }}
         onCancel={() => setSigningOut(false)}
+      />
+
+      {/* What actually happens, because none of it is guessable: you leave
+          Discover, the tools above go, and the rating and session count do not
+          survive a return -- guard_coach_profile_privileges zeroes them on the
+          way back in. What does survive is said too, so the choice is not
+          scarier than it is. */}
+      <ConfirmSheet
+        visible={stopping}
+        title="Stop coaching?"
+        body={'You come out of Discover and the coach tools go with it. Your packages, certificates and hours are kept, and past sessions stay on your record — but your rating and session count start from zero if you ever coach again.'}
+        confirmLabel="Stop coaching"
+        confirmIcon="user-minus"
+        busy={stopBusy}
+        onConfirm={() => {
+          setStopBusy(true);
+          void stopCoaching()
+            .then(async () => {
+              setStopping(false);
+              track('stopped_coaching');
+              // The badge, the tools and Discover all read this.
+              await s.refreshRole();
+            })
+            .catch((error) => {
+              track('write_failed', { error_code: analyticsErrorCode(error) });
+              // "You still have 2 sessions booked" is the answer, not a
+              // failure to report -- it is shown as the server wrote it.
+              s.set('writeError', errorMessage(error));
+              setStopping(false);
+            })
+            .finally(() => setStopBusy(false));
+        }}
+        onCancel={() => setStopping(false)}
       />
     </ScrollView>
   );
