@@ -20,6 +20,7 @@ import {
   EventSuggestionOverlay,
 } from '../overlays/CommunityOverlays';
 import { CommunityChatOverlay } from '../overlays/CommunityChatOverlay';
+import { CommunityMembersOverlay } from '../overlays/CommunityMembersOverlay';
 import { CommunityManageOverlay } from '../overlays/CommunityManageOverlay';
 import { EventManageOverlay } from '../overlays/EventManageOverlay';
 import {
@@ -74,6 +75,8 @@ export function OverlayRouter({ id }: { id: string }) {
     // runs it -- now lives on one screen, so there is one place to look.
     case 'editCommunity':
       return <CommunityManageOverlay />;
+    case 'communityMembers':
+      return <CommunityMembersOverlay />;
     case 'communityChat':
       return <CommunityChatOverlay />;
     case 'startCommunity':
