@@ -1,30 +1,29 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { ConfirmButton } from '../components/ItemMenu';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
+import {
+  CommunityDraft, CommunityFields, draftDiffers, EMPTY_COMMUNITY_DRAFT,
+} from '../components/CommunityFields';
 import { PhotoStrip } from '../components/PhotoStrip';
-import { SocialFields } from '../components/SocialLinks';
 import {
-  Avatar, Button, ConfirmSheet, Icon, MicroBadge, Row, SectionHeading, Segmented, VoltButton,
+  Avatar, Button, ConfirmSheet, Icon, MicroBadge, Row, SectionHeading, VoltButton,
 } from '../components/ui';
-import { useSports } from '../components/useSports';
 import {
-  canModerate, CommunityDetail, CommunityPrivacy, decideJoinRequest, fetchCommunity,
+  canModerate, CommunityDetail, decideJoinRequest, fetchCommunity,
   fetchJoinRequests, fetchMembers, fetchPhotos, isAdmin, JoinRequest, MAX_GALLERY, Member,
   Photo, removeMember, removePhoto, Role, setMemberRole, updateCommunity,
 } from '../lib/communities';
-import { ChatMode, CHAT_MODES } from '../lib/communities';
 import {
   deleteCommunity, fetchOfficialStatus, OfficialStatus, requestOfficialStatus,
 } from '../lib/communities';
 import { addPhoto, setCommunityAvatar } from '../lib/communities';
 import { pickAvatar, PickedAvatar } from '../lib/avatars';
 import { currentAppUserId } from '../lib/bookings';
-import { NO_SOCIALS, SocialHandles } from '../lib/socialLinks';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage, isExplicit, useStore } from '../state/store';
 import { initials } from '../state/models';
-import { alpha, radii, useTheme } from '../theme';
+import { alpha, useTheme } from '../theme';
 
 // Running a community.
 //
@@ -34,6 +33,19 @@ import { alpha, radii, useTheme } from '../theme';
 // sections an admin gets and a moderator does not are not merely hidden -- the
 // database refuses them too, and this screen says so rather than silently
 // doing nothing.
+
+/** The saved community, as a draft. One place that mapping lives, so the
+ *  dirty-check and the save diff cannot disagree about what "unchanged" means. */
+function draftOf(found: CommunityDetail): CommunityDraft {
+  return {
+    name: found.name,
+    about: found.about,
+    privacy: found.privacy,
+    sportId: found.sportId,
+    chatMode: found.chatMode,
+    socials: found.socials,
+  };
+}
 
 export function CommunityManageOverlay() {
   const { c, t } = useTheme();
@@ -51,18 +63,16 @@ export function CommunityManageOverlay() {
 
   // The draft. Held apart from `detail` so a half-typed name is not what the
   // rest of the screen thinks the community is called.
-  const [name, setName] = useState('');
-  const [about, setAbout] = useState('');
-  const [privacy, setPrivacy] = useState<CommunityPrivacy>('open');
-  const [sportId, setSportId] = useState<string | null>(null);
-  const [socials, setSocials] = useState<SocialHandles>(NO_SOCIALS);
-  const [chatMode, setChatMode] = useState<ChatMode>('chatroom');
+  //
+  // One object rather than six states because the create screen now renders the
+  // very same fields, and the shared component takes a draft. Two forms for the
+  // same thing that do not share their shape is how they drift apart.
+  const [draft, setDraft] = useState<CommunityDraft>(EMPTY_COMMUNITY_DRAFT);
 
   const [dropping, setDropping] = useState<Member | null>(null);
   const [official, setOfficial] = useState<OfficialStatus>('none');
   const [deleting, setDeleting] = useState(false);
 
-  const { sports } = useSports();
 
   // The store cannot answer "am I the owner". `roleFromDb` collapses 'owner'
   // and 'admin' into a single 'ADMIN', so `currentCommunityRole` never returns
@@ -110,12 +120,7 @@ export function CommunityManageOverlay() {
       setRequests(queue);
       setPhotos(gallery);
       setOfficial(await fetchOfficialStatus(found.id).catch(() => 'none' as OfficialStatus));
-      setName(found.name);
-      setAbout(found.about);
-      setPrivacy(found.privacy);
-      setSportId(found.sportId);
-      setSocials(found.socials);
-      setChatMode(found.chatMode);
+      setDraft(draftOf(found));
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -146,17 +151,18 @@ export function CommunityManageOverlay() {
   // the description with it.
   const saveSettings = () => run('settings', async () => {
     if (!detail) return;
+    const saved = draftOf(detail);
     const changes: Parameters<typeof updateCommunity>[1] = {};
-    if (name !== detail.name) changes.name = name;
-    if (about !== detail.about) changes.about = about;
-    if (privacy !== detail.privacy) changes.privacy = privacy;
-    if (sportId !== detail.sportId) changes.sportId = sportId;
+    if (draft.name !== saved.name) changes.name = draft.name;
+    if (draft.about !== saved.about) changes.about = draft.about;
+    if (draft.privacy !== saved.privacy) changes.privacy = draft.privacy;
+    if (draft.sportId !== saved.sportId) changes.sportId = draft.sportId;
     if (
-      socials.instagram !== detail.socials.instagram
-      || socials.facebook !== detail.socials.facebook
-      || socials.tiktok !== detail.socials.tiktok
-    ) changes.socials = socials;
-    if (chatMode !== detail.chatMode) changes.chatMode = chatMode;
+      draft.socials.instagram !== saved.socials.instagram
+      || draft.socials.facebook !== saved.socials.facebook
+      || draft.socials.tiktok !== saved.socials.tiktok
+    ) changes.socials = draft.socials;
+    if (draft.chatMode !== saved.chatMode) changes.chatMode = draft.chatMode;
     await updateCommunity(detail.id, changes);
     setSaved(true);
   });
@@ -188,16 +194,9 @@ export function CommunityManageOverlay() {
   // The same word filter the old editor ran on the description. Dropping it
   // when this screen replaced that one would have quietly removed a
   // moderation step, and the name is now editable too.
-  const blocked = isExplicit(name) || isExplicit(about);
+  const blocked = isExplicit(draft.name) || isExplicit(draft.about);
 
-  const dirty = detail !== null && (
-    name !== detail.name || about !== detail.about || privacy !== detail.privacy
-    || sportId !== detail.sportId
-    || socials.instagram !== detail.socials.instagram
-    || socials.facebook !== detail.socials.facebook
-    || socials.tiktok !== detail.socials.tiktok
-    || chatMode !== detail.chatMode
-  );
+  const dirty = detail !== null && draftDiffers(draft, draftOf(detail));
 
   return (
     <OverlayScaffold
@@ -213,7 +212,7 @@ export function CommunityManageOverlay() {
             busy={busy === 'settings'}
             busyLabel="Saving…"
             label={blocked ? 'Edit blocked content to continue' : 'Save changes'}
-            enabled={dirty && !!name.trim() && !blocked && !busy}
+            enabled={dirty && !!draft.name.trim() && !blocked && !busy}
             onPress={saveSettings}
           />
         </View>
@@ -289,7 +288,9 @@ export function CommunityManageOverlay() {
         </SectionHeading>
         {requests.length === 0 ? (
           <Text style={[t.bodySm, { color: c.txt3 }]}>
-            {privacy === 'open'
+            {/* The saved value, not the draft: flicking the segment to closed
+                without saving does not start a queue, so it must not claim one. */}
+            {detail?.privacy === 'open'
               ? 'This community is open, so nobody has to ask — anyone can join.'
               : 'Nobody is waiting.'}
           </Text>
@@ -385,112 +386,9 @@ export function CommunityManageOverlay() {
               })} />
           )}
 
-          {/* ---- What it is ---- */}
-          <SectionHeading style={{ marginTop: 8 }}>Name</SectionHeading>
-          <TextInput
-            value={name} onChangeText={setName} editable={!busy}
-            placeholder="What this community is called" placeholderTextColor={c.txt3}
-            accessibilityLabel="Community name"
-            style={[t.body, {
-              color: c.txt, backgroundColor: c.surface, minHeight: 48,
-              borderColor: c.line, borderWidth: 1, borderRadius: radii.input, paddingHorizontal: 14,
-            }]}
-          />
-
-          <SectionHeading style={{ marginTop: 8 }}>Description</SectionHeading>
-          <TextInput
-            value={about} onChangeText={setAbout} multiline editable={!busy}
-            placeholder="What members should know before they join"
-            placeholderTextColor={c.txt3} textAlignVertical="top"
-            accessibilityLabel="Community description"
-            style={[t.body, {
-              color: c.txt, backgroundColor: c.surface, minHeight: 100,
-              borderColor: c.line, borderWidth: 1, borderRadius: radii.input, padding: 14,
-            }]}
-          />
-
-          {/* ---- The sport it is about ---- */}
-          <SectionHeading style={{ marginTop: 8 }}>Sport or hobby</SectionHeading>
-          <Text style={[t.bodySm, { color: c.txt2 }]}>
-            One, so people looking for it can find it. This is what the community is about, not
-            everything its members do.
-          </Text>
-          <Row style={{ flexWrap: 'wrap', gap: 8 }}>
-            {sports?.map((sport) => {
-              const on = sportId === sport.id;
-              return (
-                <Pressable
-                  key={sport.id}
-                  onPress={() => setSportId(on ? null : sport.id)}
-                  disabled={!!busy}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on }}
-                  accessibilityLabel={sport.name}
-                  style={{
-                    minHeight: 44, justifyContent: 'center', paddingHorizontal: 14,
-                    borderRadius: radii.pill ?? 999, borderWidth: 1,
-                    borderColor: on ? c.volt : c.line,
-                    backgroundColor: on ? alpha(c.volt, 0.14) : c.surface,
-                  }}
-                >
-                  <Text style={[t.labelSm, { color: on ? c.accent : c.txt2 }]}>{sport.name}</Text>
-                </Pressable>
-              );
-            })}
-          </Row>
-
-          {/* ---- Who may walk in ---- */}
-          <SectionHeading style={{ marginTop: 8 }}>Who can join</SectionHeading>
-          <Segmented
-            options={[
-              { key: 'open', label: 'Open' },
-              { key: 'closed', label: 'Closed' },
-            ]}
-            selected={privacy}
-            onSelect={(key) => setPrivacy(key as CommunityPrivacy)}
-          />
-          <Text style={[t.bodySm, { color: c.txt2 }]}>
-            {privacy === 'open'
-              ? 'Anyone can join without asking.'
-              : 'People ask to join, and an admin or moderator answers. Everyone already in stays in.'}
-          </Text>
-
-          {/* ---- The community's thread ---- */}
-          <SectionHeading style={{ marginTop: 8 }}>Community chat</SectionHeading>
-          <View style={{ gap: 8 }}>
-            {CHAT_MODES.map((option) => {
-              const on = chatMode === option.key;
-              return (
-                <Pressable
-                  key={option.key}
-                  onPress={() => setChatMode(option.key)}
-                  disabled={!!busy}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on }}
-                  accessibilityLabel={`${option.label}. ${option.blurb}`}
-                  style={{
-                    minHeight: 48, padding: 12, borderRadius: radii.input, borderWidth: 1,
-                    borderColor: on ? c.volt : c.line,
-                    backgroundColor: on ? alpha(c.volt, 0.1) : c.surface,
-                  }}
-                >
-                  <Row gap={8} style={{ alignItems: 'center' }}>
-                    <Icon name={on ? 'check-circle' : 'circle'} size={16} color={on ? c.accent : c.txt3} />
-                    <Text style={[t.labelSm, { color: on ? c.accent : c.txt }]}>{option.label}</Text>
-                  </Row>
-                  <Text style={[t.caption, { color: c.txt2, marginTop: 4, marginLeft: 24 }]}>
-                    {option.blurb}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <SectionHeading style={{ marginTop: 8 }}>Find us on</SectionHeading>
-          <SocialFields
-            value={socials} disabled={!!busy} subject="this community's"
-            onChange={setSocials}
-          />
+          {/* The same fields the create screen shows, from the same component --
+              so a field added to one is a field on both. */}
+          <CommunityFields value={draft} onChange={setDraft} busy={!!busy} />
 
           {/* ---- Accreditation ---- */}
           <SectionHeading style={{ marginTop: 8 }}>Official status</SectionHeading>
