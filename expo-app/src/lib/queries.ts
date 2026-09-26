@@ -155,6 +155,11 @@ function withoutMe<T extends { id: string }>(people: T[], me: string | null): T[
   return me ? people.filter((person) => person.id !== me) : people;
 }
 
+// The one place the coach row shape is written down. fetchPerson reads a
+// single row and hands it to the same mapper, so a column added for the list
+// has to land on the profile too rather than silently only on one of them.
+const COACH_COLUMNS = 'user_id, headline, bio, level, price_cents, reply_time, sessions_count, rating_avg, reviews_count, boosted, user:users(name, avatar_url, profile_tags(tag)), sport:sports!coach_profiles_sport_id_fkey(name), coach_sports(position, sport:sports(name))';
+
 export async function fetchCoaches(sort: DiscoverSort = 'rating') {
   const order =
     sort === 'price'
@@ -162,7 +167,7 @@ export async function fetchCoaches(sort: DiscoverSort = 'rating') {
       : { column: 'rating_avg', ascending: false };
   const { data, error } = await supabase
     .from('coach_profiles')
-    .select('user_id, headline, bio, level, price_cents, reply_time, sessions_count, rating_avg, reviews_count, boosted, user:users(name, avatar_url, profile_tags(tag)), sport:sports!coach_profiles_sport_id_fkey(name), coach_sports(position, sport:sports(name))')
+    .select(COACH_COLUMNS)
     .order(order.column, { ascending: order.ascending });
   if (error) throw error;
 
@@ -197,7 +202,24 @@ export async function fetchPartners(): Promise<Person[]> {
     .select('user_id, level, goal, bio, looking_for, user:users(name, avatar_url, profile_tags(tag)), sport:sports(name)');
   if (error) throw error;
   const me = await meOrNull();
-  return withoutMe((data ?? []).map((row) => ({
+  return withoutMe((data ?? []).map(fromRemotePartner), me);
+}
+
+const PARTNER_COLUMNS =
+  'user_id, level, goal, bio, looking_for, user:users(name, avatar_url, profile_tags(tag)), sport:sports(name)';
+
+type RemotePartner = {
+  user_id: string;
+  level?: string | null;
+  goal?: string | null;
+  bio?: string | null;
+  looking_for?: string | null;
+  user?: RelatedName;
+  sport?: RelatedName;
+};
+
+function fromRemotePartner(row: RemotePartner): Person {
+  return {
     id: row.user_id,
     name: firstRelated(row.user)?.name ?? 'Training partner',
     avatarUrl: firstRelated(row.user)?.avatar_url,
@@ -213,7 +235,66 @@ export async function fetchPartners(): Promise<Person[]> {
     sessions: '0',
     reply: '',
     isCoach: false,
-  })), me);
+  };
+}
+
+/** One person by id, whether or not Discover ever loaded them.
+ *
+ *  The people list is not a directory. It drops you from it deliberately
+ *  (`withoutMe`), it is filtered and sorted for browsing, and it is empty
+ *  until a Discover tab has been opened at all -- so anything that opens a
+ *  profile by id off some other list (a community member, a chat, your own
+ *  Profile card) was showing "no longer available" for people who plainly
+ *  exist. This reads the one row instead of hoping it is in a cache.
+ *
+ *  Three shapes, in order: a coach, a training partner, or an account that is
+ *  neither yet. The last one is not a fallback for errors -- most members have
+ *  signed up without filling in either profile, and they still have a name, a
+ *  photo and social links worth showing. */
+export async function fetchPerson(userId: string): Promise<Person | null> {
+  const [coach, partner] = await Promise.all([
+    supabase.from('coach_profiles').select(COACH_COLUMNS).eq('user_id', userId).maybeSingle(),
+    supabase.from('partner_profiles').select(PARTNER_COLUMNS).eq('user_id', userId).maybeSingle(),
+  ]);
+  if (coach.error) throw coach.error;
+  if (partner.error) throw partner.error;
+
+  if (coach.data) {
+    const { data: packageRows, error: packageError } = await supabase
+      .from('packages')
+      .select('id, coach_id, sessions, price_cents, active')
+      .eq('coach_id', userId)
+      .eq('active', true)
+      .order('sessions', { ascending: true });
+    if (packageError) throw packageError;
+    return fromRemoteCoach({ ...(coach.data as RemoteCoach), packages: (packageRows ?? []) as CoachPackageRow[] });
+  }
+  if (partner.data) return fromRemotePartner(partner.data as RemotePartner);
+
+  const { data: account, error } = await supabase
+    .from('users')
+    .select('id, name, avatar_url, profile_tags(tag)')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!account) return null;
+  const tags = (account.profile_tags ?? []).map((tag: { tag: string }) => tag.tag);
+  return {
+    id: account.id,
+    name: account.name ?? 'Member',
+    avatarUrl: account.avatar_url ?? undefined,
+    sport: tags[0] ?? '',
+    level: '',
+    bio: '',
+    tags,
+    rating: 0,
+    reviews: 0,
+    boosted: false,
+    distance: Number.POSITIVE_INFINITY,
+    sessions: '0',
+    reply: '',
+    isCoach: false,
+  };
 }
 
 // --- Shop marketplace: approved partner shops with active catalog items ---

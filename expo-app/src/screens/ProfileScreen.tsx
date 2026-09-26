@@ -18,6 +18,8 @@ export function ProfileScreen() {
   // Identity is whatever the signed-in account says it is, never a sample
   // person's. An account that has not set a name yet renders neutrally.
   const name = s.authName;
+  // The app-side users.id, not the auth uid: profiles are keyed on the former.
+  const myId = s.authUserId;
   const area = s.authLoc.trim();
   // `null` means "not loaded / could not load" and renders no badge at all —
   // the same contract as joinedCount. A count is never invented.
@@ -64,7 +66,18 @@ export function ProfileScreen() {
         </Row>
       </Row>
 
+      {/* The card is the way into your own profile -- the same page everyone
+          else sees when they open you, rather than a second rendering of the
+          same person that would drift from it. Until the account resolves
+          there is no id to open, so it stays a plain card rather than a
+          button that does nothing. */}
       <Card style={{ marginTop: 18 }}>
+        <Pressable
+          onPress={myId ? () => s.openPerson(myId) : undefined}
+          disabled={!myId}
+          accessibilityRole={myId ? 'button' : undefined}
+          accessibilityLabel={myId ? `View your profile${name ? `, ${name}` : ''}` : undefined}
+        >
         <Row style={{ padding: 15 }} gap={14}>
           {/* No name means a blank avatar — inventing initials would name a
               person who is not the one holding the phone. */}
@@ -85,7 +98,9 @@ export function ProfileScreen() {
               {/* The city badge is gone with the header city: no real source. */}
             </Row>
           </View>
+          {myId && <Icon name="chevron-right" size={18} color={c.txt3} />}
         </Row>
+        </Pressable>
       </Card>
 
       {s.authUid && <Card style={{ marginTop: 10, paddingHorizontal: 15 }}>
