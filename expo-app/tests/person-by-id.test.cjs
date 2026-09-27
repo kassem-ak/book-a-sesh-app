@@ -45,6 +45,9 @@ function harness({ coach = null, partner = null, account = null, packages = [] }
     './schema': { markScheduleNotesSchemaMissing: () => {}, scheduleNotesSchemaReady: () => true },
     './session': { ensureAppSession: async () => {} },
     './supabase': { supabase },
+    // Screening is fire-and-forget and deliberately swallows everything, so
+    // nothing under test depends on it.
+    './gwin': { screenQuietly: () => {} },
     '../state/models': { CoachPkg: {}, Person: {} },
     './geo': { parseGeoPoint: () => undefined, GeoPoint: {} },
   };

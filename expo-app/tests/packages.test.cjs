@@ -43,6 +43,9 @@ function harness({ progress = [], names = [] } = {}) {
   });
   const dependencies = {
     './supabase': { supabase },
+    // Screening is fire-and-forget and deliberately swallows everything, so
+    // nothing under test depends on it.
+    './gwin': { screenQuietly: () => {} },
     './session': { currentAppUserId: async () => ME },
     // The app can ship ahead of its migration, so the readiness flag is a
     // real dependency of what these functions decide. True here: these tests

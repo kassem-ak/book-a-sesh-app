@@ -45,6 +45,9 @@ function harness({ os = 'android', permission = { granted: false, canAskAgain: t
 
   const dependencies = {
     './supabase': { supabase },
+    // Screening is fire-and-forget and deliberately swallows everything, so
+    // nothing under test depends on it.
+    './gwin': { screenQuietly: () => {} },
     'expo-notifications': Notifications,
     // __esModule matters: without it the interop helper wraps the stub a second
     // time and every Constants read comes back undefined -- which looks exactly
