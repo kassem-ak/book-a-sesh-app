@@ -25,6 +25,9 @@ function harness(responses) {
   });
   const dependencies = {
     './supabase': { supabase },
+    // Screening is fire-and-forget and deliberately swallows everything, so
+    // nothing under test depends on it.
+    './gwin': { screenQuietly: () => {} },
     './schema': {
       fulfilmentSchemaReady: () => true,
       markFulfilmentSchemaMissing: () => {},

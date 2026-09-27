@@ -43,6 +43,9 @@ function bookingsLib({ rows = [], partners = [], partnersThrow = false } = {}) {
   });
   return load('lib/bookings.ts', {
     './supabase': { supabase },
+    // Screening is fire-and-forget and deliberately swallows everything, so
+    // nothing under test depends on it.
+    './gwin': { screenQuietly: () => {} },
     './schema': { fulfilmentSchemaReady: () => true, markFulfilmentSchemaMissing: () => {} },
     './session': { ensureAppSession: async () => ME, currentAppUserId: async () => ME },
     './partners': {

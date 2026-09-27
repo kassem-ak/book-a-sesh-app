@@ -48,6 +48,9 @@ function harness({ existing = [], profile = { headline: 'Swim coach', level: 'Pr
     'expo-document-picker': { getDocumentAsync: async () => ({ canceled: true, assets: null }) },
     './profiles': { realProfileIdentity: async () => ({ appId: ME, user: { id: 'auth' } }) },
     './supabase': { supabase },
+    // Screening is fire-and-forget and deliberately swallows everything, so
+    // nothing under test depends on it.
+    './gwin': { screenQuietly: () => {} },
   };
   const filename = join(__dirname, '../src/lib/coaching.ts');
   const code = ts.transpileModule(readFileSync(filename, 'utf8'), {

@@ -30,6 +30,9 @@ function harness({ user, draft }) {
   };
   const dependencies = {
     './supabase': { supabase },
+    // Screening is fire-and-forget and deliberately swallows everything, so
+    // nothing under test depends on it.
+    './gwin': { screenQuietly: () => {} },
     './schema': { socialLinksSchemaReady: () => true, markSocialLinksSchemaMissing: () => {} },
     // profiles.ts borrows the handle helpers; none of them touch the network.
     './socialLinks': {

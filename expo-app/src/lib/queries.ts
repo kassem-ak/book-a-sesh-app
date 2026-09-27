@@ -2,6 +2,7 @@
 import { cleanNote, noteKey, SlotNotes } from './availability';
 import { currentAppUserId } from './bookings';
 import { markScheduleNotesSchemaMissing, scheduleNotesSchemaReady } from './schema';
+import { screenQuietly } from './gwin';
 import { ensureAppSession } from './session';
 import { supabase } from './supabase';
 import { CoachPkg, Person } from '../state/models';
@@ -454,7 +455,10 @@ export async function approveSuggestion(suggestionId: string) {
 }
 
 export async function submitSportRequest(name: string, kind: string) {
-  return callRpc<string>('submit_sport_request', { p_name: name, p_kind: kind });
+  const id = await callRpc<string>('submit_sport_request', { p_name: name, p_kind: kind });
+  // A second pass over the keyword trigger that already fires on this column.
+  screenQuietly('sport_requests', name);
+  return id;
 }
 
 export type SportRequest = {

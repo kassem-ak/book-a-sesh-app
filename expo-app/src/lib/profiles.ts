@@ -2,6 +2,7 @@ import { currentAppUserId } from './bookings';
 import { GeoPoint } from './geo';
 import { markSocialLinksSchemaMissing, socialLinksSchemaReady } from './schema';
 import { clearSignupDraft, readSignupDraft, saveSignupDraft, SignupDraft, SignupRole } from './signup';
+import { screenQuietly } from './gwin';
 import {
   handlesFrom, NO_SOCIALS, normaliseHandle, normaliseWebsite, SOCIAL_PLATFORMS,
   SocialHandles, valueProblem,
@@ -305,6 +306,12 @@ export async function saveMyProfile(profile: Profile) {
     const inserted = await supabase.from(table).insert({ user_id: appId, ...fields });
     if (inserted.error) throw inserted.error;
   }
+  // The surfaces this save writes, screened one each. Separate calls rather
+  // than one blob: subject_type is what an admin sorts the queue by, and a
+  // flag that says only "profile" does not say where to look.
+  screenQuietly('users', [profile.name, city].filter(Boolean).join(' '));
+  screenQuietly(profile.role === 'coach' ? 'coach_profiles' : 'partner_profiles', profile.bio);
+
   const names = selected.map((sport) => sport!.name);
   if (names.length) {
     const added = await supabase.from('profile_tags').upsert(names.map((tag) => ({ user_id: appId, tag })), { onConflict: 'user_id,tag', ignoreDuplicates: true });

@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sport } from '../lib/profiles';
+import { fetchCapabilities, mapSport } from '../lib/gwin';
+import { submitSportRequest } from '../lib/queries';
 import { useTheme } from '../theme';
 import { Button, Field, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
 import { groupSports, useSports } from './useSports';
@@ -31,6 +33,25 @@ export function SportsPicker({ selected, onChange, coach = false }: {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
+  // Gwin's help on the empty search, when an operator has switched it on.
+  //
+  // The dropdown stays. The curated list is the product -- it is what makes
+  // filtering work, and decide_sport_request is the one gate that keeps the
+  // taxonomy from sprawling. All this does is stop a member having to guess the
+  // list's wording: "footy" finds Football, and anything Gwin cannot honestly
+  // match becomes the sport request it would have been anyway.
+  const [askable, setAskable] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [asked, setAsked] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    // Presentation only. The function refuses on its own if the capability is
+    // off, so this decides what to render and never what is allowed.
+    void fetchCapabilities().then((can) => { if (active) setAskable(can.suggestsSports); });
+    return () => { active = false; };
+  }, [open]);
+
   const byId = (id: string) => sports.find((sport) => sport.id === id);
   const groups = groupSports(sports, query);
   const searching = query.trim().length > 0;
@@ -41,7 +62,36 @@ export function SportsPicker({ selected, onChange, coach = false }: {
   const drop = (id: string) => onChange(selected.filter((other) => other !== id));
   const promote = (id: string) => onChange([id, ...selected.filter((other) => other !== id)]);
 
-  const close = () => { setOpen(false); setQuery(''); };
+  const close = () => { setOpen(false); setQuery(''); setAsked(null); };
+
+  // Either the member gets the entry they meant, spelled the list's way, or an
+  // admin gets a request -- which is exactly what happens today without Gwin.
+  const ask = async () => {
+    const typed = query.trim();
+    if (!typed || asking) return;
+    setAsking(true);
+    setAsked(null);
+    try {
+      const { match } = await mapSport(typed);
+      const hit = match && sports.find((sport) => sport.name === match);
+      if (hit) {
+        if (!selected.includes(hit.id)) onChange([...selected, hit.id]);
+        setQuery('');
+        setAsked(`Added ${hit.name}.`);
+        return;
+      }
+      // Filed as a sport because the picker cannot know which it is, and
+      // the admin who approves it sets the kind either way.
+      await submitSportRequest(typed, 'sport');
+      setAsked(`Asked the admins about “${typed}”. You will see it once it is approved.`);
+    } catch {
+      // Nothing here is worth an error banner: the member can still ask the
+      // ordinary way, and that is what the button below says.
+      setAsked('That could not be checked just now. Try again in a moment.');
+    } finally {
+      setAsking(false);
+    }
+  };
 
   return (
     <View style={{ gap: 14 }}>
@@ -146,8 +196,27 @@ export function SportsPicker({ selected, onChange, coach = false }: {
           <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + 110, gap: 18 }}
             keyboardShouldPersistTaps="handled">
             {groups.length === 0 && (
-              <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3 }]}>
-                {searching ? `Nothing matches “${query.trim()}”.` : 'No sports or hobbies are available yet.'}
+              <View style={{ gap: 10 }}>
+                <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3 }]}>
+                  {searching ? `Nothing matches “${query.trim()}”.` : 'No sports or hobbies are available yet.'}
+                </Text>
+                {/* Only when an operator has switched the capability on --
+                    otherwise this is a button that answers 409. */}
+                {searching && askable && (
+                  <Button
+                    icon="help-circle"
+                    label={`Ask about “${query.trim()}”`}
+                    busy={asking}
+                    busyLabel="Checking…"
+                    accessibilityLabel={`Ask whether ${query.trim()} is already on the list`}
+                    onPress={() => void ask()}
+                  />
+                )}
+              </View>
+            )}
+            {asked && (
+              <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt2 }]}>
+                {asked}
               </Text>
             )}
             {groups.map((group) => (

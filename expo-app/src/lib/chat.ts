@@ -2,6 +2,7 @@
 // from the tables — there is no SECURITY DEFINER RPC for chat, so every query
 // here leans on the RLS policies in db/policies.sql + db/hardening.sql.
 import { initials as initialsOf } from '../state/models';
+import { screenQuietly } from './gwin';
 import { ensureAppSession } from './session';
 import { supabase } from './supabase';
 
@@ -214,6 +215,10 @@ export async function sendMessage(conversationId: string, body: string): Promise
     .single();
   if (error) throw error;
   const row = data as MessageRow;
+  // After the send, never before it: the keyword trigger on this column works
+  // the same way, and a screening call inside the send would make sending slow
+  // whenever Anthropic is slow.
+  screenQuietly('messages', text);
   return { id: row.id, body: row.body, createdAt: row.created_at, mine: true };
 }
 

@@ -32,6 +32,9 @@ function harness(responses = {}) {
   });
   const dependencies = {
     './supabase': { supabase },
+    // Screening is fire-and-forget and deliberately swallows everything, so
+    // nothing under test depends on it.
+    './gwin': { screenQuietly: () => {} },
     './bookings': { currentAppUserId: async () => ME },
   };
   const filename = join(__dirname, '../src/lib/pricing.ts');
