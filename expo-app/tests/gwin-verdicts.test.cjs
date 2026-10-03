@@ -130,18 +130,16 @@ test('what the member typed is what gets requested, not what Gwin said', () => {
 
 // --- classifying a new entry -------------------------------------------------
 //
-// Same rule as the sports list: a category is only ever a row that already
-// exists. A wrong-but-real category (Other) is a second's fix for an admin; an
-// invented one would leave the layer full of near-duplicates for ever.
+// A category is only ever a row that already exists, named exactly. Anything
+// else is NO category: the request stays held out of the admin queue and is
+// asked again, rather than slipping through under a silent Other. (Other only
+// arrives when the model names it, or after repeated unusable answers.)
 
 function classificationFrom(reply, categories, fallbackKind) {
   const found = reply.trim().match(/^(SPORT|HOBBY)\b[:.\s-]*(.*)$/i);
   const kind = found ? found[1].toLowerCase() : fallbackKind;
   const named = (found?.[2] ?? '').trim().toLowerCase();
-  const ofKind = categories.filter((category) => category.kind === kind);
-  const hit = ofKind.find((category) => category.name.toLowerCase() === named)
-    ?? ofKind.find((category) => category.name.toLowerCase().startsWith('other'))
-    ?? null;
+  const hit = categories.find((category) => category.kind === kind && category.name.toLowerCase() === named) ?? null;
   return { kind, category: hit };
 }
 
@@ -157,30 +155,27 @@ test('the classifier still matches the one the function ships', () => {
   const source = readFileSync(join(__dirname, '../../supabase/functions/gwin/index.ts'), 'utf8');
   assert.ok(source.includes('const found = reply.trim().match(/^(SPORT|HOBBY)\\b[:.\\s-]*(.*)$/i);'),
     'the function no longer contains the classification parser');
+  assert.ok(source.includes('category.kind === kind && category.name.toLowerCase() === named) ?? null;'),
+    'the function must not fall back to Other inside the parser');
 });
 
 test('a clean reply files under its kind and category', () => {
-  const sorted = classificationFrom('SPORT Combat sports', CATEGORIES, 'sport');
+  const sorted = classificationFrom('SPORT Water sports', CATEGORIES, 'sport');
   assert.equal(sorted.kind, 'sport');
-  assert.equal(sorted.category.id, 'c1');
+  assert.equal(sorted.category.id, 'c2');
   assert.equal(classificationFrom('hobby: music', CATEGORIES, 'sport').category.id, 'h1',
     'case and punctuation do not matter, and the engine can override the guessed kind');
 });
 
-test('an invented category falls back to Other, never into the list', () => {
-  const sorted = classificationFrom('SPORT Martial arts', CATEGORIES, 'sport');
-  assert.equal(sorted.category.id, 'c9');
+test('Other is accepted when the model actually chose it', () => {
+  assert.equal(classificationFrom('SPORT Other sports', CATEGORIES, 'sport').category.id, 'c9');
 });
 
-test('a category from the wrong kind is not accepted', () => {
-  // Music is a real category, but not a sport one.
-  assert.equal(classificationFrom('SPORT Music', CATEGORIES, 'sport').category.id, 'c9');
-});
-
-test('an unreadable reply keeps the caller kind and lands in its Other', () => {
-  for (const reply of ['', 'I think this is boxing', 'Combat sports']) {
-    const sorted = classificationFrom(reply, CATEGORIES, 'hobby');
-    assert.equal(sorted.kind, 'hobby', JSON.stringify(reply));
-    assert.equal(sorted.category.id, 'h9', JSON.stringify(reply));
+// The gate. None of these may produce a category: each leaves the request held
+// and retried, instead of handing the admin an uncategorised request.
+test('an invented, wrong-kind or unreadable answer places nothing', () => {
+  for (const reply of ['SPORT Martial arts', 'SPORT Music', '', 'I think this is boxing', 'Combat sports']) {
+    assert.equal(classificationFrom(reply, CATEGORIES, 'hobby').category, null, JSON.stringify(reply));
   }
+  assert.equal(classificationFrom('', CATEGORIES, 'hobby').kind, 'hobby', 'an unreadable reply keeps the caller kind');
 });

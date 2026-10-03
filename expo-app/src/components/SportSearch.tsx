@@ -102,7 +102,8 @@ export function SportSearch({ sports, selected, onPick, single = false }: {
         ok: true,
         text: filed.placedByEngine && filed.category
           ? `Requested “${typed}”, under ${filed.kind === 'hobby' ? 'Hobbies' : 'Sports'} › ${filed.category}. It appears here once an admin approves it.`
-          : `Requested “${typed}”. An admin will place it in a category and approve it.`,
+          // Held: it reaches the admins only once it has a category.
+          : `Requested “${typed}”. It is being sorted into a category, then it goes to the admins.`,
       });
     } catch (error) {
       // The server's refusals are written to be read -- "Did you mean
