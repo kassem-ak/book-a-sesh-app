@@ -131,8 +131,14 @@ export type FiledRequest = {
  *  The server's own refusals come through as the error message, and they are
  *  written to be shown: "Did you mean Football?", "Chess is already there to
  *  choose". */
-export async function requestSport(typed: string, kind: 'sport' | 'hobby' = 'sport'): Promise<FiledRequest> {
-  const filed = await callGwin<FiledRequest>({ action: 'request-sport', typed, kind });
+export async function requestSport(
+  typed: string,
+  kind: 'sport' | 'hobby' = 'sport',
+  /** The member's pick when the engine is off. Ignored when it is on -- the
+   *  engine assigns the category itself. */
+  categoryId: string | null = null,
+): Promise<FiledRequest> {
+  const filed = await callGwin<FiledRequest>({ action: 'request-sport', typed, kind, categoryId });
   // A request name is member-written text that an admin reads, so it gets the
   // same second pass the old request form gave it.
   screenQuietly('sport_requests', typed);

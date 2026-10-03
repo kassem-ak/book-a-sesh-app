@@ -344,36 +344,48 @@ Deno.serve(async (req: Request) => {
   if (action === "request-sport") {
     // Filing a request is not an AI decision and must not depend on the engine
     // being switched on: a member who cannot find their sport should always be
-    // able to ask for it. What the engine adds, when it is on, is sorting the
-    // request into the right kind and category before an admin sees it.
+    // able to ask for it.
+    //
+    // Every request leaves here with a category, so an admin always sees where
+    // it would go. With the engine on, the engine assigns it. With it off, the
+    // member chose one when adding. With neither, it is that kind's Other --
+    // wrongly under Other is a second's fix for an admin; unplaced is a request
+    // with nothing to review.
     const typed = String(body.typed ?? "").trim();
     if (!typed) return json({ error: "Nothing to request." }, 400);
-    const callerKind = body.kind === "hobby" ? "hobby" : "sport";
+
+    const { data: rows } = await admin
+      .from("sport_categories").select("id, kind, name").order("position");
+    const categories = (rows ?? []) as Category[];
+
+    // The member's pick is checked against the table like anything else from
+    // a client: an id that is not a category is ignored, not trusted.
+    const chosen = categories.find((category) => category.id === body.categoryId) ?? null;
+    const callerKind: "sport" | "hobby" = chosen?.kind ?? (body.kind === "hobby" ? "hobby" : "sport");
+    const otherOf = (each: "sport" | "hobby") =>
+      categories.find((category) => category.kind === each && category.name.toLowerCase().startsWith("other")) ?? null;
 
     let kind: "sport" | "hobby" = callerKind;
-    let categoryId: string | null = null;
-    let categoryName: string | null = null;
+    let category: Category | null = chosen ?? otherOf(callerKind);
 
     if (settings.suggests_sports === true) {
-      const { data: rows } = await admin
-        .from("sport_categories").select("id, kind, name").order("position");
-      const categories = (rows ?? []) as Category[];
       try {
         const lists = (["sport", "hobby"] as const).map((each) =>
           `${each.toUpperCase()} categories:\n${
-            categories.filter((category) => category.kind === each).map((category) => category.name).join("\n")
+            categories.filter((entry) => entry.kind === each).map((entry) => entry.name).join("\n")
           }`).join("\n\n");
         const reply = await ask(settings, CLASSIFY_PROMPT, `${lists}\n\nNew entry:\n${typed}`, 4000);
         const sorted = classificationFrom(reply, categories, callerKind);
         kind = sorted.kind;
-        categoryId = sorted.category?.id ?? null;
-        categoryName = sorted.category?.name ?? null;
+        category = sorted.category ?? otherOf(sorted.kind);
       } catch (failure) {
         if (!(failure instanceof Unavailable)) throw failure;
-        // Unsorted is fine: it files under the caller's kind and shows under
-        // Other until an admin places it.
+        // The engine is unreachable: keep the member's choice, or Other.
       }
     }
+
+    const categoryId = category?.id ?? null;
+    const categoryName = category?.name ?? null;
 
     // Filed AS THE CALLER, through the same RPC the request form always used,
     // so requested_by is the member and the existing rules all still apply --

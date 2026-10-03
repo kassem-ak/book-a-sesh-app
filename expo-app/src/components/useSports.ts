@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchSports, Sport } from '../lib/profiles';
+import { fetchSportCategories, fetchSports, Sport, SportCategory } from '../lib/profiles';
 
 /** The approved sport/hobby catalogue, read from the server on mount.
  *
@@ -27,6 +27,21 @@ export function useSports() {
   }, [attempt]);
 
   return { sports, failed, retry: () => setAttempt((value) => value + 1) };
+}
+
+/** The category list, for asking where a new request belongs. Null while
+ *  loading; an empty list on failure, which the chooser shows as nothing to
+ *  pick -- the request then lands under Other rather than not at all. */
+export function useSportCategories() {
+  const [categories, setCategories] = useState<SportCategory[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetchSportCategories()
+      .then((rows) => { if (active) setCategories(rows); })
+      .catch(() => { if (active) setCategories([]); });
+    return () => { active = false; };
+  }, []);
+  return categories;
 }
 
 /** Case-insensitive substring match, for the search field on every picker. */

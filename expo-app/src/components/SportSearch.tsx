@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Sport } from '../lib/profiles';
+import { Sport, SportCategory } from '../lib/profiles';
 import { fetchCapabilities, mapSport, requestSport } from '../lib/gwin';
 import { useTheme } from '../theme';
-import { Button, Field, Icon, Row, SectionHeading } from './ui';
-import { layerSports } from './useSports';
+import { CategoryChooser } from './CategoryChooser';
+import { Button, Field, Icon, SectionHeading } from './ui';
+import { layerSports, useSportCategories } from './useSports';
 
 // Search the catalogue, with the AI engine behind it.
 //
@@ -86,12 +87,14 @@ export function SportSearch({ sports, selected, onPick, single = false }: {
   const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
   useEffect(() => { setNote(null); }, [typed]);
 
-  const file = async (kind: 'sport' | 'hobby') => {
+  const categories = useSportCategories();
+
+  const file = async (category: SportCategory | null) => {
     if (!typed || filing) return;
     setFiling(true);
     setNote(null);
     try {
-      const filed = await requestSport(typed, kind);
+      const filed = await requestSport(typed, category?.kind ?? 'sport', category?.id ?? null);
       const where = filed.category
         ? `${filed.kind === 'hobby' ? 'Hobbies' : 'Sports'} › ${filed.category}`
         : filed.kind === 'hobby' ? 'Hobbies' : 'Sports';
@@ -165,18 +168,28 @@ export function SportSearch({ sports, selected, onPick, single = false }: {
               busy={filing}
               busyLabel="Sending…"
               accessibilityLabel={`Request ${typed} as a new sport or hobby`}
-              onPress={() => void file('sport')}
+              onPress={() => void file(null)}
             />
           ) : (
-            // Without the engine nobody can sort it, so the member says which.
-            <Row gap={8}>
-              <Button icon="plus" label="Add as a sport" busy={filing} style={{ flex: 1 }}
-                accessibilityLabel={`Request ${typed} as a new sport`}
-                onPress={() => void file('sport')} />
-              <Button icon="plus" label="Add as a hobby" busy={filing} style={{ flex: 1 }}
-                accessibilityLabel={`Request ${typed} as a new hobby`}
-                onPress={() => void file('hobby')} />
-            </Row>
+            // Without the engine nobody can place it automatically, so the
+            // member does -- one tap, which also says whether it is a sport or
+            // a hobby. Every request reaches an admin already placed.
+            <View style={{ gap: 10 }}>
+              <Text style={[t.label, { color: c.txt }]}>
+                Add “{typed}” — what kind of thing is it?
+              </Text>
+              {categories === null ? (
+                <Text style={[t.caption, { color: c.txt3 }]}>Loading the categories…</Text>
+              ) : categories.length ? (
+                <CategoryChooser categories={categories} selected={null} disabled={filing}
+                  onPick={(category) => void file(category)} />
+              ) : (
+                // The list could not load: still let them ask. It lands under
+                // Other and an admin places it.
+                <Button icon="plus" label={`Add “${typed}”`} busy={filing}
+                  onPress={() => void file(null)} />
+              )}
+            </View>
           ))}
 
           {note && (
