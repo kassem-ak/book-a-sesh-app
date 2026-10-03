@@ -113,6 +113,32 @@ export function mapSport(typed: string): Promise<SportMapping> {
  *  Fails to "everything off": an app that cannot reach the function should show
  *  the plain path rather than an affordance that will not work. Never used to
  *  decide whether something is *allowed* -- the function settles that. */
+export type FiledRequest = {
+  requestId: string;
+  /** What the engine decided it is, or the caller's guess when it is off. */
+  kind: 'sport' | 'hobby';
+  /** Where it will sit once approved, or null when the engine was not asked. */
+  category: string | null;
+};
+
+/** Ask for an entry that is not in the catalogue.
+ *
+ *  Works whether or not the engine is on -- a member who cannot find their
+ *  sport must always be able to ask for it. When the engine is on, it decides
+ *  sport-or-hobby and the category before an admin sees the request; when it
+ *  is off, `kind` is used as given and the request arrives unplaced.
+ *
+ *  The server's own refusals come through as the error message, and they are
+ *  written to be shown: "Did you mean Football?", "Chess is already there to
+ *  choose". */
+export async function requestSport(typed: string, kind: 'sport' | 'hobby' = 'sport'): Promise<FiledRequest> {
+  const filed = await callGwin<FiledRequest>({ action: 'request-sport', typed, kind });
+  // A request name is member-written text that an admin reads, so it gets the
+  // same second pass the old request form gave it.
+  screenQuietly('sport_requests', typed);
+  return filed;
+}
+
 export async function fetchCapabilities(): Promise<Capabilities> {
   try {
     const raw = await callGwin<{

@@ -49,6 +49,15 @@ const PROMPTS = {
     + "Match only a genuine synonym, translation, abbreviation or spelling variant of an entry already on the list. Never invent an entry, and never widen one to cover something adjacent: a near neighbour is a NEW request for a human to decide, not a match.",
 };
 
+// New, and app-side only: the console has no classification capability, so
+// there is no console copy of this one to keep in step. Same house rules as the
+// two above -- one line, a closed vocabulary, checked in code, and a failure
+// that lands somewhere harmless rather than somewhere wrong.
+const CLASSIFY_PROMPT =
+  "You are Gwin, sorting one new entry for the BOOK'D catalogue of sports and hobbies into the categories given to you.\n\n"
+  + "Answer with exactly one line: SPORT or HOBBY, then the name of one category copied character for character from that kind's list. For example: SPORT Combat sports\n\n"
+  + "A sport is a physical activity people train at or compete in. A hobby is a pastime that is not mainly physical training. Choose the closest category. If none genuinely fits, choose the one whose name begins with Other. Never invent a category.";
+
 // The surfaces flag_if_explicit already triggers on. subject_type is written
 // into the queue an admin reads, so it comes from this list rather than from
 // whatever the caller sent.
@@ -170,6 +179,25 @@ function mappingFrom(reply: string, curated: string[], typed: string) {
   // Including a name Gwin invented: credited to the member as a request, and a
   // human decides whether the list grows.
   return { match: null, request: typed };
+}
+
+type Category = { id: string; kind: "sport" | "hobby"; name: string };
+
+/** A category is only ever a row already in sport_categories, checked here
+ *  rather than taken on the model's word -- the same rule mappingFrom follows
+ *  for sports. A kind it cannot read falls back to the caller's guess, and a
+ *  category that is not on that kind's list falls back to that kind's Other:
+ *  wrongly filed under Other is a thing an admin fixes in a second, and an
+ *  invented category is a thing the layer never recovers from. */
+function classificationFrom(reply: string, categories: Category[], fallbackKind: "sport" | "hobby") {
+  const found = reply.trim().match(/^(SPORT|HOBBY)\b[:.\s-]*(.*)$/i);
+  const kind = found ? (found[1].toLowerCase() as "sport" | "hobby") : fallbackKind;
+  const named = (found?.[2] ?? "").trim().toLowerCase();
+  const ofKind = categories.filter((category) => category.kind === kind);
+  const hit = ofKind.find((category) => category.name.toLowerCase() === named)
+    ?? ofKind.find((category) => category.name.toLowerCase().startsWith("other"))
+    ?? null;
+  return { kind, category: hit };
 }
 
 Deno.serve(async (req: Request) => {
@@ -311,6 +339,61 @@ Deno.serve(async (req: Request) => {
       // member asks for the entry the ordinary way.
       return json({ match: null, request: typed });
     }
+  }
+
+  if (action === "request-sport") {
+    // Filing a request is not an AI decision and must not depend on the engine
+    // being switched on: a member who cannot find their sport should always be
+    // able to ask for it. What the engine adds, when it is on, is sorting the
+    // request into the right kind and category before an admin sees it.
+    const typed = String(body.typed ?? "").trim();
+    if (!typed) return json({ error: "Nothing to request." }, 400);
+    const callerKind = body.kind === "hobby" ? "hobby" : "sport";
+
+    let kind: "sport" | "hobby" = callerKind;
+    let categoryId: string | null = null;
+    let categoryName: string | null = null;
+
+    if (settings.suggests_sports === true) {
+      const { data: rows } = await admin
+        .from("sport_categories").select("id, kind, name").order("position");
+      const categories = (rows ?? []) as Category[];
+      try {
+        const lists = (["sport", "hobby"] as const).map((each) =>
+          `${each.toUpperCase()} categories:\n${
+            categories.filter((category) => category.kind === each).map((category) => category.name).join("\n")
+          }`).join("\n\n");
+        const reply = await ask(settings, CLASSIFY_PROMPT, `${lists}\n\nNew entry:\n${typed}`, 4000);
+        const sorted = classificationFrom(reply, categories, callerKind);
+        kind = sorted.kind;
+        categoryId = sorted.category?.id ?? null;
+        categoryName = sorted.category?.name ?? null;
+      } catch (failure) {
+        if (!(failure instanceof Unavailable)) throw failure;
+        // Unsorted is fine: it files under the caller's kind and shows under
+        // Other until an admin places it.
+      }
+    }
+
+    // Filed AS THE CALLER, through the same RPC the request form always used,
+    // so requested_by is the member and the existing rules all still apply --
+    // a duplicate pending request becomes a vote, and a near-miss of something
+    // already listed comes back as "Did you mean ...?".
+    const { data: requestId, error: requestErr } = await asCaller
+      .rpc("submit_sport_request", { p_name: typed, p_kind: kind });
+    if (requestErr) return json({ error: requestErr.message }, 422);
+
+    if (categoryId && typeof requestId === "string") {
+      // The one write the caller cannot make themselves: proposing where the
+      // entry belongs. Never overwrites a category an admin already set on a
+      // request somebody else filed first.
+      await admin.from("sport_requests")
+        .update({ category_id: categoryId })
+        .eq("id", requestId)
+        .is("category_id", null);
+    }
+
+    return json({ requestId, kind, category: categoryName });
   }
 
   return json({ error: "Unknown action." }, 400);

@@ -1,12 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sport } from '../lib/profiles';
-import { fetchCapabilities, mapSport } from '../lib/gwin';
-import { submitSportRequest } from '../lib/queries';
 import { useTheme } from '../theme';
-import { Button, Field, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
-import { groupSports, useSports } from './useSports';
+import { SportSearch } from './SportSearch';
+import { Button, Icon, MicroBadge, Row, SectionHeading, VoltButton } from './ui';
+import { useSports } from './useSports';
 
 // The catalogue lives in a modal, not on the page.
 //
@@ -22,8 +21,15 @@ import { groupSports, useSports } from './useSports';
 //
 // What stays on the page is only what someone chose, which is as long as they
 // made it and no longer.
-export function SportsPicker({ selected, onChange, coach = false }: {
-  selected: string[]; onChange: (ids: string[]) => void; coach?: boolean;
+export function SportsPicker({ selected, onChange, coach = false, single = false, intro }: {
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  coach?: boolean;
+  /** One choice, not a ranked list -- what a community is about. Choosing
+   *  replaces the current one and closes the sheet. */
+  single?: boolean;
+  /** Replaces the default line above the picker. */
+  intro?: string;
 }) {
   const { c, t } = useTheme();
   const insets = useSafeAreaInsets();
@@ -31,72 +37,28 @@ export function SportsPicker({ selected, onChange, coach = false }: {
   const sports: Sport[] = loaded ?? [];
   const loading = !loaded && !error;
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-
-  // Gwin's help on the empty search, when an operator has switched it on.
-  //
-  // The dropdown stays. The curated list is the product -- it is what makes
-  // filtering work, and decide_sport_request is the one gate that keeps the
-  // taxonomy from sprawling. All this does is stop a member having to guess the
-  // list's wording: "footy" finds Football, and anything Gwin cannot honestly
-  // match becomes the sport request it would have been anyway.
-  const [askable, setAskable] = useState(false);
-  const [asking, setAsking] = useState(false);
-  const [asked, setAsked] = useState<string | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    let active = true;
-    // Presentation only. The function refuses on its own if the capability is
-    // off, so this decides what to render and never what is allowed.
-    void fetchCapabilities().then((can) => { if (active) setAskable(can.suggestsSports); });
-    return () => { active = false; };
-  }, [open]);
 
   const byId = (id: string) => sports.find((sport) => sport.id === id);
-  const groups = groupSports(sports, query);
-  const searching = query.trim().length > 0;
 
-  const toggle = (id: string) => onChange(
-    selected.includes(id) ? selected.filter((other) => other !== id) : [...selected, id],
-  );
+  const pick = (id: string) => {
+    if (single) {
+      onChange(selected[0] === id ? [] : [id]);
+      setOpen(false);
+      return;
+    }
+    onChange(selected.includes(id) ? selected.filter((other) => other !== id) : [...selected, id]);
+  };
   const drop = (id: string) => onChange(selected.filter((other) => other !== id));
   const promote = (id: string) => onChange([id, ...selected.filter((other) => other !== id)]);
 
-  const close = () => { setOpen(false); setQuery(''); setAsked(null); };
-
-  // Either the member gets the entry they meant, spelled the list's way, or an
-  // admin gets a request -- which is exactly what happens today without Gwin.
-  const ask = async () => {
-    const typed = query.trim();
-    if (!typed || asking) return;
-    setAsking(true);
-    setAsked(null);
-    try {
-      const { match } = await mapSport(typed);
-      const hit = match && sports.find((sport) => sport.name === match);
-      if (hit) {
-        if (!selected.includes(hit.id)) onChange([...selected, hit.id]);
-        setQuery('');
-        setAsked(`Added ${hit.name}.`);
-        return;
-      }
-      // Filed as a sport because the picker cannot know which it is, and
-      // the admin who approves it sets the kind either way.
-      await submitSportRequest(typed, 'sport');
-      setAsked(`Asked the admins about “${typed}”. You will see it once it is approved.`);
-    } catch {
-      // Nothing here is worth an error banner: the member can still ask the
-      // ordinary way, and that is what the button below says.
-      setAsked('That could not be checked just now. Try again in a moment.');
-    } finally {
-      setAsking(false);
-    }
-  };
+  const close = () => setOpen(false);
 
   return (
     <View style={{ gap: 14 }}>
       <Text style={[t.bodySm, { color: c.txt2 }]}>
-        {coach ? 'Choose the sports or hobbies you teach.' : 'Choose your sports and hobbies of interest.'} Select as many as you like. The first is your primary choice. You can skip this and edit it later.
+        {intro ?? (coach
+          ? 'Choose the sports or hobbies you teach. Select as many as you like. The first is your primary choice. You can skip this and edit it later.'
+          : 'Choose your sports and hobbies of interest. Select as many as you like. The first is your primary choice. You can skip this and edit it later.')}
       </Text>
 
       {loading && <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3 }]}>Loading sports and hobbies…</Text>}
@@ -113,7 +75,7 @@ export function SportsPicker({ selected, onChange, coach = false }: {
           row itself rather than a separate stack of "make X primary" links. */}
       {selected.length > 0 && (
         <View style={{ gap: 8 }}>
-          <SectionHeading>Your choices · {selected.length}</SectionHeading>
+          <SectionHeading>{single ? 'Chosen' : `Your choices · ${selected.length}`}</SectionHeading>
           <View style={{ borderWidth: 1, borderColor: c.line, borderRadius: 14, overflow: 'hidden' }}>
             {selected.map((id, index) => {
               const sport = byId(id);
@@ -122,12 +84,17 @@ export function SportsPicker({ selected, onChange, coach = false }: {
                 <Row key={id} gap={8} style={{ alignItems: 'center', minHeight: 52, paddingLeft: 12, paddingRight: 8,
                   backgroundColor: primary ? c.surface : 'transparent',
                   borderTopWidth: index === 0 ? 0 : 1, borderTopColor: c.line2 }}>
-                  <Icon name="star" size={16} color={primary ? c.accent : c.txt3} />
-                  <Text numberOfLines={1} style={[t.label, { flex: 1, color: c.txt }]}>{sport ? sport.name : 'Unavailable'}</Text>
-                  {primary
+                  <Icon name={single ? 'check' : 'star'} size={16} color={primary ? c.accent : c.txt3} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={[t.label, { color: c.txt }]}>{sport ? sport.name : 'Unavailable'}</Text>
+                    {sport?.category && (
+                      <Text numberOfLines={1} style={[t.caption, { color: c.txt3 }]}>{sport.category}</Text>
+                    )}
+                  </View>
+                  {!single && (primary
                     ? <MicroBadge label="Primary" bg={c.volt} fg={c.ink} />
                     : <Button label="Make primary" icon="star" onPress={() => promote(id)}
-                        accessibilityLabel={`Make ${sport ? sport.name : 'this'} primary`} />}
+                        accessibilityLabel={`Make ${sport ? sport.name : 'this'} primary`} />)}
                   <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${sport ? sport.name : 'this choice'}`}
                     onPress={() => drop(id)}
                     style={{ minHeight: 44, width: 44, alignItems: 'center', justifyContent: 'center' }}>
@@ -137,7 +104,7 @@ export function SportsPicker({ selected, onChange, coach = false }: {
               );
             })}
           </View>
-          {selected.length > 1 && (
+          {!single && selected.length > 1 && (
             <Text style={[t.bodySm, { color: c.txt3 }]}>The starred choice is what people see first on your profile.</Text>
           )}
         </View>
@@ -145,13 +112,17 @@ export function SportsPicker({ selected, onChange, coach = false }: {
 
       {sports.length > 0 && (
         <Pressable accessibilityRole="button"
-          accessibilityLabel={selected.length ? 'Add or remove sports and hobbies' : 'Choose sports and hobbies'}
+          accessibilityLabel={single
+            ? (selected.length ? 'Change the sport or hobby' : 'Choose a sport or hobby')
+            : (selected.length ? 'Add or remove sports and hobbies' : 'Choose sports and hobbies')}
           onPress={() => setOpen(true)}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 14,
             borderWidth: 1, borderColor: c.line, borderRadius: 14, backgroundColor: c.surface }}>
           <Icon name="search" size={18} color={c.txt3} />
           <Text numberOfLines={1} style={[t.label, { flex: 1, color: selected.length ? c.txt : c.txt3 }]}>
-            {selected.length ? `Add or remove · ${selected.length} chosen` : 'Choose sports and hobbies'}
+            {single
+              ? (selected.length ? 'Change it' : 'Search a sport or hobby')
+              : (selected.length ? `Add or remove · ${selected.length} chosen` : 'Search sports and hobbies')}
           </Text>
           <Icon name="chevron-down" size={18} color={c.txt3} />
         </Pressable>
@@ -182,12 +153,10 @@ export function SportsPicker({ selected, onChange, coach = false }: {
                 <Icon name="x" size={20} color={c.txt3} />
               </Pressable>
             </Row>
-            <Field value={query} onChange={setQuery} icon="search"
-              placeholder="Search sports and hobbies" label="Search sports and hobbies" />
             <Text accessibilityLiveRegion="polite" style={[t.caption, { color: c.txt3 }]}>
-              {selected.length
-                ? `${selected.length} chosen. Tap to add or remove.`
-                : 'Tap as many as you like.'}
+              {single
+                ? 'Choose one.'
+                : selected.length ? `${selected.length} chosen. Tap to add or remove.` : 'Tap as many as you like.'}
             </Text>
           </View>
 
@@ -195,55 +164,7 @@ export function SportsPicker({ selected, onChange, coach = false }: {
               and the whole catalogue stays reachable however long it grows. */}
           <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + 110, gap: 18 }}
             keyboardShouldPersistTaps="handled">
-            {groups.length === 0 && (
-              <View style={{ gap: 10 }}>
-                <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3 }]}>
-                  {searching ? `Nothing matches “${query.trim()}”.` : 'No sports or hobbies are available yet.'}
-                </Text>
-                {/* Only when an operator has switched the capability on --
-                    otherwise this is a button that answers 409. */}
-                {searching && askable && (
-                  <Button
-                    icon="help-circle"
-                    label={`Ask about “${query.trim()}”`}
-                    busy={asking}
-                    busyLabel="Checking…"
-                    accessibilityLabel={`Ask whether ${query.trim()} is already on the list`}
-                    onPress={() => void ask()}
-                  />
-                )}
-              </View>
-            )}
-            {asked && (
-              <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt2 }]}>
-                {asked}
-              </Text>
-            )}
-            {groups.map((group) => (
-              <View key={group.label} style={{ gap: 8 }}>
-                <SectionHeading>{group.label}</SectionHeading>
-                <View style={{ borderWidth: 1, borderColor: c.line, borderRadius: 14, overflow: 'hidden' }}>
-                  {group.items.map((sport, index) => {
-                    const checked = selected.includes(sport.id);
-                    return (
-                      <Pressable key={sport.id} accessibilityRole="checkbox" accessibilityLabel={sport.name}
-                        accessibilityState={{ checked }}
-                        onPress={() => toggle(sport.id)}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingHorizontal: 12,
-                          backgroundColor: checked ? c.surface : 'transparent',
-                          borderTopWidth: index === 0 ? 0 : 1, borderTopColor: c.line2 }}>
-                        <View style={{ width: 18, height: 18, borderRadius: 5, borderWidth: 1,
-                          alignItems: 'center', justifyContent: 'center',
-                          borderColor: checked ? c.volt : c.line, backgroundColor: checked ? c.volt : 'transparent' }}>
-                          {checked && <Icon name="check" size={13} color={c.ink} />}
-                        </View>
-                        <Text numberOfLines={1} style={[t.label, { flex: 1, color: c.txt }]}>{sport.name}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
+            <SportSearch sports={sports} selected={selected} onPick={pick} single={single} />
           </ScrollView>
 
           <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0,
