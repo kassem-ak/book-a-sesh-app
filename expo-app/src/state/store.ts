@@ -11,11 +11,11 @@ import {
   leaveCommunity as leaveCommunityRemote,
   setEventAttendance,
   submitShopRegistration as submitShopRegistrationRemote,
-  submitSportRequest as submitSportRequestRemote,
   suggestEvent as suggestEventRemote,
 } from '../lib/queries';
 import { requestMembership as requestMembershipRemote } from '../lib/communities';
 import { CommunityDraft, EMPTY_COMMUNITY_DRAFT } from '../components/CommunityFields';
+import { requestSport as requestSportRemote } from '../lib/gwin';
 import {
   Cert,
   CoachPkg,
@@ -393,6 +393,10 @@ export interface SpotterState {
   editCommunityAbout: string;
   reqName: string;
   reqType: string;
+  /** Where the request belongs. Settles reqType too. */
+  reqCategoryId: string | null;
+  /** Where it was filed, as the server placed it -- shown on the receipt. */
+  reqPlaced: string | null;
   reqSent: boolean;
 
   // accounting
@@ -696,6 +700,8 @@ export const useStore = create<SpotterState>((set, get) => ({
   editCommunityAbout: '',
   reqName: '',
   reqType: 'Hobby',
+  reqCategoryId: null,
+  reqPlaced: null,
   reqSent: false,
 
   acctMargins: { session: 0, shop: 0, boost: 0 },
@@ -911,7 +917,10 @@ export const useStore = create<SpotterState>((set, get) => ({
     overlay: 'startCommunity', commCreated: false,
     commName: '', commDraft: EMPTY_COMMUNITY_DRAFT, writeError: null,
   }),
-  openRequest: () => set({ overlay: 'request', reqSent: false, reqName: '', reqType: 'Hobby', writeError: null }),
+  openRequest: () => set({
+    overlay: 'request', reqSent: false, reqName: '', reqType: 'Hobby',
+    reqCategoryId: null, reqPlaced: null, writeError: null,
+  }),
   openCreateEvent: () => {
     const s = get();
     if (!s.canModerateCommunity(s.communityId)) {
@@ -1046,9 +1055,17 @@ export const useStore = create<SpotterState>((set, get) => ({
     if (s.reqName.trim() === '' || isExplicit(s.reqName)) return;
     set({ writeBusy: 'sport-request', writeError: null });
     try {
-      await submitSportRequestRemote(s.reqName.trim(), s.reqType);
-      track('sport_requested', { kind: s.reqType });
-      set({ reqSent: true, writeBusy: null });
+      // Through the same path the search uses, so this request is placed in a
+      // category too -- by the engine when it is on, by the member's pick when
+      // it is not -- and reaches an admin already placed.
+      const kind = s.reqType.toLowerCase() === 'hobby' ? 'hobby' : 'sport';
+      const filed = await requestSportRemote(s.reqName.trim(), kind, s.reqCategoryId);
+      track('sport_requested', { kind: filed.kind });
+      set({
+        reqSent: true,
+        reqPlaced: filed.category ? `${filed.kind === 'hobby' ? 'Hobbies' : 'Sports'} › ${filed.category}` : null,
+        writeBusy: null,
+      });
     } catch (error) {
       set(errorState(error));
     }
