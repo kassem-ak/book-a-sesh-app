@@ -55,10 +55,12 @@ export function avatarMimeType(bytes: Uint8Array): string {
   throw new Error('Choose a JPEG, PNG, WebP or HEIC photo.');
 }
 
-export async function pickAvatar(): Promise<PickedAvatar | null> {
+export async function pickAvatar({ quality = 1 }: { quality?: number } = {}): Promise<PickedAvatar | null> {
   // The system image-only picker grants access to the chosen photo. No camera
   // or broad library permission request is needed (including on the web).
-  const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: false, quality: 1 });
+  // `quality` re-encodes on native (the web ignores it): chat pictures pass
+  // 0.7 so a camera photo fits the 2 MiB limit instead of being refused.
+  const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: false, quality });
   if (result.canceled) return null;
   const asset = result.assets[0];
   if (asset.fileSize && asset.fileSize > MAX_BYTES) throw new Error('Choose a photo no larger than 2 MiB.');

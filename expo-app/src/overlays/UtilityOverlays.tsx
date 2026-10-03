@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { analyticsErrorCode, track } from '../lib/analytics';
+import { pickAvatar, PickedAvatar } from '../lib/avatars';
+import { ChatImage, PendingImage } from '../components/ChatImage';
 import { CalendarItem, calendarWhen, fetchCalendar } from '../lib/calendar';
 import { decidePartnerSession } from '../lib/partners';
 import { ConfirmButton } from '../components/ItemMenu';
@@ -104,6 +106,8 @@ export function ConversationOverlay() {
   const [messages, setMessages] = React.useState<ChatMessage[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState('');
+  // A picture waiting to go with the next send.
+  const [image, setImage] = React.useState<PickedAvatar | null>(null);
   const [sending, setSending] = React.useState(false);
   const [reloads, setReloads] = React.useState(0);
 
@@ -178,16 +182,28 @@ export function ConversationOverlay() {
     };
   }, []);
 
-  const canSend = live && draft.trim().length > 0 && !sending;
+  const canSend = live && (draft.trim().length > 0 || image !== null) && !sending;
+
+  async function attach() {
+    try {
+      // Compressed on the way in: a phone camera's full-quality photo is
+      // usually over the 2 MiB a chat picture may be.
+      const picked = await pickAvatar({ quality: 0.7 });
+      if (picked) setImage(picked);
+    } catch (e) {
+      s.set('writeError', message(e, 'That photo could not be used.'));
+    }
+  }
 
   async function onSend() {
     if (!canSend) return;
     const body = draft.trim();
     setSending(true);
     try {
-      const saved = await sendMessage(conversationId, body);
+      const saved = await sendMessage(conversationId, body, image);
       track('message_sent');
       setDraft('');
+      setImage(null);
       setMessages((prev) => [...(prev ?? []), saved]);
     } catch (e) {
       track('write_failed', { error_code: analyticsErrorCode(e) });
@@ -209,7 +225,17 @@ export function ConversationOverlay() {
             marginBottom: Math.max(keyboard - insets.bottom, 0),
           }}
         >
+          {image && <PendingImage uri={image.uri} onRemove={() => setImage(null)} />}
           <Row style={{ padding: 12 }} gap={10}>
+            <Pressable
+              onPress={() => void attach()}
+              disabled={!live || sending}
+              accessibilityRole="button"
+              accessibilityLabel="Add a photo"
+              style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Icon name="image" size={20} color={c.txt2} />
+            </Pressable>
             <View style={{ flex: 1, backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 9 }}>
               <TextInput
                 value={draft}
@@ -261,8 +287,9 @@ export function ConversationOverlay() {
         ) : (
           messages.map((m) => (
             <View key={m.id} style={{ alignItems: m.mine ? 'flex-end' : 'flex-start' }}>
-              <View style={{ maxWidth: '78%', borderRadius: 18, backgroundColor: m.mine ? c.volt : c.surface, borderColor: m.mine ? c.volt : c.line, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11 }}>
-                <Text style={[t.body, { color: m.mine ? c.ink : c.soft }]}>{m.body}</Text>
+              <View style={{ maxWidth: '78%', borderRadius: 18, backgroundColor: m.mine ? c.volt : c.surface, borderColor: m.mine ? c.volt : c.line, borderWidth: 1, paddingHorizontal: m.hasImage && !m.body ? 6 : 14, paddingVertical: m.hasImage && !m.body ? 6 : 11, gap: 8 }}>
+                <ChatImage url={m.imageUrl} hasImage={m.hasImage} label={m.mine ? 'Photo you sent' : `Photo from ${title}`} />
+                {!!m.body && <Text style={[t.body, { color: m.mine ? c.ink : c.soft }]}>{m.body}</Text>}
               </View>
             </View>
           ))

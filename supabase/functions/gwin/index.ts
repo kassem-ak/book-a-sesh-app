@@ -58,17 +58,28 @@ const CLASSIFY_PROMPT =
   + "Answer with exactly one line: SPORT or HOBBY, then the name of one category copied character for character from that kind's list. For example: SPORT Combat sports\n\n"
   + "A sport is a physical activity people train at or compete in. A hobby is a pastime that is not mainly physical training. Choose the closest category. If none genuinely fits, choose the one whose name begins with Other. Never invent a category.";
 
-// The surfaces flag_if_explicit already triggers on. subject_type is written
-// into the queue an admin reads, so it comes from this list rather than from
-// whatever the caller sent.
-const SURFACES = [
-  "messages",
-  "users",
-  "coach_profiles",
-  "partner_profiles",
-  "profile_tags",
-  "sport_requests",
-];
+// The surfaces that can be screened, keyed by table, and the label each one
+// carries in the queue. subject_type is written into the queue an admin reads,
+// so it comes from this map rather than from whatever the caller sent -- and it
+// is the SAME label flag_if_explicit writes for that table ('message', not
+// 'messages'), so the keyword pass and this pass sort together instead of
+// appearing as two different surfaces.
+const SURFACES: Record<string, string> = {
+  messages: "message",
+  community_messages: "community_message",
+  users: "user",
+  coach_profiles: "coach_profile",
+  partner_profiles: "partner_profile",
+  profile_tags: "profile_tag",
+  sport_requests: "sport_request",
+};
+
+// Where a chat image may live, per surface. The function reads only from these
+// folders, so a caller cannot point it at someone's certificate or avatar.
+const IMAGE_FOLDERS: Record<string, string> = {
+  messages: "dm/",
+  community_messages: "community/",
+};
 
 const MODELS = ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"];
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
@@ -86,6 +97,11 @@ const promptFor = (stored: unknown, shipped: string) =>
 
 class Unavailable extends Error {}
 
+/** What a message to the model can carry: text, or a picture to screen. */
+type Block =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+
 /** One request to Anthropic.
  *
  *  `thinking` is adaptive and carries NO budget_tokens: a budget is rejected
@@ -95,7 +111,7 @@ class Unavailable extends Error {}
 async function ask(
   settings: Record<string, unknown>,
   system: string,
-  user: string,
+  user: string | Block[],
   maxTokens: number,
 ): Promise<string> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
@@ -257,8 +273,9 @@ Deno.serve(async (req: Request) => {
     const content = String(body.content ?? "").trim();
     if (!content) return json({ error: "Nothing to screen." }, 400);
 
-    const subject = String(body.subject ?? "");
-    if (!SURFACES.includes(subject)) return json({ error: "Unknown surface." }, 400);
+    const surface = String(body.subject ?? "");
+    const subject = SURFACES[surface];
+    if (!subject) return json({ error: "Unknown surface." }, 400);
 
     // safety_flags.subject_id is the AUTHOR, which is how flag_if_explicit
     // writes it -- not the id of the row. It comes from the caller's own JWT
@@ -339,6 +356,84 @@ Deno.serve(async (req: Request) => {
       // member asks for the entry the ordinary way.
       return json({ match: null, request: typed });
     }
+  }
+
+  if (action === "screen-image") {
+    // The same screening as text, for a picture somebody sent in a chat. The
+    // same switch governs it -- one capability, "moderates content" -- and it
+    // fails the same way: anything that is not an explicit CLEAR is a flag.
+    if (settings.moderates_content !== true) {
+      return json({ error: "Content moderation is switched off for Gwin." }, 409);
+    }
+    const surface = String(body.subject ?? "");
+    const subject = SURFACES[surface];
+    const folder = IMAGE_FOLDERS[surface];
+    const path = String(body.path ?? "");
+    if (!subject || !folder) return json({ error: "Unknown surface." }, 400);
+    if (!path.startsWith(folder) || path.includes("..")) return json({ error: "Not a chat image." }, 400);
+
+    // Only the person who uploaded it may have it screened. Screening costs
+    // money per call, and the uploader is also who the flag is filed against.
+    const { data: object } = await admin
+      .schema("storage").from("objects")
+      .select("owner")
+      .eq("bucket_id", "chat-media").eq("name", path)
+      .maybeSingle();
+    if (!object || object.owner !== authId) return json({ error: "Not your image." }, 403);
+
+    const { data: me } = await admin
+      .from("users").select("id").eq("auth_id", authId).maybeSingle();
+    if (!me?.id) return json({ error: "No profile for this account." }, 403);
+
+    const moderationAction =
+      settings.moderation_action === "hide_and_flag" ? "hide_and_flag" : "flag";
+
+    let verdict: { flagged: boolean; reason: string; action: string };
+    try {
+      const { data: file, error: fileErr } = await admin.storage.from("chat-media").download(path);
+      if (fileErr || !file) throw new Unavailable("The image could not be read.");
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      }
+      const mediaType = ["image/jpeg", "image/png", "image/webp"].includes(file.type) ? file.type : "image/jpeg";
+      const reply = await ask(
+        settings,
+        promptFor(settings.moderation_prompt, PROMPTS.moderation),
+        [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: btoa(binary) } },
+          { type: "text", text: "A member shared this image in a chat." },
+        ],
+        8000,
+      );
+      verdict = verdictFrom(reply, moderationAction);
+    } catch (failure) {
+      if (!(failure instanceof Unavailable)) throw failure;
+      // Includes a HEIC the model cannot read: not a clearance, so a human looks.
+      verdict = {
+        flagged: true,
+        reason: "Held for review: Gwin could not screen this image.",
+        action: moderationAction,
+      };
+    }
+
+    if (verdict.flagged) {
+      const { error: flagErr } = await admin.from("safety_flags").insert({
+        subject_type: subject,
+        subject_id: me.id,
+        source: `gwin:${subject}:image:${verdict.reason}`.slice(0, 200),
+        // The path, not the picture: an admin opens it from the queue with the
+        // service role, and the queue stays text.
+        content: `[image] chat-media/${path}`.slice(0, 500),
+        auto: true,
+      });
+      if (flagErr) {
+        console.error("Gwin could not write the safety flag", { code: flagErr.code });
+        return json({ ...verdict, stored: false }, 200);
+      }
+    }
+    return json({ ...verdict, stored: verdict.flagged });
   }
 
   if (action === "request-sport") {
