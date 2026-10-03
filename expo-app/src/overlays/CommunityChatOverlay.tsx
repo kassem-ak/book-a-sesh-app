@@ -11,6 +11,8 @@ import {
 import { currentAppUserId } from '../lib/bookings';
 import { fetchMembers } from '../lib/communities';
 import { analyticsErrorCode, track } from '../lib/analytics';
+import { pickAvatar, PickedAvatar } from '../lib/avatars';
+import { ChatImage, PendingImage } from '../components/ChatImage';
 import { errorMessage, isExplicit, useStore } from '../state/store';
 import { initials } from '../state/models';
 import { alpha, radii, spacing, useTheme } from '../theme';
@@ -34,6 +36,8 @@ export function CommunityChatOverlay() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  // A picture waiting to go with the next post.
+  const [image, setImage] = useState<PickedAvatar | null>(null);
   const scroller = useRef<ScrollView | null>(null);
 
   const load = useCallback(async () => {
@@ -60,16 +64,24 @@ export function CommunityChatOverlay() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const attach = () => void (async () => {
+    try {
+      const picked = await pickAvatar({ quality: 0.7 });
+      if (picked) setImage(picked);
+    } catch (e) { setError(errorMessage(e)); }
+  })();
+
   const send = () => void (async () => {
     const body = draft.trim();
-    if (!body || sending) return;
+    if ((!body && !image) || sending) return;
     setSending(true);
     setError(null);
     try {
-      await postCommunityMessage(detail!.id, body);
+      await postCommunityMessage(detail!.id, body, image);
       // Cleared only once it is actually sent: losing what somebody typed
       // because the network dropped is worse than leaving it in the box.
       setDraft('');
+      setImage(null);
       await load();
     } catch (e) {
       track('write_failed', { error_code: analyticsErrorCode(e) });
@@ -135,7 +147,7 @@ export function CommunityChatOverlay() {
             onRemove={() => void (async () => {
               setError(null);
               try {
-                await deleteCommunityMessage(message.id);
+                await deleteCommunityMessage(message.id, message.imagePath);
                 await load();
               } catch (e) { setError(errorMessage(e)); }
             })()}
@@ -154,8 +166,21 @@ export function CommunityChatOverlay() {
         borderTopColor: c.line, borderTopWidth: 1, backgroundColor: c.bg,
         padding: 12, paddingBottom: 12 + insets.bottom,
       }}>
+        {mayPost && image && <PendingImage uri={image.uri} onRemove={() => setImage(null)} />}
         {mayPost ? (
           <Row gap={10} style={{ alignItems: 'flex-end' }}>
+            <Pressable
+              onPress={attach}
+              disabled={sending}
+              accessibilityRole="button"
+              accessibilityLabel="Add a photo"
+              style={{
+                width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
+                backgroundColor: c.surface, borderColor: c.line, borderWidth: 1,
+              }}
+            >
+              <Icon name="image" size={18} color={c.txt2} />
+            </Pressable>
             <TextInput
               value={draft}
               onChangeText={setDraft}
@@ -173,17 +198,17 @@ export function CommunityChatOverlay() {
             />
             <Pressable
               onPress={send}
-              disabled={!draft.trim() || sending || blocked}
+              disabled={(!draft.trim() && !image) || sending || blocked}
               accessibilityRole="button"
               accessibilityLabel="Send"
-              accessibilityState={{ disabled: !draft.trim() || sending || blocked }}
+              accessibilityState={{ disabled: (!draft.trim() && !image) || sending || blocked }}
               style={{
                 width: 48, height: 48, borderRadius: 24,
                 alignItems: 'center', justifyContent: 'center',
-                backgroundColor: draft.trim() && !blocked ? c.volt : c.surface2,
+                backgroundColor: (draft.trim() || image) && !blocked ? c.volt : c.surface2,
               }}
             >
-              <Icon name="send" size={18} color={draft.trim() && !blocked ? c.ink : c.txt3} />
+              <Icon name="send" size={18} color={(draft.trim() || image) && !blocked ? c.ink : c.txt3} />
             </Pressable>
           </Row>
         ) : (
@@ -242,7 +267,12 @@ function Message({ message, canRemove, onRemove }: {
             />
           )}
         </Row>
-        <Text style={[t.body, { color: c.soft, marginTop: 4 }]}>{message.body}</Text>
+        {!!message.imagePath && (
+          <View style={{ marginTop: 6 }}>
+            <ChatImage url={message.imageUrl} hasImage label={`Photo from ${message.authorName}`} />
+          </View>
+        )}
+        {!!message.body && <Text style={[t.body, { color: c.soft, marginTop: 4 }]}>{message.body}</Text>}
       </View>
     </Row>
   );

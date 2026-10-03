@@ -11,6 +11,8 @@ import {
 } from './schema';
 import { currentAppUserId } from './bookings';
 import { PickedAvatar } from './avatars';
+import { removeChatImage, signChatImages, uploadChatImage } from './chatMedia';
+import { screenImageQuietly, screenQuietly } from './gwin';
 import { cleanNote } from './availability';
 import { handlesFrom, SocialHandles } from './socialLinks';
 import { supabase } from './supabase';
@@ -590,6 +592,10 @@ export type ChatMode = 'chatroom' | 'newsletter';
 export type CommunityMessage = {
   id: string;
   body: string;
+  /** Signed link to the picture, or null. */
+  imageUrl: string | null;
+  /** The stored path, kept so removing the message can remove the file too. */
+  imagePath: string | null;
   authorId: string | null;
   authorName: string;
   authorAvatar: string | null;
@@ -616,7 +622,7 @@ export async function fetchCommunityMessages(ref: string): Promise<CommunityMess
   const me = await currentAppUserId().catch(() => null);
   const { data, error } = await supabase
     .from('community_messages')
-    .select('id, body, author_id, created_at, author:users!community_messages_author_id_fkey(name, avatar_url)')
+    .select('id, body, image_path, author_id, created_at, author:users!community_messages_author_id_fkey(name, avatar_url)')
     .eq('community_id', communityId)
     // Oldest first: a thread reads downwards, and the newest belongs at the
     // bottom where the composer is.
@@ -628,12 +634,16 @@ export async function fetchCommunityMessages(ref: string): Promise<CommunityMess
     if (isMissingTable(error)) { markCommunitySchemaMissing(); return []; }
     throw error;
   }
-  return ((data ?? []) as unknown as {
-    id: string; body: string; author_id: string | null; created_at: string;
+  const rows = (data ?? []) as unknown as {
+    id: string; body: string; image_path: string | null; author_id: string | null; created_at: string;
     author: { name: string; avatar_url: string | null } | null;
-  }[]).map((row) => ({
+  }[];
+  const signed = await signChatImages(rows.map((row) => row.image_path));
+  return rows.map((row) => ({
     id: row.id,
     body: row.body,
+    imageUrl: row.image_path ? signed.get(row.image_path) ?? null : null,
+    imagePath: row.image_path,
     authorId: row.author_id,
     // A deleted account leaves its messages behind; the thread still has to
     // read as a conversation.
@@ -644,15 +654,25 @@ export async function fetchCommunityMessages(ref: string): Promise<CommunityMess
   }));
 }
 
-export async function postCommunityMessage(ref: string, body: string): Promise<void> {
+export async function postCommunityMessage(
+  ref: string, body: string, image: PickedAvatar | null = null,
+): Promise<void> {
   const text = body.trim();
-  if (!text) return;
+  if (!text && !image) return;
   if (text.length > 2000) throw new Error('That message is too long.');
   const communityId = await resolveCommunityId(ref);
   const me = await currentAppUserId();
+  const imagePath = image ? await uploadChatImage({ kind: 'community', id: communityId }, image) : null;
   const { error } = await supabase
     .from('community_messages')
-    .insert({ community_id: communityId, author_id: me, body: text });
+    .insert({ community_id: communityId, author_id: me, body: text, image_path: imagePath });
+  if (error) await removeChatImage(imagePath);
+  if (!error) {
+    // The same second pass direct messages get. Community threads had none --
+    // not even the keyword trigger, which the chat-images migration added.
+    if (text) screenQuietly('community_messages', text);
+    if (imagePath) screenImageQuietly('community_messages', imagePath);
+  }
   if (error) {
     // The insert policy is the only thing that knows the mode, so a refusal
     // here means announcements-only and this person does not run the place.
@@ -667,13 +687,15 @@ export async function postCommunityMessage(ref: string, body: string): Promise<v
   }
 }
 
-export async function deleteCommunityMessage(messageId: string): Promise<void> {
+export async function deleteCommunityMessage(messageId: string, imagePath: string | null = null): Promise<void> {
   const { data, error } = await supabase
     .from('community_messages').delete().eq('id', messageId).select('id');
   if (error) throw error;
   // A policy-gated delete that matches nothing is not an error; it removed
   // nothing and said it was fine.
   if (!data?.length) throw new Error('That message is not yours to remove.');
+  // The picture goes with it where storage allows -- its uploader's own.
+  await removeChatImage(imagePath);
 }
 
 /** Whether this person may post, mirroring `can_post_to_community`. */
@@ -697,7 +719,7 @@ export async function fetchCommunityChatPreviews(): Promise<Map<string, ChatPrev
   if (!communitySchemaReady()) return previews;
   const { data, error } = await supabase
     .from('community_messages')
-    .select('community_id, body, created_at, community:communities(slug)')
+    .select('community_id, body, image_path, created_at, community:communities(slug)')
     .order('created_at', { ascending: false })
     // Deep enough that a busy community cannot push a quiet one off the list
     // in normal use, shallow enough to stay one cheap read.
@@ -707,14 +729,18 @@ export async function fetchCommunityChatPreviews(): Promise<Map<string, ChatPrev
     return previews;
   }
   for (const row of (data ?? []) as unknown as {
-    community_id: string; body: string; created_at: string;
+    community_id: string; body: string; image_path: string | null; created_at: string;
     community: { slug: string | null } | null;
   }[]) {
     const key = row.community?.slug ?? row.community_id;
     // Ordered newest first, so the first one seen for a community is its
     // latest and every later one is older.
     if (previews.has(key)) continue;
-    previews.set(key, { slug: key, last: row.body, whenLabel: shortWhen(row.created_at) });
+    previews.set(key, {
+      slug: key,
+      last: row.body.trim() || (row.image_path ? 'Photo' : ''),
+      whenLabel: shortWhen(row.created_at),
+    });
   }
   return previews;
 }

@@ -2,7 +2,9 @@
 // from the tables — there is no SECURITY DEFINER RPC for chat, so every query
 // here leans on the RLS policies in db/policies.sql + db/hardening.sql.
 import { initials as initialsOf } from '../state/models';
-import { screenQuietly } from './gwin';
+import { screenImageQuietly, screenQuietly } from './gwin';
+import { PickedAvatar } from './avatars';
+import { removeChatImage, signChatImages, uploadChatImage } from './chatMedia';
 import { ensureAppSession } from './session';
 import { supabase } from './supabase';
 
@@ -21,6 +23,12 @@ export type ConversationSummary = {
 export type ChatMessage = {
   id: string;
   body: string;
+  /** A short-lived signed link to the picture, or null when there is none or
+   *  it can no longer be opened. */
+  imageUrl: string | null;
+  /** Whether a picture was sent at all -- so a removed one can say so rather
+   *  than vanish from the bubble. */
+  hasImage: boolean;
   createdAt: string;
   /** True when the signed-in user sent it — drives the volt bubble alignment. */
   mine: boolean;
@@ -83,8 +91,11 @@ type MessageRow = {
   conversation_id: string;
   sender_id: string;
   body: string;
+  image_path: string | null;
   created_at: string;
 };
+
+const MESSAGE_COLUMNS = 'id, conversation_id, sender_id, body, image_path, created_at';
 
 function one<T>(embed: T | T[] | null): T | null {
   if (Array.isArray(embed)) return embed[0] ?? null;
@@ -118,7 +129,7 @@ export async function fetchConversations(): Promise<ConversationSummary[]> {
       .neq('user_id', me),
     supabase
       .from('messages')
-      .select('id, conversation_id, sender_id, body, created_at')
+      .select(MESSAGE_COLUMNS)
       .in('conversation_id', ids)
       .order('created_at', { ascending: false })
       .limit(RECENT_MESSAGE_WINDOW),
@@ -157,7 +168,8 @@ export async function fetchConversations(): Promise<ConversationSummary[]> {
         counterpartId: counterpart?.id ?? null,
         name,
         initials: initialsOf(name),
-        last: last?.body ?? 'No messages yet',
+        // A picture on its own has no text to preview; say what it is.
+        last: last ? (last.body.trim() || (last.image_path ? 'Photo' : '')) : 'No messages yet',
         lastAt: last?.created_at ?? null,
         whenLabel: relativeWhen(last?.created_at ?? null),
         unread: unreadByConv.get(id) ?? 0,
@@ -190,36 +202,64 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
   const me = await currentAppUserId();
   const { data, error } = await supabase
     .from('messages')
-    .select('id, conversation_id, sender_id, body, created_at')
+    .select(MESSAGE_COLUMNS)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
     .limit(MESSAGE_PAGE);
   if (error) throw error;
-  return ((data ?? []) as MessageRow[])
-    .map((m) => ({ id: m.id, body: m.body, createdAt: m.created_at, mine: m.sender_id === me }))
+  const rows = (data ?? []) as MessageRow[];
+  // One request for every picture in the page, not one per bubble.
+  const signed = await signChatImages(rows.map((m) => m.image_path));
+  return rows
+    .map((m) => ({
+      id: m.id,
+      body: m.body,
+      imageUrl: m.image_path ? signed.get(m.image_path) ?? null : null,
+      hasImage: !!m.image_path,
+      createdAt: m.created_at,
+      mine: m.sender_id === me,
+    }))
     .reverse();
 }
 
 // Returns the stored row rather than the caller's draft so the bubble carries
 // the real id and server timestamp — an optimistic echo would duplicate on the
 // next refetch.
-export async function sendMessage(conversationId: string, body: string): Promise<ChatMessage> {
+export async function sendMessage(
+  conversationId: string, body: string, image: PickedAvatar | null = null,
+): Promise<ChatMessage> {
   const me = await currentAppUserId();
   const text = body.trim();
-  if (!text) throw new Error('Message is empty');
+  if (!text && !image) throw new Error('Message is empty');
 
+  // The picture first: a message row pointing at a file that failed to upload
+  // would be a broken bubble for both people.
+  const imagePath = image ? await uploadChatImage({ kind: 'dm', id: conversationId }, image) : null;
   const { data, error } = await supabase
     .from('messages')
-    .insert({ conversation_id: conversationId, sender_id: me, body: text })
-    .select('id, conversation_id, sender_id, body, created_at')
+    .insert({ conversation_id: conversationId, sender_id: me, body: text, image_path: imagePath })
+    .select(MESSAGE_COLUMNS)
     .single();
-  if (error) throw error;
+  if (error) {
+    // Do not leave an orphaned picture behind a message that was refused.
+    await removeChatImage(imagePath);
+    throw error;
+  }
   const row = data as MessageRow;
   // After the send, never before it: the keyword trigger on this column works
   // the same way, and a screening call inside the send would make sending slow
-  // whenever Anthropic is slow.
-  screenQuietly('messages', text);
-  return { id: row.id, body: row.body, createdAt: row.created_at, mine: true };
+  // whenever Anthropic is slow. The picture gets the same pass as the words.
+  if (text) screenQuietly('messages', text);
+  if (imagePath) screenImageQuietly('messages', imagePath);
+  const signed = await signChatImages([imagePath]);
+  return {
+    id: row.id,
+    body: row.body,
+    imageUrl: imagePath ? signed.get(imagePath) ?? null : null,
+    hasImage: !!imagePath,
+    createdAt: row.created_at,
+    mine: true,
+  };
 }
 
 /** Clears the unread badge. Only `last_read_at` is grantable, per db/hardening.sql. */

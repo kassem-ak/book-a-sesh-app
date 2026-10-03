@@ -23,6 +23,7 @@ import { ensureAppSession } from './session';
  *  `flag_if_explicit` already triggers on; the function refuses anything else. */
 export type ModeratedSurface =
   | 'messages'
+  | 'community_messages'
   | 'users'
   | 'coach_profiles'
   | 'partner_profiles'
@@ -97,6 +98,14 @@ export function screenQuietly(surface: ModeratedSurface, content: string): void 
   const text = content.trim();
   if (!text) return;
   void screenContent(surface, text).catch(() => {});
+}
+
+/** The same second pass, for a picture someone sent in a chat. After the
+ *  send, never inside it, and every error swallowed -- exactly as for text. The
+ *  function only screens images from the chat folders, and only for the person
+ *  who uploaded them. */
+export function screenImageQuietly(surface: 'messages' | 'community_messages', path: string): void {
+  void callGwin<Screening>({ action: 'screen-image', subject: surface, path }).catch(() => {});
 }
 
 /** Map what somebody typed onto the curated sports list.
