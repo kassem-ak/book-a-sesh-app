@@ -366,7 +366,7 @@ export function RequestOverlay() {
           title="Request sent"
           body={s.reqPlaced
             ? `It is in the admin review queue, under ${s.reqPlaced}.`
-            : 'Your request is in the admin review queue.'}
+            : 'It is being sorted into a category, then it goes to the admins.'}
         />
       </OverlayScaffold>
     );

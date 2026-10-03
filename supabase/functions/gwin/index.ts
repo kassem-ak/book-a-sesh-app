@@ -212,19 +212,87 @@ type Category = { id: string; kind: "sport" | "hobby"; name: string };
 
 /** A category is only ever a row already in sport_categories, checked here
  *  rather than taken on the model's word -- the same rule mappingFrom follows
- *  for sports. A kind it cannot read falls back to the caller's guess, and a
- *  category that is not on that kind's list falls back to that kind's Other:
- *  wrongly filed under Other is a thing an admin fixes in a second, and an
- *  invented category is a thing the layer never recovers from. */
+ *  for sports. A reply that does not name one exactly returns NO category
+ *  rather than a quiet Other: the request then stays held and is asked again,
+ *  so nothing reaches an admin uncategorised by accident. Other is only ever
+ *  the model's own answer, or the caller's last resort after repeated misses. */
 function classificationFrom(reply: string, categories: Category[], fallbackKind: "sport" | "hobby") {
   const found = reply.trim().match(/^(SPORT|HOBBY)\b[:.\s-]*(.*)$/i);
   const kind = found ? (found[1].toLowerCase() as "sport" | "hobby") : fallbackKind;
   const named = (found?.[2] ?? "").trim().toLowerCase();
-  const ofKind = categories.filter((category) => category.kind === kind);
-  const hit = ofKind.find((category) => category.name.toLowerCase() === named)
-    ?? ofKind.find((category) => category.name.toLowerCase().startsWith("other"))
-    ?? null;
+  const hit = categories.find((category) => category.kind === kind && category.name.toLowerCase() === named) ?? null;
   return { kind, category: hit };
+}
+
+/** Five real answers without a usable category, then Other: a request must not
+ *  wait for ever. Unreachable-engine failures do not count -- see below. */
+const MAX_CATEGORISE_ATTEMPTS = 5;
+
+type PendingRequest = { id: string; name: string; kind: "sport" | "hobby"; categorise_attempts: number };
+
+/** Categorise one held request. Returns "placed" when it now has a category
+ *  (so the admin sees it), "retry" when the engine answered unusably, and
+ *  "down" when the engine could not be reached -- in which case nothing about
+ *  the request changes, attempts included, so a broken key cannot burn through
+ *  them and dump everything into Other. */
+async function placeRequest(
+  admin: ReturnType<typeof createClient>,
+  settings: Record<string, unknown>,
+  categories: Category[],
+  request: PendingRequest,
+): Promise<"placed" | "retry" | "down"> {
+  const lists = (["sport", "hobby"] as const).map((each) =>
+    `${each.toUpperCase()} categories:\n${
+      categories.filter((entry) => entry.kind === each).map((entry) => entry.name).join("\n")
+    }`).join("\n\n");
+  let sorted: { kind: "sport" | "hobby"; category: Category | null };
+  try {
+    const reply = await ask(settings, CLASSIFY_PROMPT, `${lists}\n\nNew entry:\n${request.name}`, 4000);
+    sorted = classificationFrom(reply, categories, request.kind);
+  } catch (failure) {
+    if (!(failure instanceof Unavailable)) throw failure;
+    return "down";
+  }
+
+  if (sorted.category) {
+    // The engine also decides sport-or-hobby, so the request's kind follows.
+    await admin.from("sport_requests")
+      .update({ category_id: sorted.category.id, kind: sorted.kind })
+      .eq("id", request.id).is("category_id", null);
+    return "placed";
+  }
+
+  const attempts = request.categorise_attempts + 1;
+  const other = attempts >= MAX_CATEGORISE_ATTEMPTS
+    ? categories.find((entry) => entry.kind === sorted.kind && entry.name.toLowerCase().startsWith("other")) ?? null
+    : null;
+  await admin.from("sport_requests")
+    .update(other
+      ? { categorise_attempts: attempts, category_id: other.id, kind: sorted.kind }
+      : { categorise_attempts: attempts })
+    .eq("id", request.id).is("category_id", null);
+  return other ? "placed" : "retry";
+}
+
+/** Retry requests still held for a category, a few at a time, whenever the
+ *  function runs for anyone. Stops at the first sign the engine is down, so a
+ *  broken key costs one refused call per invocation, not one per request. */
+async function sweepHeldRequests(
+  admin: ReturnType<typeof createClient>,
+  settings: Record<string, unknown>,
+) {
+  if (settings.suggests_sports !== true || !Deno.env.get("ANTHROPIC_API_KEY")?.trim()) return;
+  const { data: held } = await admin
+    .from("sport_requests")
+    .select("id, name, kind, categorise_attempts")
+    .eq("status", "pending").is("category_id", null)
+    .order("created_at").limit(3);
+  if (!held?.length) return;
+  const { data: rows } = await admin.from("sport_categories").select("id, kind, name").order("position");
+  const categories = (rows ?? []) as Category[];
+  for (const request of held as PendingRequest[]) {
+    if ((await placeRequest(admin, settings, categories, request)) === "down") return;
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -261,6 +329,15 @@ Deno.serve(async (req: Request) => {
   // the reason an agent starts acting on members' content.
   const { data: settingsRow } = await admin.from("admin_ai_agent").select("*").maybeSingle();
   const settings = (settingsRow ?? {}) as Record<string, unknown>;
+
+  // Held requests are retried in the background of whatever this call is, so
+  // the answer to the caller is not slowed by it. request-sport places its own
+  // request directly below, so it skips the sweep.
+  if (action !== "request-sport") {
+    const sweep = sweepHeldRequests(admin, settings).catch(() => {});
+    const runtime = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;
+    if (runtime?.waitUntil) runtime.waitUntil(sweep);
+  }
 
   if (action === "capabilities") {
     // moderation_action is reported as the operator set it. Nothing in the app
@@ -452,74 +529,48 @@ Deno.serve(async (req: Request) => {
   }
 
   if (action === "request-sport") {
-    // Filing a request is not an AI decision and must not depend on the engine
-    // being switched on: a member who cannot find their sport should always be
-    // able to ask for it.
-    //
-    // Every request leaves here with a category, so an admin always sees where
-    // it would go. With the engine on, the engine assigns it. With it off, the
-    // member chose one when adding. With neither, it is that kind's Other --
-    // wrongly under Other is a second's fix for an admin; unplaced is a request
-    // with nothing to review.
+    // A request is categorised before an admin sees it. It is filed first --
+    // so "already there" and "Did you mean ...?" refusals cost nothing -- and
+    // held out of the admin queue (admin_sport_requests hides pending requests
+    // with no category) until the engine places it. If the engine is down it
+    // simply waits and is retried on the next call to this function.
     const typed = String(body.typed ?? "").trim();
     if (!typed) return json({ error: "Nothing to request." }, 400);
-
-    const { data: rows } = await admin
-      .from("sport_categories").select("id, kind, name").order("position");
-    const categories = (rows ?? []) as Category[];
-
-    // The member's pick is checked against the table like anything else from
-    // a client: an id that is not a category is ignored, not trusted.
-    const chosen = categories.find((category) => category.id === body.categoryId) ?? null;
-    const callerKind: "sport" | "hobby" = chosen?.kind ?? (body.kind === "hobby" ? "hobby" : "sport");
-    const otherOf = (each: "sport" | "hobby") =>
-      categories.find((category) => category.kind === each && category.name.toLowerCase().startsWith("other")) ?? null;
-
-    let kind: "sport" | "hobby" = callerKind;
-    let category: Category | null = chosen ?? otherOf(callerKind);
-    // Whether the engine actually placed it, or this is the Other fallback.
-    // The member's receipt and the admin both deserve to know which.
-    let placedByEngine = false;
-
-    if (settings.suggests_sports === true) {
-      try {
-        const lists = (["sport", "hobby"] as const).map((each) =>
-          `${each.toUpperCase()} categories:\n${
-            categories.filter((entry) => entry.kind === each).map((entry) => entry.name).join("\n")
-          }`).join("\n\n");
-        const reply = await ask(settings, CLASSIFY_PROMPT, `${lists}\n\nNew entry:\n${typed}`, 4000);
-        const sorted = classificationFrom(reply, categories, callerKind);
-        kind = sorted.kind;
-        category = sorted.category ?? otherOf(sorted.kind);
-        placedByEngine = Boolean(sorted.category);
-      } catch (failure) {
-        if (!(failure instanceof Unavailable)) throw failure;
-        // The engine is unreachable: keep the member's choice, or Other.
-      }
-    }
-
-    const categoryId = category?.id ?? null;
-    const categoryName = category?.name ?? null;
 
     // Filed AS THE CALLER, through the same RPC the request form always used,
     // so requested_by is the member and the existing rules all still apply --
     // a duplicate pending request becomes a vote, and a near-miss of something
     // already listed comes back as "Did you mean ...?".
     const { data: requestId, error: requestErr } = await asCaller
-      .rpc("submit_sport_request", { p_name: typed, p_kind: kind });
+      .rpc("submit_sport_request", { p_name: typed, p_kind: "sport" });
     if (requestErr) return json({ error: requestErr.message }, 422);
+    if (typeof requestId !== "string") return json({ error: "The request was not filed." }, 500);
 
-    if (categoryId && typeof requestId === "string") {
-      // The one write the caller cannot make themselves: proposing where the
-      // entry belongs. Never overwrites a category an admin already set on a
-      // request somebody else filed first.
-      await admin.from("sport_requests")
-        .update({ category_id: categoryId })
-        .eq("id", requestId)
-        .is("category_id", null);
+    const { data: request } = await admin
+      .from("sport_requests")
+      .select("id, name, kind, categorise_attempts, category_id")
+      .eq("id", requestId).maybeSingle();
+
+    let outcome: "placed" | "retry" | "down" | "already" = "down";
+    if (request?.category_id) {
+      // A duplicate of a request that was already placed.
+      outcome = "already";
+    } else if (request && settings.suggests_sports === true) {
+      const { data: rows } = await admin.from("sport_categories").select("id, kind, name").order("position");
+      outcome = await placeRequest(admin, settings, (rows ?? []) as Category[], request as PendingRequest);
     }
 
-    return json({ requestId, kind, category: categoryName, placed_by_engine: placedByEngine });
+    const { data: placed } = await admin
+      .from("sport_requests")
+      .select("kind, category:sport_categories(name)")
+      .eq("id", requestId).maybeSingle();
+    const category = Array.isArray(placed?.category) ? placed?.category[0] : placed?.category;
+    return json({
+      requestId,
+      kind: placed?.kind ?? "sport",
+      category: (category as { name?: string } | null)?.name ?? null,
+      placed_by_engine: outcome === "placed" || outcome === "already",
+    });
   }
 
   return json({ error: "Unknown action." }, 400);
