@@ -114,8 +114,12 @@ async function ask(
   user: string | Block[],
   maxTokens: number,
 ): Promise<string> {
-  const key = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!key || !key.trim()) {
+  // Trimmed before use, not only before the check. A key pasted into the
+  // secrets screen often carries a trailing space or newline; checking the
+  // trimmed value and then sending the raw one got every call rejected with a
+  // 401 while the key looked configured.
+  const key = Deno.env.get("ANTHROPIC_API_KEY")?.trim();
+  if (!key) {
     throw new Unavailable("No Anthropic API key is configured, so Gwin cannot run.");
   }
 
@@ -144,7 +148,14 @@ async function ask(
   }
 
   if (!response.ok) {
-    console.warn("Gwin request failed", { status: response.status });
+    // 401 is not a provider hiccup worth retrying: the key itself is wrong,
+    // revoked, or not an Anthropic key. Said plainly in the log, because the
+    // only other symptom is everything landing under Other.
+    if (response.status === 401) {
+      console.error("Gwin: Anthropic rejected the API key (401). Check ANTHROPIC_API_KEY in the function's secrets.");
+    } else {
+      console.warn("Gwin request failed", { status: response.status });
+    }
     throw new Unavailable("Gwin could not reach Anthropic.");
   }
 
@@ -466,6 +477,9 @@ Deno.serve(async (req: Request) => {
 
     let kind: "sport" | "hobby" = callerKind;
     let category: Category | null = chosen ?? otherOf(callerKind);
+    // Whether the engine actually placed it, or this is the Other fallback.
+    // The member's receipt and the admin both deserve to know which.
+    let placedByEngine = false;
 
     if (settings.suggests_sports === true) {
       try {
@@ -477,6 +491,7 @@ Deno.serve(async (req: Request) => {
         const sorted = classificationFrom(reply, categories, callerKind);
         kind = sorted.kind;
         category = sorted.category ?? otherOf(sorted.kind);
+        placedByEngine = Boolean(sorted.category);
       } catch (failure) {
         if (!(failure instanceof Unavailable)) throw failure;
         // The engine is unreachable: keep the member's choice, or Other.
@@ -504,7 +519,7 @@ Deno.serve(async (req: Request) => {
         .is("category_id", null);
     }
 
-    return json({ requestId, kind, category: categoryName });
+    return json({ requestId, kind, category: categoryName, placed_by_engine: placedByEngine });
   }
 
   return json({ error: "Unknown action." }, 400);

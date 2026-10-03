@@ -132,6 +132,9 @@ export type FiledRequest = {
   kind: 'sport' | 'hobby';
   /** Where it will sit once approved, or null when the engine was not asked. */
   category: string | null;
+  /** Whether the engine actually placed it. When it could not run, `category`
+   *  is the Other fallback -- a placeholder for an admin, not a decision. */
+  placedByEngine: boolean;
 };
 
 /** Ask for an entry that is not in the catalogue.
@@ -148,7 +151,10 @@ export async function requestSport(typed: string): Promise<FiledRequest> {
   // The member is never asked where it belongs: the engine decides sport or
   // hobby and the category. If it cannot run, the request lands under Other
   // and the admin who approves it places it.
-  const filed = await callGwin<FiledRequest>({ action: 'request-sport', typed });
+  const raw = await callGwin<Omit<FiledRequest, 'placedByEngine'> & { placed_by_engine?: boolean }>({
+    action: 'request-sport', typed,
+  });
+  const filed: FiledRequest = { ...raw, placedByEngine: raw.placed_by_engine === true };
   // A request name is member-written text that an admin reads, so it gets the
   // same second pass the old request form gave it.
   screenQuietly('sport_requests', typed);

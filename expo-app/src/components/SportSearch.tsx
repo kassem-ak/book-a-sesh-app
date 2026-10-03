@@ -95,12 +95,14 @@ export function SportSearch({ sports, selected, onPick, single = false }: {
     try {
       // Placed by the engine, never by the member.
       const filed = await requestSport(typed);
-      const where = filed.category
-        ? `${filed.kind === 'hobby' ? 'Hobbies' : 'Sports'} › ${filed.category}`
-        : filed.kind === 'hobby' ? 'Hobbies' : 'Sports';
+      // Only name a category the engine actually chose. The Other fallback is
+      // a placeholder for the admin, and presenting it as a decision is what
+      // made this look like the categorisation had got it wrong.
       setNote({
         ok: true,
-        text: `Requested “${typed}”, under ${where}. It appears here once an admin approves it.`,
+        text: filed.placedByEngine && filed.category
+          ? `Requested “${typed}”, under ${filed.kind === 'hobby' ? 'Hobbies' : 'Sports'} › ${filed.category}. It appears here once an admin approves it.`
+          : `Requested “${typed}”. An admin will place it in a category and approve it.`,
       });
     } catch (error) {
       // The server's refusals are written to be read -- "Did you mean

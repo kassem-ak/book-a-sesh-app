@@ -1058,7 +1058,9 @@ export const useStore = create<SpotterState>((set, get) => ({
       track('sport_requested', { kind: filed.kind });
       set({
         reqSent: true,
-        reqPlaced: filed.category ? `${filed.kind === 'hobby' ? 'Hobbies' : 'Sports'} › ${filed.category}` : null,
+        reqPlaced: filed.placedByEngine && filed.category
+          ? `${filed.kind === 'hobby' ? 'Hobbies' : 'Sports'} › ${filed.category}`
+          : null,
         writeBusy: null,
       });
     } catch (error) {
