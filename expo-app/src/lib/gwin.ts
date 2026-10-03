@@ -52,12 +52,16 @@ export type SportMapping = {
 export type Capabilities = {
   moderatesContent: boolean;
   suggestsSports: boolean;
+  /** Whether an Anthropic key is configured. A switch that is on with no key
+   *  behind it does nothing, so callers check both. */
+  engineReady: boolean;
   moderationAction: 'flag' | 'hide_and_flag';
 };
 
 const OFF: Capabilities = {
   moderatesContent: false,
   suggestsSports: false,
+  engineReady: false,
   moderationAction: 'flag',
 };
 
@@ -140,14 +144,11 @@ export type FiledRequest = {
  *  The server's own refusals come through as the error message, and they are
  *  written to be shown: "Did you mean Football?", "Chess is already there to
  *  choose". */
-export async function requestSport(
-  typed: string,
-  kind: 'sport' | 'hobby' = 'sport',
-  /** The member's pick when the engine is off. Ignored when it is on -- the
-   *  engine assigns the category itself. */
-  categoryId: string | null = null,
-): Promise<FiledRequest> {
-  const filed = await callGwin<FiledRequest>({ action: 'request-sport', typed, kind, categoryId });
+export async function requestSport(typed: string): Promise<FiledRequest> {
+  // The member is never asked where it belongs: the engine decides sport or
+  // hobby and the category. If it cannot run, the request lands under Other
+  // and the admin who approves it places it.
+  const filed = await callGwin<FiledRequest>({ action: 'request-sport', typed });
   // A request name is member-written text that an admin reads, so it gets the
   // same second pass the old request form gave it.
   screenQuietly('sport_requests', typed);
@@ -159,11 +160,13 @@ export async function fetchCapabilities(): Promise<Capabilities> {
     const raw = await callGwin<{
       moderates_content?: boolean;
       suggests_sports?: boolean;
+      engine_ready?: boolean;
       moderation_action?: string;
     }>({ action: 'capabilities' });
     return {
       moderatesContent: raw.moderates_content === true,
       suggestsSports: raw.suggests_sports === true,
+      engineReady: raw.engine_ready === true,
       moderationAction: raw.moderation_action === 'hide_and_flag' ? 'hide_and_flag' : 'flag',
     };
   } catch {

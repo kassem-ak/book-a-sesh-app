@@ -102,17 +102,6 @@ export async function stopSharingMyLocation(): Promise<void> {
   if (error) throw error;
 }
 
-export type SportCategory = { id: string; kind: 'sport' | 'hobby'; name: string };
-
-/** The fixed list of categories, in their display order. Readable before
- *  sign-in, because the sign-up form asks for interests too. */
-export async function fetchSportCategories(): Promise<SportCategory[]> {
-  const { data, error } = await supabase
-    .from('sport_categories').select('id, kind, name').order('position');
-  if (error) throw error;
-  return (data ?? []) as SportCategory[];
-}
-
 export async function fetchSports(): Promise<Sport[]> {
   const { data, error } = await supabase
     .from('sports')
