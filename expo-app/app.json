@@ -82,6 +82,12 @@
           "color": "#C6F24E",
           "defaultChannel": "default"
         }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow BOOK'D to use Face ID to unlock the app."
+        }
       ]
     ],
     "experiments": {

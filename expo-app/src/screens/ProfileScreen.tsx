@@ -4,6 +4,7 @@ import { Avatar, Card, ConfirmSheet, Icon, IconButton, MicroBadge, Row, SectionH
 import { fetchMyBookings } from '../lib/bookings';
 import { stopCoaching } from '../lib/coaching';
 import { signOutUser } from '../lib/session';
+import { biometricAvailable, biometricEnabled, biometricLabel, setBiometric } from '../lib/biometric';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { initials } from '../state/models';
 import { errorMessage, useStore } from '../state/store';
@@ -28,6 +29,28 @@ export function ProfileScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [stopBusy, setStopBusy] = useState(false);
+
+  // Unlock with Face ID / a fingerprint. Only offered where the device can do
+  // it right now -- hardware AND something enrolled -- so on the web, or on a
+  // phone with no finger set up, the row is simply not there.
+  const [canLock, setCanLock] = useState(false);
+  const [lockOn, setLockOn] = useState(false);
+  const [lockLabel, setLockLabel] = useState('biometrics');
+  useEffect(() => {
+    let active = true;
+    if (!s.authUid) return;
+    const uid = s.authUid;
+    void (async () => {
+      const [available, on, label] = await Promise.all([
+        biometricAvailable(), biometricEnabled(uid), biometricLabel(),
+      ]);
+      if (!active) return;
+      setCanLock(available);
+      setLockOn(on);
+      setLockLabel(label);
+    })();
+    return () => { active = false; };
+  }, [s.authUid]);
 
   useEffect(() => {
     let active = true;
@@ -210,6 +233,26 @@ export function ProfileScreen() {
           value={s.isDark}
           onToggle={(v) => s.set('isDark', v)}
         />
+        {canLock && s.authUid && (
+          <>
+            <RowDivider />
+            {/* Turning it on asks for an unlock first, so it can never be
+                switched on by someone who could not then open the app. */}
+            <GroupRow
+              icon="lock"
+              title={`Unlock with ${lockLabel}`}
+              body={lockOn ? 'Asked every time the app opens' : 'Off — the app opens straight away'}
+              value={lockOn}
+              onToggle={(next) => {
+                const uid = s.authUid!;
+                void setBiometric(uid, next).then((ok) => {
+                  if (ok) setLockOn(next);
+                  else if (next) s.set('writeError', `${lockLabel} did not confirm, so the lock stays off.`);
+                });
+              }}
+            />
+          </>
+        )}
       </Card>
 
       {/* The admin console moved to the web back office. Administration is
