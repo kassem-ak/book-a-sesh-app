@@ -51,6 +51,10 @@ test('a server region refusal replaces the profile error and offers retry and si
     '../lib/queries': { fetchCoaches: async () => [], fetchPartners: async () => [] },
     '../lib/modules': { fetchVisibleModules: async () => ['discover'] },
     '../lib/geolock': { fetchGeoStatus: async () => { regionChecks++; return { allowed }; } },
+    // Every account in this test has registered; the gate has its own tests.
+    '../lib/registration': {
+      fetchRegistration: async () => ({ complete: true, prefill: { name: '', email: '', avatarUrl: null, provider: 'email' } }),
+    },
     '../lib/profiles': {
       applySignupProfile: async () => { if (!allowed) throw new Error('This account has no profile yet.'); return false; },
       fetchMyProfile: async () => ({ id: 'profile', name: 'Member', city: '' }),

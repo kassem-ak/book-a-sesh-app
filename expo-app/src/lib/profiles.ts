@@ -179,11 +179,27 @@ async function applySignup(authUid: string): Promise<boolean> {
   // editor instead of the home tab.
   if (!draft) return false;
   if (matches) await saveSignupDraft({ ...draft, authUid: user.id });
-  const sports = draft.sportIds.length ? await fetchSports() : [];
-  const selected = draft.sportIds.map((id) => sports.find((sport) => sport.id === id)).filter((sport): sport is Sport => !!sport);
-  const table = draft.role === 'coach' ? 'coach_profiles' : 'partner_profiles';
-  // ON CONFLICT DO NOTHING preserves an existing profile and handles retries.
-  // Platform-owned verification, ratings and subscription fields stay server-owned.
+  await createProfileRows(appId, draft.role, draft.sportIds);
+  if (metadata.signup_role) {
+    const result = await supabase.auth.updateUser({ data: { signup_role: null, signup_sports: null } });
+    if (result.error) throw result.error;
+  }
+  if (matches) await clearSignupDraft();
+  return true;
+}
+
+/** The rows that make an account a member or a coach: the profile row, the
+ *  interests as tags, and -- for a coach -- what they teach, in order.
+ *
+ *  Shared by the legacy sign-up draft and the registration form, so there is
+ *  one way an account becomes a profile. Every write is ON CONFLICT DO NOTHING,
+ *  which preserves an existing profile and makes a retry harmless.
+ *  Platform-owned fields -- verification, ratings, subscription -- stay
+ *  server-owned. */
+export async function createProfileRows(appId: string, role: 'coach' | 'member', sportIds: string[]) {
+  const sports = sportIds.length ? await fetchSports() : [];
+  const selected = sportIds.map((id) => sports.find((sport) => sport.id === id)).filter((sport): sport is Sport => !!sport);
+  const table = role === 'coach' ? 'coach_profiles' : 'partner_profiles';
   const { error } = await supabase.from(table).upsert({
     user_id: appId, sport_id: selected[0]?.id ?? null,
   }, { onConflict: 'user_id', ignoreDuplicates: true });
@@ -193,10 +209,10 @@ async function applySignup(authUid: string): Promise<boolean> {
       onConflict: 'user_id,tag', ignoreDuplicates: true,
     });
     if (tags.error) throw tags.error;
-    // A coach was asked at sign-up what they TEACH, so that is what these are.
-    // They land in profile_tags as well, because someone almost certainly does
-    // the sport they teach -- and either list is editable afterwards.
-    if (draft.role === 'coach') {
+    // A coach was asked what they TEACH, so that is what these are. They land
+    // in profile_tags as well, because someone almost certainly does the sport
+    // they teach -- and either list is editable afterwards.
+    if (role === 'coach') {
       const teaching = await supabase.from('coach_sports').upsert(
         selected.map((sport, position) => ({ coach_id: appId, sport_id: sport.id, position })),
         { onConflict: 'coach_id,sport_id', ignoreDuplicates: true },
@@ -204,12 +220,6 @@ async function applySignup(authUid: string): Promise<boolean> {
       if (teaching.error) throw teaching.error;
     }
   }
-  if (metadata.signup_role) {
-    const result = await supabase.auth.updateUser({ data: { signup_role: null, signup_sports: null } });
-    if (result.error) throw result.error;
-  }
-  if (matches) await clearSignupDraft();
-  return true;
 }
 
 export async function fetchMyProfile(): Promise<Profile> {

@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { OverlayHeader, OverlayScaffold } from '../components/Overlay';
-import { SportsPicker } from '../components/SportsPicker';
 import {
   BrandIcon, BrandName, Button, Field, Icon, Row, SectionHeading, VoltButton,
 } from '../components/ui';
 import { signInEmail, signInWithProvider, signUpEmail, SSO_LABELS, SsoProvider } from '../lib/session';
 import { analyticsErrorCode, track } from '../lib/analytics';
-import { saveSignupDraft } from '../lib/signup';
-import { useStore } from '../state/store';
-import { alpha, useTheme } from '../theme';
+import { useTheme } from '../theme';
 
 // Shared email/password + SSO form. Used by the AuthLanding gate, which is the
 // only way into the app. Calls onDone() after a successful sign-in.
+//
+// It only makes the account. What kind of account -- coach or trainee, what
+// they do, where -- is asked on CompleteRegistration once they are in, the same
+// form for every method. It used to be asked here too, which meant email
+// sign-ups answered it twice and single-sign-on never answered it at all.
 export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { onDone: () => void; initialEmail?: string; initialMode?: 'in' | 'up' }) {
   const { c, t } = useTheme();
-  const s = useStore();
   const [mode, setMode] = useState<'in' | 'up'>(initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState(initialEmail);
@@ -39,7 +40,6 @@ export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { on
         await signInEmail(email.trim(), password);
         onDone();
       } else {
-        await saveSignupDraft({ role: s.signupIntent === 'coach' ? 'coach' : 'member', sportIds: s.signupSports, email: email.trim().toLowerCase() });
         const needsConfirm = await signUpEmail(name.trim(), email.trim(), password);
         if (needsConfirm) setConfirmSent(true);
         else onDone();
@@ -56,7 +56,6 @@ export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { on
     setBusy(true);
     setError(null);
     try {
-      if (mode === 'up') await saveSignupDraft({ role: s.signupIntent === 'coach' ? 'coach' : 'member', sportIds: s.signupSports });
       const signedIn = await signInWithProvider(provider);
       // Web redirects away; native resolves here once the deep link returns.
       if (signedIn) onDone();
@@ -93,21 +92,11 @@ export function AuthForm({ onDone, initialEmail = '', initialMode = 'in' }: { on
 
   return (
     <View>
-      {mode === 'up' && <View style={{ gap: 16, marginBottom: 24 }}>
-        <Text style={[t.bodySm, { color: c.txt2 }]}>Free for coaches and members. Add your photo and profile details after creating your account.</Text>
-        <SectionHeading>Are you?</SectionHeading>
-        <Row gap={10}>
-          {(['coach', 'trainee'] as const).map((role) => <Pressable key={role}
-            accessibilityRole="radio" accessibilityLabel={role === 'coach' ? 'Coach or teacher' : 'Member, trainee or student'}
-            accessibilityState={{ checked: (s.signupIntent ?? 'trainee') === role, disabled: busy }} disabled={busy}
-            onPress={() => s.set('signupIntent', role)} style={{ flex: 1, minHeight: 48, padding: 12, borderRadius: 16, backgroundColor: (s.signupIntent ?? 'trainee') === role ? c.volt : c.surface }}>
-            <Text style={[t.label, { color: (s.signupIntent ?? 'trainee') === role ? c.ink : c.txt }]}>{role === 'coach' ? 'Coach/Teacher' : 'Trainee/Student'}</Text>
-          </Pressable>)}
-        </Row>
-        <View pointerEvents={busy ? 'none' : 'auto'}>
-          <SportsPicker selected={s.signupSports} onChange={(ids) => s.set('signupSports', ids)} coach={s.signupIntent === 'coach'} />
-        </View>
-      </View>}
+      {mode === 'up' && (
+        <Text style={[t.bodySm, { color: c.txt2, marginBottom: 24 }]}>
+          Free for coaches and members. Choose how to sign up — with any of these, your details are filled in for you on the next screen.
+        </Text>
+      )}
       {/* SSO — Facebook, Google, Microsoft and Apple in a 2x2 grid. */}
       <View style={{ gap: 12 }}>
         <Row gap={12}>

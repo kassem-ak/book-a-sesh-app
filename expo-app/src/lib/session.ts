@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 import { identify, track } from './analytics';
 import { supabase, assertSupabaseConfigured, supabaseUrl } from './supabase';
 import { unregisterPushToken } from './push';
-import { bindSignupEmail, readSignupDraft } from './signup';
+import { bindSignupEmail } from './signup';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -109,7 +109,6 @@ export async function signInEmail(email: string, password: string) {
 // Returns true when the project requires email confirmation (no session yet).
 export async function signUpEmail(name: string, email: string, password: string) {
   await bindSignupEmail(email);
-  const draft = await readSignupDraft();
   // Drop any anonymous guest session first so the signup creates a clean user.
   const { data: existing } = await supabase.auth.getSession();
   if (existing.session?.user?.is_anonymous) await supabase.auth.signOut();
@@ -117,8 +116,11 @@ export async function signUpEmail(name: string, email: string, password: string)
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    // Metadata also carries the choices if confirmation happens on another device.
-    options: { data: { name, signup_role: draft?.role ?? 'member', signup_sports: draft?.sportIds ?? [] } },
+    // Only the name. Role and interests are no longer chosen before the account
+    // exists: every method fills them in on the same form after signing in. A
+    // default role here would create a member profile on first sign-in and the
+    // form would never appear.
+    options: { data: { name } },
   });
   if (error) throw error;
   track('email_sign_up', { confirmation_required: !data.session });

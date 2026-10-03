@@ -9,6 +9,15 @@ import { fetchCoaches, fetchPartners } from '../lib/queries';
 import { fetchVisibleModules } from '../lib/modules';
 import { fetchGeoStatus } from '../lib/geolock';
 import { applySignupProfile, fetchMyProfile } from '../lib/profiles';
+import { fetchRegistration, RegistrationState } from '../lib/registration';
+import { CompleteRegistration } from '../screens/CompleteRegistration';
+
+/** What to assume when registration cannot be checked: open the app. Someone
+ *  who has not registered sees an empty profile and the error strip; someone
+ *  who has is not locked out by a network blip. */
+const REGISTRATION_UNKNOWN: RegistrationState = {
+  complete: true, prefill: { name: '', email: '', avatarUrl: null, provider: 'email' },
+};
 import { registerPushToken } from '../lib/push';
 import { assertSupabaseConfigured, supabase } from '../lib/supabase';
 import { errorMessage, useStore } from '../state/store';
@@ -47,6 +56,9 @@ export function Root() {
   const authUid = useStore((s) => s.authUid);
   const profileRevision = useStore((s) => s.profileRevision);
   const [profileError, setProfileError] = useState<string | null>(null);
+  // Whether this account has finished registering, and what its sign-in
+  // method already told us. Null while unknown.
+  const [registration, setRegistration] = useState<RegistrationState | null>(null);
   const [profileAttempt, setProfileAttempt] = useState(0);
 
   useEffect(() => {
@@ -88,6 +100,11 @@ export function Root() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // A different account starts unknown. A retry of the same account does not:
+  // resetting there would blank the screen between finishing the form and
+  // the app appearing.
+  useEffect(() => { setRegistration(null); }, [authUid]);
+
   useEffect(() => {
     let active = true;
     setProfileError(null);
@@ -95,6 +112,12 @@ export function Root() {
     void (async () => {
       const applied = await applySignupProfile(authUid);
       if (!active) return;
+      // Every way in ends at the same form. If the check itself cannot be made,
+      // the app opens rather than trapping someone on a blank screen -- an
+      // unregistered account is visibly empty there and the error is shown.
+      const known = await fetchRegistration().catch(() => null);
+      if (!active) return;
+      setRegistration(known ?? REGISTRATION_UNKNOWN);
       if (applied) {
         const state = useStore.getState();
         state.set('signupIntent', null);
@@ -119,7 +142,13 @@ export function Root() {
       // Never awaited into the error path above: a declined permission prompt
       // is a choice, not a failure of the profile load.
       void registerPushToken(profile.id);
-    })().catch((error) => { if (active) setProfileError(errorMessage(error)); });
+    })().catch((error) => {
+      if (!active) return;
+      setProfileError(errorMessage(error));
+      // Never leave the app blank because setup failed: open it, with the error
+      // strip and its retry, exactly as it behaved before registration existed.
+      setRegistration((known) => known ?? REGISTRATION_UNKNOWN);
+    });
     return () => { active = false; };
   }, [authUid, profileAttempt]);
 
@@ -182,6 +211,11 @@ export function Root() {
   // registered account is signed in.
   if (!authUid) return <AuthLanding />;
 
+  // Signed in, not yet registered: the one form every method lands on. Before
+  // the region check would be friendlier, but a blocked region could not use
+  // the account anyway, so it stays second.
+  const unregistered = registration && !registration.complete;
+
   if (geoBlocked) return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top, paddingBottom: insets.bottom }}>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
@@ -206,6 +240,27 @@ export function Root() {
       </View>
       <ErrorBanner />
     </View>
+  );
+
+  // Until it is known whether this account has registered, nothing is shown:
+  // flashing the app and then swapping it for the form looks like a crash.
+  if (!registration) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
+
+  if (unregistered) return (
+    <>
+      <CompleteRegistration
+        prefill={registration.prefill}
+        onDone={() => {
+          setRegistration({ ...registration, complete: true });
+          // Re-read the account now that it has a profile, and bring the
+          // people list up so the new profile is not missing from it.
+          setProfileAttempt((attempt) => attempt + 1);
+          const state = useStore.getState();
+          state.set('profileRevision', state.profileRevision + 1);
+        }}
+      />
+      <ErrorBanner />
+    </>
   );
 
   return (
