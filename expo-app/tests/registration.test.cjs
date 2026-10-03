@@ -56,9 +56,9 @@ test('a provider photo is only taken over https', () => {
 
 // --- the gate ----------------------------------------------------------------
 
-function renderRoot({ registration, failProfile = false }) {
+function renderRoot({ registration, failProfile = false, lockOn = false }) {
   // Mutable, like the database: once the form is finished the profile row exists.
-  const current = { registration };
+  const current = { registration, lockOn };
   const slots = [];
   const effects = [];
   let cursor = 0;
@@ -102,6 +102,7 @@ function renderRoot({ registration, failProfile = false }) {
     '../lib/modules': { fetchVisibleModules: async () => ['discover'] },
     '../lib/geolock': { fetchGeoStatus: async () => ({ allowed: true }) },
     '../lib/push': { registerPushToken: async () => {} },
+    '../lib/biometric': { biometricEnabled: async () => current.lockOn },
     '../lib/registration': { fetchRegistration: async () => current.registration },
     '../lib/profiles': {
       applySignupProfile: async () => { if (failProfile) throw new Error('offline'); return false; },
@@ -157,4 +158,23 @@ test('when setup fails, the app still opens', async () => {
   const tree = await root.settle();
   assert.ok(root.nodes(tree).some((node) => node.type === 'DiscoverScreen'),
     'a network failure must not leave a blank screen');
+});
+
+// --- the biometric lock ------------------------------------------------------
+
+test('with the lock on, nothing of the account shows until it is unlocked', async () => {
+  const root = renderRoot({ registration: { complete: false, prefill: PREFILL }, lockOn: true });
+  let tree = await root.settle();
+  assert.equal(tree.type, 'BiometricLock', 'the lock comes first');
+  assert.ok(!root.nodes(tree).some((node) => node.type === 'CompleteRegistration'),
+    'not even the registration form: whoever holds the phone has not shown they own it');
+  tree.props.onUnlocked();
+  tree = await root.settle();
+  assert.ok(root.nodes(tree).some((node) => node.type === 'CompleteRegistration'));
+});
+
+test('with the lock off, the app opens as before', async () => {
+  const root = renderRoot({ registration: { complete: true, prefill: PREFILL }, lockOn: false });
+  const tree = await root.settle();
+  assert.ok(root.nodes(tree).some((node) => node.type === 'DiscoverScreen'));
 });

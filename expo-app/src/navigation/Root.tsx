@@ -11,6 +11,8 @@ import { fetchGeoStatus } from '../lib/geolock';
 import { applySignupProfile, fetchMyProfile } from '../lib/profiles';
 import { fetchRegistration, RegistrationState } from '../lib/registration';
 import { CompleteRegistration } from '../screens/CompleteRegistration';
+import { BiometricLock } from '../screens/BiometricLock';
+import { biometricEnabled } from '../lib/biometric';
 
 /** What to assume when registration cannot be checked: open the app. Someone
  *  who has not registered sees an empty profile and the error strip; someone
@@ -99,6 +101,19 @@ export function Root() {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Whether the owner has to unlock with Face ID or a fingerprint before the
+  // app shows. Null while that is being read from the device; true once per
+  // launch until they do. Checked per account: turning it on is a choice for
+  // your account on this phone, not for every account that signs in on it.
+  const [locked, setLocked] = useState<boolean | null>(null);
+  useEffect(() => {
+    let active = true;
+    setLocked(null);
+    if (!authUid) return;
+    void biometricEnabled(authUid).then((on) => { if (active) setLocked(on); });
+    return () => { active = false; };
+  }, [authUid]);
 
   // A different account starts unknown. A retry of the same account does not:
   // resetting there would blank the screen between finishing the form and
@@ -210,6 +225,12 @@ export function Root() {
   // Landing gate. There is no guest tier: nothing in the app renders until a
   // registered account is signed in.
   if (!authUid) return <AuthLanding />;
+
+  // Locked comes before everything else that is signed in, the registration
+  // form included: whoever is holding the phone has not yet shown they are the
+  // account's owner, so nothing of the account is theirs to see.
+  if (locked === null) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
+  if (locked) return <BiometricLock onUnlocked={() => setLocked(false)} />;
 
   // Signed in, not yet registered: the one form every method lands on. Before
   // the region check would be friendlier, but a blocked region could not use
