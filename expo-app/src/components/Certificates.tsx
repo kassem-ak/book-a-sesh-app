@@ -12,7 +12,7 @@ import {
 } from '../lib/coaching';
 import { analyticsErrorCode, track } from '../lib/analytics';
 import { errorMessage } from '../state/store';
-import { alpha, useTheme } from '../theme';
+import { useTheme } from '../theme';
 
 // A coach's certificates.
 //
@@ -104,7 +104,8 @@ export function Certificates({ coachId }: { coachId: string }) {
         Certificates appear on your public profile, so anyone can see them. A certificate photo often shows your full legal name — only upload one you are happy to show.
       </Text>
       <Text style={[t.caption, { color: c.txt3 }]}>
-        New certificates stay “Pending review” until an admin checks them. Nothing here is shown as verified until then.
+        These are shown as you entered them. BOOK’D does not check them, so treat them as what a coach says about
+        themselves rather than as proof.
       </Text>
 
       {certs === null && !error && (
@@ -250,15 +251,15 @@ export function CertificateTile({ cert, busy, onOpen, onRemove }: {
           </View>
         )}
 
-        {/* Over the thumbnail rather than under it: the tile is small, and a
-            row of words below would leave no room for the picture. */}
-        <View style={{ position: 'absolute', top: 6, left: 6 }}>
-          <MicroBadge
-            label={approved ? 'Verified' : 'Pending'}
-            bg={approved ? c.volt : alpha(c.ink, 0.66)}
-            fg={approved ? c.ink : '#FFFFFF'}
-          />
-        </View>
+        {/* Only the positive case carries a badge now. There is no review
+            process behind the other one, so "Pending" was a queue that does not
+            exist, shown over somebody's real credential for ever. An unbadged
+            tile claims nothing, which is the honest default. */}
+        {approved && (
+          <View style={{ position: 'absolute', top: 6, left: 6 }}>
+            <MicroBadge label="Verified" bg={c.volt} fg={c.ink} />
+          </View>
+        )}
       </View>
 
       <View style={{ padding: 8, gap: 1 }}>
@@ -342,7 +343,7 @@ export function CertificateViewer({ cert, onClose }: {
         <Text style={[t.caption, { color: c.txt3 }]}>
           {cert.status === 'approved'
             ? 'Verified by an admin, and shown as verified on your public profile.'
-            : 'Pending review. It is on your profile, but not marked verified yet.'}
+            : 'Shown on your public profile as you entered it. BOOK’D does not verify certificates.'}
         </Text>
         {error && (
           <Text accessibilityRole="alert" style={[t.bodySm, { color: c.danger }]}>{error}</Text>
