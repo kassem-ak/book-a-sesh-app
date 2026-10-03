@@ -9,7 +9,17 @@ import {
 } from './socialLinks';
 import { supabase } from './supabase';
 
-export type Sport = { id: string; name: string; kind: 'sport' | 'hobby' };
+export type Sport = {
+  id: string;
+  name: string;
+  kind: 'sport' | 'hobby';
+  /** The layer between kind and entry -- "Combat sports", "Music". Null for an
+   *  entry nobody has placed yet, which is shown under its kind's Other. */
+  category: string | null;
+  /** Where that category sits in its kind's list, so the layers keep a stable
+   *  order rather than an alphabetical one ("Other" last, always). */
+  categoryPosition: number;
+};
 export type Profile = {
   id: string;
   name: string;
@@ -93,9 +103,26 @@ export async function stopSharingMyLocation(): Promise<void> {
 }
 
 export async function fetchSports(): Promise<Sport[]> {
-  const { data, error } = await supabase.from('sports').select('id, name, kind').eq('approved', true).order('name');
+  const { data, error } = await supabase
+    .from('sports')
+    .select('id, name, kind, category:sport_categories(name, position)')
+    .eq('approved', true)
+    .order('name');
   if (error) throw error;
-  return (data ?? []) as Sport[];
+  return ((data ?? []) as {
+    id: string; name: string; kind: 'sport' | 'hobby';
+    category: { name: string; position: number } | { name: string; position: number }[] | null;
+  }[]).map((row) => {
+    const category = Array.isArray(row.category) ? row.category[0] : row.category;
+    return {
+      id: row.id,
+      name: row.name,
+      kind: row.kind,
+      category: category?.name ?? null,
+      // Unplaced sorts with Other, at the end.
+      categoryPosition: category?.position ?? 999,
+    };
+  });
 }
 
 export async function realProfileIdentity() {

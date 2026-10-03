@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   Avatar, Button, Card, Chip, Field, Icon, MicroBadge, Note, Row, SectionHeading, Segmented, Stars,
@@ -9,7 +9,8 @@ import { distanceKmBetween, formatDistanceKm, GeoPoint, getDevicePoint, parseGeo
 import { track } from '../lib/analytics';
 import { Person, firstName, initials } from '../state/models';
 import * as D from '../state/sampleData';
-import { groupSports, matchesQuery, useSports } from '../components/useSports';
+import { useSports } from '../components/useSports';
+import { SportSearch } from '../components/SportSearch';
 import { useStore } from '../state/store';
 import { alpha, useTheme } from '../theme';
 
@@ -52,12 +53,14 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
   // approved never appeared here and could not be filtered for.
   const { sports, failed: sportsFailed, retry: retrySports } = useSports();
   const sportNames = ['All', ...(sports ?? []).map((sport) => sport.name)];
-  const [sportQuery, setSportQuery] = useState('');
-  // Grouped, not one flat run of names: a sport and a hobby are different
-  // things to go looking for, and the catalogue is long enough that reading it
-  // as a single alphabetical column tells you nothing about which is which.
-  const sportGroups = groupSports(sports ?? [], sportQuery);
-  const matchCount = sportGroups.reduce((total, group) => total + group.items.length, 0);
+  // The filter is held by name (it predates ids here); the shared search works
+  // in ids, so the two are mapped at the edge rather than the store changed.
+  const chosenSportId = (sports ?? []).find((sport) => sport.name === s.sport)?.id;
+  const chooseSport = (name: string) => {
+    if (name !== s.sport) track('discover_filter_changed', { filter: 'sport', selected_index: sportNames.indexOf(name) });
+    s.set('sport', name);
+    s.set('sportMenu', false);
+  };
 
   const base = s.people(isCoaches ? 'coaches' : 'partners').filter((p) => matchesSport(p, s.sport) && (!q || `${p.name} ${p.sport} ${p.tags.join(' ')}`.toLowerCase().includes(q)));
   const hasCoordinatePeople = base.some((p) => personCoordinates(p));
@@ -177,9 +180,12 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
       </Pressable>
       {s.sportMenu && (
         <Card style={{ marginTop: 8, padding: 6 }}>
-          <TextInput value={sportQuery} onChangeText={setSportQuery} placeholder="Search sports and hobbies"
-            placeholderTextColor={c.txt3} accessibilityLabel="Search sports and hobbies" autoCorrect={false}
-            style={[t.label, { color: c.txt, minHeight: 44, paddingHorizontal: 10, borderBottomColor: c.line2, borderBottomWidth: 1, marginBottom: 4 }]} />
+          {/* Clearing the filter is not a sport, so it sits above the search. */}
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: s.sport === 'All' }}
+            onPress={() => chooseSport('All')}
+            style={{ paddingVertical: 11, paddingHorizontal: 10, borderRadius: 10, minHeight: 44, justifyContent: 'center', marginBottom: 6, backgroundColor: s.sport === 'All' ? alpha(c.volt, 0.1) : 'transparent' }}>
+            <Text style={[t.label, { color: s.sport === 'All' ? c.accent : c.txt }]}>All sports and hobbies</Text>
+          </Pressable>
           {!sports && !sportsFailed && <Text accessibilityLiveRegion="polite" style={[t.bodySm, { color: c.txt3, padding: 11 }]}>Loading sports and hobbies…</Text>}
           {sportsFailed && (
             <View style={{ padding: 11, gap: 10, alignItems: 'flex-start' }}>
@@ -188,35 +194,22 @@ export function DiscoverScreen({ loadError, onRetry }: { loadError?: string | nu
                 accessibilityLabel="Retry loading sports and hobbies" onPress={retrySports} />
             </View>
           )}
-          {sports && matchCount === 0 && sportQuery.trim().length > 0 && (
-            <Text style={[t.bodySm, { color: c.txt3, padding: 11 }]}>Nothing matches “{sportQuery.trim()}”.</Text>
+          {/* The same search as every other picker: layered by kind and
+              category, the engine behind it when nothing matches, and asking
+              for a missing sport right here rather than on a separate form. */}
+          {sports && (
+            <View style={{ padding: 6 }}>
+              <SportSearch
+                sports={sports}
+                single
+                selected={chosenSportId ? [chosenSportId] : []}
+                onPick={(id) => {
+                  const picked = sports.find((sport) => sport.id === id);
+                  if (picked) chooseSport(picked.name);
+                }}
+              />
+            </View>
           )}
-          {(() => {
-            const choose = (sport: string) => () => {
-              if (sport !== s.sport) track('discover_filter_changed', { filter: 'sport', selected_index: sportNames.indexOf(sport) });
-              s.set('sport', sport); s.set('sportMenu', false); setSportQuery('');
-            };
-            const option = (sport: string, label: string) => (
-              <Pressable key={sport} accessibilityRole="button" accessibilityState={{ selected: s.sport === sport }}
-                onPress={choose(sport)}
-                style={{ paddingVertical: 11, paddingHorizontal: 10, borderRadius: 10, minHeight: 44, justifyContent: 'center', backgroundColor: s.sport === sport ? alpha(c.volt, 0.1) : 'transparent' }}>
-                <Text style={[t.label, { color: s.sport === sport ? c.accent : c.txt }]}>{label}</Text>
-              </Pressable>
-            );
-            return <>
-              {/* Clearing the filter is not a sport, so it sits above both groups. */}
-              {matchesQuery('All sports and hobbies', sportQuery) && option('All', 'All sports and hobbies')}
-              {sportGroups.map((group) => (
-                <View key={group.label}>
-                  <Text accessibilityRole="header" style={[t.labelSm, { color: c.txt3, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }]}>{group.label}</Text>
-                  {group.items.map((sport) => option(sport.name, sport.name))}
-                </View>
-              ))}
-            </>;
-          })()}
-          <View style={{ padding: 11, borderTopColor: c.line2, borderTopWidth: 1, marginTop: 4 }}>
-            <Button label="Request a sport or hobby" icon="plus" onPress={s.openRequest} />
-          </View>
         </Card>
       )}
       <View style={{ marginTop: 10 }}>

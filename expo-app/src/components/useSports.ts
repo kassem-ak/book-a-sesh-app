@@ -35,18 +35,45 @@ export function matchesQuery(name: string, query: string) {
   return !needle || name.toLowerCase().includes(needle);
 }
 
-/** The catalogue split into the two things it actually contains.
+export type SportLayer = {
+  kind: 'sport' | 'hobby';
+  /** "Sports" or "Hobbies". */
+  label: string;
+  categories: { name: string; items: Sport[] }[];
+};
+
+/** The catalogue in its three layers: kind, then category, then entry.
  *
- *  A group with nothing matching the search is dropped rather than left as an
- *  empty heading, and the order is fixed -- sports, then hobbies -- so the
- *  menu does not reshuffle as someone types. */
-export function groupSports(sports: Sport[], query: string) {
+ *    Sports  >  Combat sports  >  Boxing, Muay Thai
+ *    Hobbies >  Music          >  Guitar
+ *
+ *  A search matches an entry's own name OR its category, so typing "combat"
+ *  finds Boxing and Muay Thai -- which is most of what the category layer is
+ *  for. A layer with nothing matching is dropped rather than left as an empty
+ *  heading, and the order is fixed (sports before hobbies, categories by their
+ *  position, Other last) so the list does not reshuffle as someone types. */
+export function layerSports(sports: Sport[], query: string): SportLayer[] {
   return ([['sport', 'Sports'], ['hobby', 'Hobbies']] as const)
-    .map(([kind, label]) => ({
-      label,
-      // The rows themselves, not their names: two entries may share a name,
-      // and only the id identifies which one someone actually chose.
-      items: sports.filter((sport) => sport.kind === kind && matchesQuery(sport.name, query)),
-    }))
-    .filter((group) => group.items.length > 0);
+    .map(([kind, label]) => {
+      const matching = sports.filter((sport) =>
+        sport.kind === kind
+        && (matchesQuery(sport.name, query) || matchesQuery(sport.category ?? '', query)));
+      const byCategory = new Map<string, { name: string; position: number; items: Sport[] }>();
+      for (const sport of matching) {
+        // An entry nobody has placed yet sits with Other rather than in a
+        // heading of its own -- "Uncategorised" is not something a member
+        // should have to read.
+        const name = sport.category ?? (kind === 'sport' ? 'Other sports' : 'Other hobbies');
+        const layer = byCategory.get(name) ?? { name, position: sport.categoryPosition, items: [] };
+        // The rows themselves, not their names: two entries may share a name,
+        // and only the id identifies which one someone actually chose.
+        layer.items.push(sport);
+        byCategory.set(name, layer);
+      }
+      const categories = [...byCategory.values()]
+        .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
+        .map(({ name, items }) => ({ name, items }));
+      return { kind, label, categories };
+    })
+    .filter((layer) => layer.categories.length > 0);
 }

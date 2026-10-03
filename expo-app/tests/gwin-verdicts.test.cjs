@@ -127,3 +127,60 @@ test('what the member typed is what gets requested, not what Gwin said', () => {
   // with asking for.
   assert.equal(mappingFrom('NEW Paddle Tennis', CURATED, 'padel').request, 'padel');
 });
+
+// --- classifying a new entry -------------------------------------------------
+//
+// Same rule as the sports list: a category is only ever a row that already
+// exists. A wrong-but-real category (Other) is a second's fix for an admin; an
+// invented one would leave the layer full of near-duplicates for ever.
+
+function classificationFrom(reply, categories, fallbackKind) {
+  const found = reply.trim().match(/^(SPORT|HOBBY)\b[:.\s-]*(.*)$/i);
+  const kind = found ? found[1].toLowerCase() : fallbackKind;
+  const named = (found?.[2] ?? '').trim().toLowerCase();
+  const ofKind = categories.filter((category) => category.kind === kind);
+  const hit = ofKind.find((category) => category.name.toLowerCase() === named)
+    ?? ofKind.find((category) => category.name.toLowerCase().startsWith('other'))
+    ?? null;
+  return { kind, category: hit };
+}
+
+const CATEGORIES = [
+  { id: 'c1', kind: 'sport', name: 'Combat sports' },
+  { id: 'c2', kind: 'sport', name: 'Water sports' },
+  { id: 'c9', kind: 'sport', name: 'Other sports' },
+  { id: 'h1', kind: 'hobby', name: 'Music' },
+  { id: 'h9', kind: 'hobby', name: 'Other hobbies' },
+];
+
+test('the classifier still matches the one the function ships', () => {
+  const source = readFileSync(join(__dirname, '../../supabase/functions/gwin/index.ts'), 'utf8');
+  assert.ok(source.includes('const found = reply.trim().match(/^(SPORT|HOBBY)\\b[:.\\s-]*(.*)$/i);'),
+    'the function no longer contains the classification parser');
+});
+
+test('a clean reply files under its kind and category', () => {
+  const sorted = classificationFrom('SPORT Combat sports', CATEGORIES, 'sport');
+  assert.equal(sorted.kind, 'sport');
+  assert.equal(sorted.category.id, 'c1');
+  assert.equal(classificationFrom('hobby: music', CATEGORIES, 'sport').category.id, 'h1',
+    'case and punctuation do not matter, and the engine can override the guessed kind');
+});
+
+test('an invented category falls back to Other, never into the list', () => {
+  const sorted = classificationFrom('SPORT Martial arts', CATEGORIES, 'sport');
+  assert.equal(sorted.category.id, 'c9');
+});
+
+test('a category from the wrong kind is not accepted', () => {
+  // Music is a real category, but not a sport one.
+  assert.equal(classificationFrom('SPORT Music', CATEGORIES, 'sport').category.id, 'c9');
+});
+
+test('an unreadable reply keeps the caller kind and lands in its Other', () => {
+  for (const reply of ['', 'I think this is boxing', 'Combat sports']) {
+    const sorted = classificationFrom(reply, CATEGORIES, 'hobby');
+    assert.equal(sorted.kind, 'hobby', JSON.stringify(reply));
+    assert.equal(sorted.category.id, 'h9', JSON.stringify(reply));
+  }
+});

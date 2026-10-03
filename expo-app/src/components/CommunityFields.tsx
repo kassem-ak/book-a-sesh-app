@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { SocialFields } from './SocialLinks';
 import { Icon, Row, SectionHeading, Segmented } from './ui';
-import { useSports } from './useSports';
+import { SportsPicker } from './SportsPicker';
 import { ChatMode, CHAT_MODES, CommunityPrivacy } from '../lib/communities';
 import { NO_SOCIALS, SocialHandles, socialsDiffer } from '../lib/socialLinks';
 import { alpha, radii, useTheme } from '../theme';
@@ -56,7 +56,6 @@ export function CommunityFields({ value, onChange, busy = false }: {
   busy?: boolean;
 }) {
   const { c, t } = useTheme();
-  const { sports } = useSports();
   const set = <K extends keyof CommunityDraft>(key: K, next: CommunityDraft[K]) =>
     onChange({ ...value, [key]: next });
 
@@ -87,33 +86,16 @@ export function CommunityFields({ value, onChange, busy = false }: {
 
       {/* ---- The sport it is about ---- */}
       <SectionHeading style={{ marginTop: 8 }}>Sport or hobby</SectionHeading>
-      <Text style={[t.bodySm, { color: c.txt2 }]}>
-        One, so people looking for it can find it. This is what the community is about, not
-        everything its members do.
-      </Text>
-      <Row style={{ flexWrap: 'wrap', gap: 8 }}>
-        {sports?.map((sport) => {
-          const on = value.sportId === sport.id;
-          return (
-            <Pressable
-              key={sport.id}
-              onPress={() => set('sportId', on ? null : sport.id)}
-              disabled={busy}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: on }}
-              accessibilityLabel={sport.name}
-              style={{
-                minHeight: 44, justifyContent: 'center', paddingHorizontal: 14,
-                borderRadius: radii.pill ?? 999, borderWidth: 1,
-                borderColor: on ? c.volt : c.line,
-                backgroundColor: on ? alpha(c.volt, 0.14) : c.surface,
-              }}
-            >
-              <Text style={[t.labelSm, { color: on ? c.accent : c.txt2 }]}>{sport.name}</Text>
-            </Pressable>
-          );
-        })}
-      </Row>
+      {/* The same search every other picker uses, one choice. A wall of chips
+          was fine at fifteen entries and gets worse with every request an admin
+          approves; the search does not. And a crew about something not yet
+          listed can ask for it from here without leaving the form. */}
+      <SportsPicker
+        single
+        selected={value.sportId ? [value.sportId] : []}
+        onChange={(ids) => set('sportId', ids[0] ?? null)}
+        intro="One, so people looking for it can find it. This is what the community is about, not everything its members do."
+      />
 
       {/* ---- Who may walk in ---- */}
       <SectionHeading style={{ marginTop: 8 }}>Who can join</SectionHeading>

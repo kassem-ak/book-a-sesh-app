@@ -25,30 +25,60 @@ function load() {
   return exports;
 }
 
+// Three layers now: kind, then category, then entry.
+//
+//   Sports  >  Racquet sports  >  Padel, Tennis
+//   Hobbies >  Games & strategy >  Chess
 const catalogue = [
-  { id: '1', name: 'Padel', kind: 'sport' },
-  { id: '2', name: 'Tennis', kind: 'sport' },
-  { id: '3', name: 'Chess', kind: 'hobby' },
+  { id: '1', name: 'Padel',  kind: 'sport', category: 'Racquet sports',   categoryPosition: 70 },
+  { id: '2', name: 'Tennis', kind: 'sport', category: 'Racquet sports',   categoryPosition: 70 },
+  { id: '3', name: 'Boxing', kind: 'sport', category: 'Combat sports',    categoryPosition: 10 },
+  { id: '4', name: 'Chess',  kind: 'hobby', category: 'Games & strategy', categoryPosition: 10 },
+  // Nobody has placed this one yet.
+  { id: '5', name: 'Sepak takraw', kind: 'sport', category: null, categoryPosition: 999 },
 ];
 
-test('the menu is two groups, sports before hobbies', () => {
-  const { groupSports } = load();
-  assert.deepEqual(groupSports(catalogue, '').map((group) => [group.label, group.items.map((s) => s.name)]), [
-    ['Sports', ['Padel', 'Tennis']],
-    ['Hobbies', ['Chess']],
+const shape = (layers) => layers.map((layer) => [
+  layer.label,
+  layer.categories.map((category) => [category.name, category.items.map((sport) => sport.name)]),
+]);
+
+test('sports before hobbies, categories in their own order, Other last', () => {
+  const { layerSports } = load();
+  assert.deepEqual(shape(layerSports(catalogue, '')), [
+    ['Sports', [
+      ['Combat sports', ['Boxing']],
+      ['Racquet sports', ['Padel', 'Tennis']],
+      ['Other sports', ['Sepak takraw']],
+    ]],
+    ['Hobbies', [['Games & strategy', ['Chess']]]],
   ]);
 });
 
-test('a group with nothing matching is dropped, not left as an empty heading', () => {
-  const { groupSports } = load();
-  assert.deepEqual(groupSports(catalogue, 'chess').map((group) => [group.label, group.items.map((s) => s.name)]),
-    [['Hobbies', ['Chess']]]);
-  assert.deepEqual(groupSports(catalogue, 'pad').map((group) => [group.label, group.items.map((s) => s.name)]),
-    [['Sports', ['Padel']]]);
-  assert.deepEqual(groupSports(catalogue, 'nothing here'), []);
+// The point of the layer: you can look for the kind of thing, not just its name.
+test('a search matches the category as well as the name', () => {
+  const { layerSports } = load();
+  assert.deepEqual(shape(layerSports(catalogue, 'racquet')), [
+    ['Sports', [['Racquet sports', ['Padel', 'Tennis']]]],
+  ]);
+});
+
+test('an entry nobody has placed shows under Other, not under a blank heading', () => {
+  const { layerSports } = load();
+  assert.deepEqual(shape(layerSports(catalogue, 'takraw')), [
+    ['Sports', [['Other sports', ['Sepak takraw']]]],
+  ]);
+});
+
+test('a layer with nothing matching is dropped, not left as an empty heading', () => {
+  const { layerSports } = load();
+  assert.deepEqual(shape(layerSports(catalogue, 'chess')), [
+    ['Hobbies', [['Games & strategy', ['Chess']]]],
+  ]);
 });
 
 test('an empty catalogue produces no headings at all', () => {
-  const { groupSports } = load();
-  assert.deepEqual(groupSports([], ''), []);
+  const { layerSports } = load();
+  assert.deepEqual(layerSports([], ''), []);
+  assert.deepEqual(layerSports(catalogue, 'nothing like this'), []);
 });
