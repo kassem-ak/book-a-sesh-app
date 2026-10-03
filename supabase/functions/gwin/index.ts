@@ -261,6 +261,10 @@ Deno.serve(async (req: Request) => {
     return json({
       moderates_content: settings.moderates_content === true,
       suggests_sports: settings.suggests_sports === true,
+      // Whether a key is configured at all -- presence only, never the value,
+      // the same thing the console's Gwin page reports. A switch that is on
+      // with no key behind it does nothing, and the app should know that.
+      engine_ready: Boolean(Deno.env.get("ANTHROPIC_API_KEY")?.trim()),
       moderation_action:
         settings.moderation_action === "hide_and_flag" ? "hide_and_flag" : "flag",
     });

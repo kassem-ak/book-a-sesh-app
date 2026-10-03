@@ -393,8 +393,6 @@ export interface SpotterState {
   editCommunityAbout: string;
   reqName: string;
   reqType: string;
-  /** Where the request belongs. Settles reqType too. */
-  reqCategoryId: string | null;
   /** Where it was filed, as the server placed it -- shown on the receipt. */
   reqPlaced: string | null;
   reqSent: boolean;
@@ -700,7 +698,6 @@ export const useStore = create<SpotterState>((set, get) => ({
   editCommunityAbout: '',
   reqName: '',
   reqType: 'Hobby',
-  reqCategoryId: null,
   reqPlaced: null,
   reqSent: false,
 
@@ -919,7 +916,7 @@ export const useStore = create<SpotterState>((set, get) => ({
   }),
   openRequest: () => set({
     overlay: 'request', reqSent: false, reqName: '', reqType: 'Hobby',
-    reqCategoryId: null, reqPlaced: null, writeError: null,
+    reqPlaced: null, writeError: null,
   }),
   openCreateEvent: () => {
     const s = get();
@@ -1055,11 +1052,9 @@ export const useStore = create<SpotterState>((set, get) => ({
     if (s.reqName.trim() === '' || isExplicit(s.reqName)) return;
     set({ writeBusy: 'sport-request', writeError: null });
     try {
-      // Through the same path the search uses, so this request is placed in a
-      // category too -- by the engine when it is on, by the member's pick when
-      // it is not -- and reaches an admin already placed.
-      const kind = s.reqType.toLowerCase() === 'hobby' ? 'hobby' : 'sport';
-      const filed = await requestSportRemote(s.reqName.trim(), kind, s.reqCategoryId);
+      // Through the same path the search uses: the engine places it, and the
+      // member is never asked where it belongs.
+      const filed = await requestSportRemote(s.reqName.trim());
       track('sport_requested', { kind: filed.kind });
       set({
         reqSent: true,

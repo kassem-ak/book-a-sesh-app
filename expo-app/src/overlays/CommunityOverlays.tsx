@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Text, View } from 'react-native';
-import { CategoryChooser } from '../components/CategoryChooser';
 import { CommunityFields } from '../components/CommunityFields';
-import { useSportCategories } from '../components/useSports';
-import { fetchCapabilities } from '../lib/gwin';
 import { MissingSubject, OverlayHeader, OverlayScaffold } from '../components/Overlay';
 import {
   Avatar, Button, Card, Chip, ConfirmSheet, Field, Icon, IconButton, MicroBadge, Row,
@@ -352,26 +349,15 @@ export function StartCommunityOverlay() {
 
 // Asking for a sport or hobby that is not listed.
 //
-// Every request reaches an admin already placed in a category. When the AI
-// engine is on it places it, and the member is not asked; when it is off the
-// member picks the category here -- which also settles sport or hobby, so the
-// old Hobby / Sport switch is gone.
+// A name and nothing else. Where it belongs -- sport or hobby, and which
+// category -- is decided by the AI engine when the request is filed, so the
+// member is never asked to sort it. If the engine cannot run, it lands under
+// Other and the admin who approves it places it.
 export function RequestOverlay() {
-  const { c, t } = useTheme();
+  const { c } = useTheme();
   const s = useStore();
-  const categories = useSportCategories();
-  const [engine, setEngine] = useState<boolean | null>(null);
-  useEffect(() => {
-    let active = true;
-    // Presentation only: whether to ask the member at all.
-    void fetchCapabilities().then((can) => { if (active) setEngine(can.suggestsSports); });
-    return () => { active = false; };
-  }, []);
-
   const blocked = isExplicit(s.reqName);
-  const asking = engine === false && !!categories?.length;
-  const placed = !asking || s.reqCategoryId !== null;
-  const canSend = s.reqName.trim().length > 0 && !blocked && placed && s.writeBusy !== 'sport-request';
+  const canSend = s.reqName.trim().length > 0 && !blocked && s.writeBusy !== 'sport-request';
 
   if (s.reqSent) {
     return (
@@ -389,33 +375,13 @@ export function RequestOverlay() {
     <OverlayScaffold
       header={<OverlayHeader title="Request a sport" onBack={s.closeOverlay} />}
       bottomBar={<View style={{ padding: 16, backgroundColor: c.bg }}><VoltButton
-        label={!s.reqName.trim() ? 'Name it first' : !placed ? 'Choose where it belongs' : 'Send request to admins'}
+        label={canSend || !s.reqName.trim() ? (s.reqName.trim() ? 'Send request to admins' : 'Name it first') : 'Edit blocked content to continue'}
         busy={s.writeBusy === 'sport-request'} busyLabel="Sending…"
         enabled={canSend} onPress={s.submitRequest} /></View>}
     >
       <View style={{ paddingHorizontal: 18, gap: 11 }}>
         <SectionHeading>Name</SectionHeading>
         <Field value={s.reqName} onChange={(v) => s.set('reqName', v)} placeholder="Padel, Salsa, Bouldering..." />
-
-        <SectionHeading style={{ marginTop: 11 }}>Where it belongs</SectionHeading>
-        {engine === null || (engine === false && categories === null) ? (
-          <Text style={[t.caption, { color: c.txt3 }]}>Loading…</Text>
-        ) : asking ? (
-          <CategoryChooser
-            categories={categories!}
-            selected={s.reqCategoryId}
-            onPick={(category) => {
-              s.set('reqCategoryId', category.id);
-              s.set('reqType', category.kind === 'hobby' ? 'Hobby' : 'Sport');
-            }}
-          />
-        ) : (
-          <Text style={[t.bodySm, { color: c.txt2 }]}>
-            {engine
-              ? 'We place it in the right category for you when you send it.'
-              : 'It will be filed under Other, and an admin places it.'}
-          </Text>
-        )}
       </View>
     </OverlayScaffold>
   );

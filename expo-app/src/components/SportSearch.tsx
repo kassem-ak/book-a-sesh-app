@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Sport, SportCategory } from '../lib/profiles';
+import { Sport } from '../lib/profiles';
 import { fetchCapabilities, mapSport, requestSport } from '../lib/gwin';
 import { useTheme } from '../theme';
-import { CategoryChooser } from './CategoryChooser';
 import { Button, Field, Icon, SectionHeading } from './ui';
-import { layerSports, useSportCategories } from './useSports';
+import { layerSports } from './useSports';
 
 // Search the catalogue, with the AI engine behind it.
 //
@@ -55,7 +54,9 @@ export function SportSearch({ sports, selected, onPick, single = false }: {
   const [engine, setEngine] = useState(false);
   useEffect(() => {
     let active = true;
-    void fetchCapabilities().then((can) => { if (active) setEngine(can.suggestsSports); });
+    // Both: the switch on AND a key behind it. Otherwise every pause would call
+    // a function that can only answer "not available".
+    void fetchCapabilities().then((can) => { if (active) setEngine(can.suggestsSports && can.engineReady); });
     return () => { active = false; };
   }, []);
 
@@ -87,14 +88,13 @@ export function SportSearch({ sports, selected, onPick, single = false }: {
   const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
   useEffect(() => { setNote(null); }, [typed]);
 
-  const categories = useSportCategories();
-
-  const file = async (category: SportCategory | null) => {
+  const file = async () => {
     if (!typed || filing) return;
     setFiling(true);
     setNote(null);
     try {
-      const filed = await requestSport(typed, category?.kind ?? 'sport', category?.id ?? null);
+      // Placed by the engine, never by the member.
+      const filed = await requestSport(typed);
       const where = filed.category
         ? `${filed.kind === 'hobby' ? 'Hobbies' : 'Sports'} › ${filed.category}`
         : filed.kind === 'hobby' ? 'Hobbies' : 'Sports';
@@ -160,37 +160,19 @@ export function SportSearch({ sports, selected, onPick, single = false }: {
           )}
 
           {/* Always available once something is typed, engine or not: a
-              member who cannot find their sport must always be able to ask. */}
-          {typed.length > 0 && !note?.ok && (engine ? (
+              member who cannot find their sport must always be able to ask.
+              One tap, and nobody is asked where it belongs -- the engine
+              decides sport or hobby and the category. */}
+          {typed.length > 0 && !note?.ok && (
             <Button
               icon="plus"
               label={`Add “${typed}”`}
               busy={filing}
               busyLabel="Sending…"
               accessibilityLabel={`Request ${typed} as a new sport or hobby`}
-              onPress={() => void file(null)}
+              onPress={() => void file()}
             />
-          ) : (
-            // Without the engine nobody can place it automatically, so the
-            // member does -- one tap, which also says whether it is a sport or
-            // a hobby. Every request reaches an admin already placed.
-            <View style={{ gap: 10 }}>
-              <Text style={[t.label, { color: c.txt }]}>
-                Add “{typed}” — what kind of thing is it?
-              </Text>
-              {categories === null ? (
-                <Text style={[t.caption, { color: c.txt3 }]}>Loading the categories…</Text>
-              ) : categories.length ? (
-                <CategoryChooser categories={categories} selected={null} disabled={filing}
-                  onPick={(category) => void file(category)} />
-              ) : (
-                // The list could not load: still let them ask. It lands under
-                // Other and an admin places it.
-                <Button icon="plus" label={`Add “${typed}”`} busy={filing}
-                  onPress={() => void file(null)} />
-              )}
-            </View>
-          ))}
+          )}
 
           {note && (
             <Text
