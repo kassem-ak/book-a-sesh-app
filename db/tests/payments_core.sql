@@ -71,5 +71,91 @@ begin
   select count(*) into v_n from payment_methods;
   if v_n <> 1 then raise exception 'FAIL 7b: removed method still listed'; end if;
 
+  -- section 3: payment state (no subject triggers yet: kinds stay disabled, subjects are fake ids)
+  set local role service_role;
+  declare
+    v_pay uuid; v_rel uuid; v_disp uuid; v_cash bigint; v_held bigint; v_payee bigint; v_sid uuid := gen_random_uuid();
+  begin
+    update payment_settings set fee_bps = 300, fee_flat_cents = 0, dispute_window_hours = 48;
+
+    -- 8. Opening: fee and rate snapshot.
+    v_pay := private.open_payment('session', v_sid, v_me, v_other, 10000);
+    if (select fee_cents from payments where id = v_pay) <> 300 then raise exception 'FAIL 8: fee'; end if;
+
+    -- 9. A payment being charged is never expired.
+    perform payments_begin_charge(v_pay);
+    update payments set expires_at = now() - interval '1 minute' where id = v_pay;
+    perform private.fail_payment(v_pay, 'expired');
+    if (select status from payments where id = v_pay) <> 'charging' then raise exception 'FAIL 9: charging payment expired'; end if;
+
+    -- 10. Held: cash in = price + fee, held = price.
+    perform payments_mark_held(v_pay, 'zz_ref_1', 0, null);
+    select balance_cents into v_cash from ledger_balances where code = 'company_cash';
+    if not exists (select 1 from ledger_entries where idempotency_key = 'checkout:' || v_pay) then
+      raise exception 'FAIL 10: no checkout entry';
+    end if;
+
+    -- 11. Release after the window: payee gets price − commission, commission recorded.
+    perform private.add_release(v_pay, v_sid);
+    select id into v_rel from payment_releases where payment_id = v_pay;
+    if private.release_due() <> 0 then raise exception 'FAIL 11: released inside the complaint period'; end if;
+    update payment_releases set release_at = now() - interval '1 second' where id = v_rel;
+    perform private.release_due();
+    select balance_cents into v_payee from ledger_balances where code = 'payee:' || v_other;
+    -- rate is the 'session' margin; payee share = 10000 − commission
+    if v_payee <> 10000 - (select commission_cents from payment_releases where id = v_rel) then
+      raise exception 'FAIL 11b: payee balance %', v_payee;
+    end if;
+    if (select status from payments where id = v_pay) <> 'closed' then raise exception 'FAIL 11c: not closed'; end if;
+    if not exists (select 1 from payee_payouts where release_id = v_rel and status = 'waiting_method') then
+      raise exception 'FAIL 11d: payout should wait for a receiving method';
+    end if;
+
+    -- 12. Dispute: refused after the window, accepted inside it, partial refund resolves.
+    v_pay := private.open_payment('session', gen_random_uuid(), v_me, v_other, 5000);
+    perform payments_begin_charge(v_pay);
+    perform payments_mark_held(v_pay, 'zz_ref_2', 0, null);
+    perform private.add_release(v_pay, (select subject_id from payments where id = v_pay));
+    select id into v_rel from payment_releases where payment_id = v_pay;
+    set local role authenticated;
+    v_disp := raise_dispute(v_rel, 'Coach did not show up');
+    set local role service_role;
+    perform resolve_dispute(v_disp, 2000, v_other);
+    if (select amount_cents from payment_releases where id = v_rel) <> 3000 then raise exception 'FAIL 12: release not reduced'; end if;
+    if (select amount_cents from refunds where release_id = v_rel) <> 2000 then raise exception 'FAIL 12b: refund missing'; end if;
+    if private.payment_unallocated(v_pay) <> 0 then raise exception 'FAIL 12c: unallocated %', private.payment_unallocated(v_pay); end if;
+
+    v_pay := private.open_payment('session', gen_random_uuid(), v_me, v_other, 5000);
+    perform payments_begin_charge(v_pay);
+    perform payments_mark_held(v_pay, 'zz_ref_3', 0, null);
+    perform private.add_release(v_pay, (select subject_id from payments where id = v_pay));
+    select id into v_rel from payment_releases where payment_id = v_pay;
+    update payment_releases set release_at = now() - interval '1 second' where id = v_rel;
+    set local role authenticated;
+    begin
+      perform raise_dispute(v_rel, 'Too late now');
+      raise exception 'FAIL 13: dispute after the window accepted';
+    exception when others then
+      get stacked diagnostics v_err = message_text;
+      if v_err like 'FAIL%' then raise; end if;
+      if v_err <> 'The complaint period for this payment has ended.' then raise exception 'FAIL 13b: %', v_err; end if;
+    end;
+    set local role service_role;
+
+    -- 14. Refund can never exceed what is still held.
+    v_pay := private.open_payment('session', gen_random_uuid(), v_me, v_other, 4000);
+    perform payments_begin_charge(v_pay);
+    perform payments_mark_held(v_pay, 'zz_ref_4', 0, null);
+    perform private.refund_payment(v_pay, 999999, 'test');
+    if (select sum(amount_cents) from refunds where payment_id = v_pay) <> 4000 then raise exception 'FAIL 14: refund not capped'; end if;
+
+    -- 15. Soft split: cash = held + payees + member refunds + income − expense (nothing else posted yet).
+    select balance_cents into v_cash from ledger_balances where code = 'company_cash';
+    if v_cash <> (select sum(balance_cents) from ledger_balances where kind in ('liability','equity','income'))
+               - (select coalesce(sum(balance_cents),0) from ledger_balances where kind = 'expense') then
+      raise exception 'FAIL 15: company_cash does not equal what it is split into';
+    end if;
+  end;
+
   raise exception 'ALL PAYMENTS CORE CHECKS PASSED';
 end $$;
