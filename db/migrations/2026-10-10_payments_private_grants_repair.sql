@@ -12,6 +12,7 @@
 --   payments_core_flow_restore_private_grants   (authenticated back on helpers listing service_role)
 --   payments_core_flow_restore_community_create (authenticated on private.create_community_with_owner)
 --   payments_core_flow_restore_private_anon     (anon + authenticated on every non-payment private function)
+--   payments_core_flow_restore_private_anon_tighten (anon off the three unreachable ones, below)
 --
 -- Idempotent: granting an existing privilege is a no-op.
 do $$
@@ -29,6 +30,15 @@ begin
     execute format('grant execute on function %s to anon, authenticated', f.sig);
   end loop;
 end $$;
+
+-- Fourth entry, payments_core_flow_restore_private_anon_tighten: anon is only
+-- kept where it is reachable -- a function named in an RLS policy, or the body
+-- behind a public wrapper anon can already execute (whose body refuses anon
+-- through require_app_user). Three are reachable only through wrappers anon
+-- cannot run, so anon comes off them again.
+revoke execute on function private.create_community_with_owner(text, text, text, uuid, text, text, text, text, text) from anon;
+revoke execute on function private.set_community_membership(text, boolean) from anon;
+revoke execute on function private.set_event_attendance(uuid, boolean) from anon;
 
 -- Rule for every later payments migration: never `revoke ... on all functions
 -- in schema private`. Revoke and grant the new functions by name.
