@@ -1523,7 +1523,10 @@ drop trigger if exists trg_event_attendance_money on public.event_attendees;
 create trigger trg_event_attendance_money after insert or update of payment or delete on public.event_attendees
   for each row execute function private.event_attendance_money();
 
-revoke all on all functions in schema private from public, anon, authenticated;
+-- Trigger functions are invoked by the triggers themselves, never called by a
+-- role, so they need no grants. Never `revoke ... on all functions in schema
+-- private`: the schema also holds the older RPC bodies that members call
+-- through non-definer public wrappers, and a blanket revoke takes the app down.
 ```
 
 - [ ] **Step 4: Apply** with `apply_migration` named `payments_subjects`.
