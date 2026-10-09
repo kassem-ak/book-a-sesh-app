@@ -53,7 +53,7 @@
 |---|---|
 | `db/migrations/2026-10-10_payments_margin_keys.sql` | Add enum values `package, court, tournament, event` to `margin_key` (own file: new enum values cannot be used in the same transaction). |
 | `db/migrations/2026-10-10_payments_ledger.sql` | Ledger tables, zero-sum + append-only triggers, `private.post_entry`, `private.ensure_account`, `ledger_balances` view. |
-| `db/migrations/2026-10-10_payments_core.sql` | Settings, methods, payments, releases, refunds, payouts, disputes; RLS; payment state functions; edge-facing and member-facing RPCs; guard bypass. |
+| `db/migrations/2026-10-10_payments_core.sql` | Settings, methods, payments, releases, refunds, payee_payouts (the name `payouts` is taken by the admin royalties log), disputes; RLS; payment state functions; edge-facing and member-facing RPCs; guard bypass. |
 | `db/migrations/2026-10-10_payments_subjects.sql` | Triggers on `bookings`, `package_cancellations`, `court_reservations`, `venue_event_entries`, `event_attendees`. |
 | `db/migrations/2026-10-10_payments_tick.sql` | `private.payments_tick()`, pg_cron schedule, Vault secrets for the queue call. |
 | `db/tests/payments_ledger.sql`, `db/tests/payments_core.sql`, `db/tests/payments_subjects.sql` | SQL tests. |
@@ -335,7 +335,7 @@ git commit -m "Payments ledger: balanced, append-only money records"
   - `payments`
   - `payment_releases`
   - `refunds`
-  - `payouts`
+  - `payee_payouts`
   - `disputes`
   - (columns as below)
 - Produces member RPCs:
@@ -541,7 +541,7 @@ create table if not exists public.refunds (
   sent_at      timestamptz
 );
 
-create table if not exists public.payouts (
+create table if not exists public.payee_payouts (
   id           uuid primary key default gen_random_uuid(),
   payee_id     uuid not null references public.users(id) on delete restrict,
   release_id   uuid references public.payment_releases(id),
@@ -574,18 +574,18 @@ alter table public.payment_methods  enable row level security;
 alter table public.payments         enable row level security;
 alter table public.payment_releases enable row level security;
 alter table public.refunds          enable row level security;
-alter table public.payouts          enable row level security;
+alter table public.payee_payouts          enable row level security;
 alter table public.disputes         enable row level security;
 
 revoke all on public.payment_methods, public.payments, public.payment_releases,
-              public.refunds, public.payouts, public.disputes from public, anon, authenticated;
+              public.refunds, public.payee_payouts, public.disputes from public, anon, authenticated;
 grant all on public.payment_methods, public.payments, public.payment_releases,
-             public.refunds, public.payouts, public.disputes to service_role;
+             public.refunds, public.payee_payouts, public.disputes to service_role;
 
 -- The token never leaves the server.
 grant select (id, user_id, kind, display, can_pay, can_receive, default_pay, default_receive, created_at)
   on public.payment_methods to authenticated;
-grant select on public.payments, public.payment_releases, public.refunds, public.payouts, public.disputes to authenticated;
+grant select on public.payments, public.payment_releases, public.refunds, public.payee_payouts, public.disputes to authenticated;
 
 drop policy if exists payment_methods_own on public.payment_methods;
 create policy payment_methods_own on public.payment_methods for select to authenticated
@@ -605,8 +605,8 @@ create policy refunds_party on public.refunds for select to authenticated
   using (exists (select 1 from public.payments p where p.id = payment_id
                   and (p.payer_id = current_app_user() or p.payee_id = current_app_user())));
 
-drop policy if exists payouts_own on public.payouts;
-create policy payouts_own on public.payouts for select to authenticated
+drop policy if exists payee_payouts_own on public.payee_payouts;
+create policy payee_payouts_own on public.payee_payouts for select to authenticated
   using (payee_id = current_app_user());
 
 drop policy if exists disputes_party on public.disputes;
@@ -639,7 +639,7 @@ begin
     update payment_methods set default_receive = false where user_id = v_me and default_receive;
     update payment_methods set default_receive = true where id = p_id;
     -- Anything that was waiting for somewhere to go can go now.
-    update payouts set method_id = p_id, status = 'queued' where payee_id = v_me and status = 'waiting_method';
+    update payee_payouts set method_id = p_id, status = 'queued' where payee_id = v_me and status = 'waiting_method';
   else
     raise exception 'Unknown purpose %', p_purpose;
   end if;
@@ -738,7 +738,7 @@ git commit -m "Payment tables: members read their own, nobody writes directly"
       raise exception 'FAIL 11b: payee balance %', v_payee;
     end if;
     if (select status from payments where id = v_pay) <> 'closed' then raise exception 'FAIL 11c: not closed'; end if;
-    if not exists (select 1 from payouts where release_id = v_rel and status = 'waiting_method') then
+    if not exists (select 1 from payee_payouts where release_id = v_rel and status = 'waiting_method') then
       raise exception 'FAIL 11d: payout should wait for a receiving method';
     end if;
 
@@ -976,7 +976,7 @@ begin
     if v_share > 0 then
       select id into v_method from payment_methods
        where user_id = r.payee_id and default_receive and removed_at is null;
-      insert into payouts (payee_id, release_id, method_id, amount_cents, status)
+      insert into payee_payouts (payee_id, release_id, method_id, amount_cents, status)
       values (r.payee_id, r.id, v_method, v_share, case when v_method is null then 'waiting_method' else 'queued' end);
     end if;
 
@@ -1033,8 +1033,8 @@ language plpgsql security definer set search_path = public as $$
 begin
   return query
   with p as (
-    update payouts o set status = 'sending'
-     where o.id in (select id from payouts where status = 'queued' order by created_at limit p_limit for update skip locked)
+    update payee_payouts o set status = 'sending'
+     where o.id in (select id from payee_payouts where status = 'queued' order by created_at limit p_limit for update skip locked)
     returning o.id, o.amount_cents, o.method_id
   )
   select 'payout'::text, p.id, p.amount_cents, m.token, null::text
@@ -1055,7 +1055,7 @@ language plpgsql security definer set search_path = public, private as $$
 declare v_who uuid; v_amount int;
 begin
   if p_kind = 'payout' then
-    update payouts set status = 'sent', provider_ref = p_ref, fee_cents = p_fee, sent_at = now()
+    update payee_payouts set status = 'sent', provider_ref = p_ref, fee_cents = p_fee, sent_at = now()
      where id = p_id and status = 'sending' returning payee_id, amount_cents into v_who, v_amount;
     if not found then return; end if;
     perform private.post_entry('payout', 'payout:' || p_id, 'payout', p_id, jsonb_build_array(
@@ -1075,7 +1075,7 @@ create or replace function public.payments_queue_failed(p_kind text, p_id uuid, 
 language plpgsql security definer set search_path = public as $$
 begin
   if p_kind = 'payout' then
-    update payouts set status = 'failed', failure = left(p_message, 500) where id = p_id and status = 'sending';
+    update payee_payouts set status = 'failed', failure = left(p_message, 500) where id = p_id and status = 'sending';
   elsif p_kind = 'refund' then
     update refunds set status = 'failed', failure = left(p_message, 500) where id = p_id and status = 'sending';
   end if;
@@ -1604,7 +1604,7 @@ begin
 
   perform private.release_due();
 
-  if exists (select 1 from payouts where status = 'queued') or exists (select 1 from refunds where status = 'queued') then
+  if exists (select 1 from payee_payouts where status = 'queued') or exists (select 1 from refunds where status = 'queued') then
     select decrypted_secret into v_url from vault.decrypted_secrets where name = 'payments_function_url';
     select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'payments_cron_secret';
     if v_url is not null and v_secret is not null then
@@ -1818,7 +1818,7 @@ Deno.serve(async (req: Request) => {
       if (error) throw error;
       if (!hasReceive && tokenised.canReceive) {
         // Payouts that were waiting for somewhere to go can go now.
-        await admin.from("payouts").update({ method_id: data.id, status: "queued" })
+        await admin.from("payee_payouts").update({ method_id: data.id, status: "queued" })
           .eq("payee_id", me).eq("status", "waiting_method");
       }
       return json({ id: data.id });
@@ -2228,7 +2228,7 @@ export async function fetchAwaitingPayment(): Promise<MyPayment | null> {
 
 export async function fetchMyPayouts(): Promise<Payout[]> {
   await ensureAppSession();
-  const { data, error } = await supabase.from('payouts')
+  const { data, error } = await supabase.from('payee_payouts')
     .select('id, amount_cents, status, created_at').order('created_at', { ascending: false }).limit(100);
   if (error) throw error;
   return (data ?? []).map((p) => ({ id: p.id, amountCents: p.amount_cents, status: p.status, createdAt: p.created_at }));
