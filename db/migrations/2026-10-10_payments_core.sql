@@ -257,6 +257,7 @@ declare v_id uuid; v_s payment_settings; v_rate int;
 begin
   if p_payee is null then raise exception 'This venue cannot take payments yet.'; end if;
   if p_payee = p_payer then raise exception 'You cannot pay yourself.'; end if;
+  if p_price is null or p_price <= 0 then raise exception 'Nothing to pay.'; end if;
   select * into v_s from payment_settings;
   select coalesce(
            (select round(pct * 100)::int from platform_margins where key::text = p_kind),
@@ -266,33 +267,47 @@ begin
   insert into payments (kind, subject_id, payer_id, payee_id, price_cents, fee_cents, rate_bps,
                         package_sessions, provider, expires_at)
   values (p_kind, p_subject, p_payer, p_payee, p_price,
-          round(p_price * v_s.fee_bps / 10000.0)::int + v_s.fee_flat_cents,
+          case when p_price = 0 then 0 else round(p_price * v_s.fee_bps / 10000.0)::int + v_s.fee_flat_cents end,
           v_rate, p_sessions, v_s.provider, now() + make_interval(mins => v_s.checkout_minutes))
   returning id into v_id;
   return v_id;
 end $$;
 
 -- 4c. Subjects: confirm when paid, cancel when not ----------------------------
-create or replace function private.confirm_subject(p_payment payments) returns void
+-- Returns true only when the subject was found and confirmed. A subject that vanished
+-- while the gateway was charging (withdrawn, cancelled) returns false; the caller refunds.
+drop function if exists private.confirm_subject(payments);
+create function private.confirm_subject(p_payment payments) returns boolean
 language plpgsql security definer set search_path = public, private as $$
+declare v_ok boolean := false; v_n int;
 begin
   perform set_config('app.payments_internal', 'on', true);
   if p_payment.kind = 'session' then
     update bookings set status = 'confirmed' where id = p_payment.subject_id and status = 'pending';
+    v_ok := found;
   elsif p_payment.kind = 'package' then
     update bookings b set status = 'confirmed'
       from bookings first
      where first.id = p_payment.subject_id
        and b.client_id = first.client_id and b.package_id = first.package_id and b.status = 'pending';
+    get diagnostics v_n = row_count;
+    v_ok := v_n > 0;
   elsif p_payment.kind = 'court' then
     update court_reservations set status = 'confirmed' where id = p_payment.subject_id and status = 'pending';
+    v_ok := found;
   elsif p_payment.kind = 'tournament' then
     update venue_event_entries set status = 'confirmed' where id = p_payment.subject_id and status = 'pending';
+    v_ok := found;
   elsif p_payment.kind = 'event' then
-    perform public.mark_event_payment_settled(p_payment.subject_id, p_payment.payer_id,
-                                              p_payment.provider_ref, p_payment.price_cents);
+    if exists (select 1 from event_attendees
+                where event_id = p_payment.subject_id and user_id = p_payment.payer_id and payment = 'pending') then
+      perform public.mark_event_payment_settled(p_payment.subject_id, p_payment.payer_id,
+                                                p_payment.provider_ref, p_payment.price_cents);
+      v_ok := true;
+    end if;
   end if;
   perform set_config('app.payments_internal', 'off', true);
+  return v_ok;
 end $$;
 
 create or replace function private.cancel_subject(p_payment payments) returns void
@@ -344,7 +359,10 @@ begin
       jsonb_build_object('account', 'company_cash', 'amount', -p_cost)));
   end if;
 
-  perform private.confirm_subject(v);
+  -- Captured money is always recorded above. If the subject is gone, give it back (the fee stays).
+  if not private.confirm_subject(v) then
+    perform private.refund_payment(v.id, v.price_cents, 'cancelled before the payment landed');
+  end if;
 end $$;
 
 create or replace function private.fail_payment(p_payment uuid, p_status text) returns void
@@ -417,12 +435,15 @@ create or replace function private.refund_payment(p_payment uuid, p_amount int, 
 returns void language plpgsql security definer set search_path = public, private as $$
 declare v payments; v_amount int; v_id uuid;
 begin
+  if p_amount is null or p_amount <= 0 then raise exception 'Refund amount must be positive.'; end if;
   select * into v from payments where id = p_payment for update;
+  if not found then raise exception 'Payment % not found.', p_payment; end if;
   if v.status <> 'held' then return; end if;
   if p_release is null then
     v_amount := least(p_amount, private.payment_unallocated(p_payment));
   else
-    v_amount := least(p_amount, (select amount_cents from payment_releases where id = p_release and status = 'disputed'));
+    v_amount := least(p_amount, coalesce((select amount_cents from payment_releases
+                                           where id = p_release and payment_id = p_payment and status = 'disputed'), 0));
   end if;
   if coalesce(v_amount, 0) <= 0 then return; end if;
 
@@ -460,17 +481,22 @@ language plpgsql security definer set search_path = public as $$
 begin
   -- A member can remove their receiving account while a payout is queued: park those.
   update payee_payouts o set status = 'waiting_method', method_id = null
-   where o.status = 'queued'
-     and exists (select 1 from payment_methods m where m.id = o.method_id and m.removed_at is not null);
+   where o.id in (select x.id from payee_payouts x
+                   where x.status = 'queued'
+                     and exists (select 1 from payment_methods m where m.id = x.method_id and m.removed_at is not null)
+                     for update skip locked);
 
   return query
   with p as (
     update payee_payouts o set status = 'sending'
-     where o.id in (select id from payee_payouts where status = 'queued' order by created_at limit p_limit for update skip locked)
+     where o.id in (select id from payee_payouts
+                     where status = 'queued'
+                       and exists (select 1 from payment_methods m where m.id = payee_payouts.method_id and m.removed_at is null)
+                     order by created_at limit p_limit for update skip locked)
     returning o.id, o.amount_cents, o.method_id
   )
   select 'payout'::text, p.id, p.amount_cents, m.token, null::text
-    from p join payment_methods m on m.id = p.method_id and m.removed_at is null;
+    from p join payment_methods m on m.id = p.method_id;
 
   return query
   with f as (
@@ -533,9 +559,11 @@ language plpgsql security definer set search_path = public, private as $$
 declare d disputes; r payment_releases; v_rate int; v_left int;
 begin
   select * into d from disputes where id = p_dispute for update;
+  if not found then raise exception 'Complaint % not found.', p_dispute; end if;
   if d.status <> 'open' then raise exception 'This complaint is already decided.'; end if;
   select * into r from payment_releases where id = d.release_id for update;
-  if p_refund_cents < 0 or p_refund_cents > r.amount_cents then raise exception 'Refund must be between 0 and %.', r.amount_cents; end if;
+  if not found then raise exception 'Release for complaint % not found.', p_dispute; end if;
+  if p_refund_cents is null or p_refund_cents < 0 or p_refund_cents > r.amount_cents then raise exception 'Refund must be between 0 and %.', r.amount_cents; end if;
 
   if p_refund_cents > 0 then
     perform private.refund_payment(r.payment_id, p_refund_cents, 'complaint upheld', r.id);

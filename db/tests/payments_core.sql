@@ -71,12 +71,14 @@ begin
   select count(*) into v_n from payment_methods;
   if v_n <> 1 then raise exception 'FAIL 7b: removed method still listed'; end if;
 
-  -- section 3: payment state (no subject triggers yet: kinds stay disabled, subjects are fake ids)
+  -- section 3: payment state (no subject triggers yet: kinds stay disabled; subjects are plain pending bookings)
   set local role service_role;
   declare
-    v_pay uuid; v_rel uuid; v_disp uuid; v_cash bigint; v_held bigint; v_payee bigint; v_sid uuid := gen_random_uuid();
+    v_pay uuid; v_rel uuid; v_disp uuid; v_cash bigint; v_held bigint; v_payee bigint; v_sid uuid := gen_random_uuid(); v_b uuid;
   begin
     update payment_settings set fee_bps = 300, fee_flat_cents = 0, dispute_window_hours = 48;
+    -- Subjects are real pending bookings: a payment whose subject is gone is refunded on capture (check 18).
+    insert into bookings (id, client_id, coach_id, scheduled_for) values (v_sid, v_me, v_other, now() + interval '1 day');
 
     -- 8. Opening: fee and rate snapshot.
     v_pay := private.open_payment('session', v_sid, v_me, v_other, 10000);
@@ -112,7 +114,9 @@ begin
     end if;
 
     -- 12. Dispute: refused after the window, accepted inside it, partial refund resolves.
-    v_pay := private.open_payment('session', gen_random_uuid(), v_me, v_other, 5000);
+    v_b := gen_random_uuid();
+    insert into bookings (id, client_id, coach_id, scheduled_for) values (v_b, v_me, v_other, now() + interval '2 days');
+    v_pay := private.open_payment('session', v_b, v_me, v_other, 5000);
     perform payments_begin_charge(v_pay);
     perform payments_mark_held(v_pay, 'zz_ref_2', 0, null);
     perform private.add_release(v_pay, (select subject_id from payments where id = v_pay));
@@ -125,7 +129,9 @@ begin
     if (select amount_cents from refunds where release_id = v_rel) <> 2000 then raise exception 'FAIL 12b: refund missing'; end if;
     if private.payment_unallocated(v_pay) <> 0 then raise exception 'FAIL 12c: unallocated %', private.payment_unallocated(v_pay); end if;
 
-    v_pay := private.open_payment('session', gen_random_uuid(), v_me, v_other, 5000);
+    v_b := gen_random_uuid();
+    insert into bookings (id, client_id, coach_id, scheduled_for) values (v_b, v_me, v_other, now() + interval '3 days');
+    v_pay := private.open_payment('session', v_b, v_me, v_other, 5000);
     perform payments_begin_charge(v_pay);
     perform payments_mark_held(v_pay, 'zz_ref_3', 0, null);
     perform private.add_release(v_pay, (select subject_id from payments where id = v_pay));
@@ -143,7 +149,9 @@ begin
     set local role service_role;
 
     -- 14. Refund can never exceed what is still held.
-    v_pay := private.open_payment('session', gen_random_uuid(), v_me, v_other, 4000);
+    v_b := gen_random_uuid();
+    insert into bookings (id, client_id, coach_id, scheduled_for) values (v_b, v_me, v_other, now() + interval '4 days');
+    v_pay := private.open_payment('session', v_b, v_me, v_other, 4000);
     perform payments_begin_charge(v_pay);
     perform payments_mark_held(v_pay, 'zz_ref_4', 0, null);
     perform private.refund_payment(v_pay, 999999, 'test');
@@ -155,6 +163,111 @@ begin
                - (select coalesce(sum(balance_cents),0) from ledger_balances where kind = 'expense') then
       raise exception 'FAIL 15: company_cash does not equal what it is split into';
     end if;
+  end;
+
+  -- section 3b: review fixes
+  declare
+    v_pay uuid; v_pay2 uuid; v_rel uuid; v_rel2 uuid; v_disp uuid; v_b uuid; v_b2 uuid;
+    v_o1 uuid; v_o2 uuid; v_mw uuid; v_ml uuid; v_ids uuid[]; v_sum bigint;
+  begin
+    v_b := gen_random_uuid(); v_b2 := gen_random_uuid();
+    insert into bookings (id, client_id, coach_id, scheduled_for) values (v_b, v_me, v_other, now() + interval '20 days');
+    insert into bookings (id, client_id, coach_id, scheduled_for) values (v_b2, v_me, v_other, now() + interval '21 days');
+    v_pay := private.open_payment('session', v_b, v_me, v_other, 4000);
+    perform payments_begin_charge(v_pay);
+    perform payments_mark_held(v_pay, 'zz_ref_5', 0, null);
+    v_pay2 := private.open_payment('session', v_b2, v_me, v_other, 3000);
+    perform payments_begin_charge(v_pay2);
+    perform payments_mark_held(v_pay2, 'zz_ref_6', 0, null);
+    perform private.add_release(v_pay, v_b);
+    perform private.add_release(v_pay2, v_b2);
+    select id into v_rel from payment_releases where payment_id = v_pay;
+    select id into v_rel2 from payment_releases where payment_id = v_pay2;
+
+    -- 16. A refund cannot ride on a release that is not disputed, or that belongs to another payment.
+    perform private.refund_payment(v_pay2, 1000, 'test', v_rel);   -- another payment's release
+    perform private.refund_payment(v_pay2, 1000, 'test', v_rel2);  -- own release, but not disputed
+    perform private.refund_payment(v_pay2, 1000, 'test', gen_random_uuid()); -- no such release
+    if exists (select 1 from refunds where payment_id in (v_pay, v_pay2)) then raise exception 'FAIL 16: refund slipped through a bad release'; end if;
+    if (select status from payments where id = v_pay2) <> 'held' then raise exception 'FAIL 16b: payment left held'; end if;
+    begin
+      perform private.refund_payment(v_pay2, null, 'test');
+      raise exception 'FAIL 16c: null refund accepted';
+    exception when others then
+      get stacked diagnostics v_err = message_text;
+      if v_err like 'FAIL%' then raise; end if;
+      if v_err <> 'Refund amount must be positive.' then raise exception 'FAIL 16d: %', v_err; end if;
+    end;
+    begin
+      perform private.refund_payment(gen_random_uuid(), 100, 'test');
+      raise exception 'FAIL 16e: refund of a missing payment accepted';
+    exception when others then
+      get stacked diagnostics v_err = message_text;
+      if v_err like 'FAIL%' then raise; end if;
+      if v_err not like 'Payment % not found.' then raise exception 'FAIL 16f: %', v_err; end if;
+    end;
+
+    -- 17. Nothing to pay: a zero price is refused up front.
+    begin
+      perform private.open_payment('session', gen_random_uuid(), v_me, v_other, 0);
+      raise exception 'FAIL 17: zero price accepted';
+    exception when others then
+      get stacked diagnostics v_err = message_text;
+      if v_err like 'FAIL%' then raise; end if;
+      if v_err <> 'Nothing to pay.' then raise exception 'FAIL 17b: %', v_err; end if;
+    end;
+
+    -- 18. Captured money for a subject that is gone is recorded, then refunded in full.
+    v_pay := private.open_payment('session', gen_random_uuid(), v_me, v_other, 6000);
+    perform payments_begin_charge(v_pay);
+    perform payments_mark_held(v_pay, 'zz_ref_7', 0, null);
+    if not exists (select 1 from ledger_entries where idempotency_key = 'checkout:' || v_pay) then
+      raise exception 'FAIL 18: captured money not recorded';
+    end if;
+    if (select status from payments where id = v_pay) not in ('held','closed') then raise exception 'FAIL 18b: payment not held'; end if;
+    if (select coalesce(sum(amount_cents), 0) from refunds where payment_id = v_pay) <> 6000 then raise exception 'FAIL 18c: not refunded in full'; end if;
+    select coalesce(sum(l.amount_cents), 0) into v_sum
+      from ledger_lines l join ledger_entries e on e.id = l.entry_id
+     where l.account = 'held'
+       and ((e.subject_type = 'payment' and e.subject_id = v_pay)
+         or (e.subject_type = 'refund' and e.subject_id in (select id from refunds where payment_id = v_pay)));
+    if v_sum <> 0 then raise exception 'FAIL 18d: held net % for this payment', v_sum; end if;
+
+    -- 19. A payout whose receiving account was removed is parked, not sent; a live one is sent exactly once.
+    insert into payment_methods (user_id, kind, provider, token, display, can_pay, can_receive)
+    values (v_other, 'whish', 'test', 'zz_tok_live', 'Whish live', true, true) returning id into v_ml;
+    insert into payment_methods (user_id, kind, provider, token, display, can_pay, can_receive, removed_at)
+    values (v_other, 'whish', 'test', 'zz_tok_gone', 'Whish gone', true, true, now()) returning id into v_mw;
+    insert into payee_payouts (payee_id, method_id, amount_cents, status) values (v_other, v_mw, 100, 'queued') returning id into v_o1;
+    insert into payee_payouts (payee_id, method_id, amount_cents, status) values (v_other, v_ml, 100, 'queued') returning id into v_o2;
+    select coalesce(array_agg(item_id), '{}') into v_ids from payments_claim_queue(1000);
+    if v_o1 = any(v_ids) then raise exception 'FAIL 19: payout to a removed account was sent'; end if;
+    if not v_o2 = any(v_ids) then raise exception 'FAIL 19b: live payout not claimed'; end if;
+    if (select status from payee_payouts where id = v_o1) <> 'waiting_method' then raise exception 'FAIL 19c: removed-account payout not parked'; end if;
+    if (select status from payee_payouts where id = v_o2) <> 'sending' then raise exception 'FAIL 19d: live payout not sending'; end if;
+    select coalesce(array_agg(item_id), '{}') into v_ids from payments_claim_queue(1000);
+    if v_o1 = any(v_ids) or v_o2 = any(v_ids) then raise exception 'FAIL 19e: payout claimed twice'; end if;
+
+    -- 20. Deciding a complaint needs a real complaint and a real amount.
+    begin
+      perform resolve_dispute(gen_random_uuid(), 0, v_other);
+      raise exception 'FAIL 20: unknown complaint accepted';
+    exception when others then
+      get stacked diagnostics v_err = message_text;
+      if v_err like 'FAIL%' then raise; end if;
+      if v_err not like 'Complaint % not found.' then raise exception 'FAIL 20b: %', v_err; end if;
+    end;
+    set local role authenticated;
+    v_disp := raise_dispute(v_rel, 'Coach did not show up');
+    set local role service_role;
+    begin
+      perform resolve_dispute(v_disp, null, v_other);
+      raise exception 'FAIL 20c: null refund accepted';
+    exception when others then
+      get stacked diagnostics v_err = message_text;
+      if v_err like 'FAIL%' then raise; end if;
+      if v_err not like 'Refund must be between%' then raise exception 'FAIL 20d: %', v_err; end if;
+    end;
   end;
 
   raise exception 'ALL PAYMENTS CORE CHECKS PASSED';
