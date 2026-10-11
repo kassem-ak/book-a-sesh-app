@@ -1647,6 +1647,38 @@ gh pr create --title "Payments stage A: money core (inert until switched on)" --
 
 ---
 
+---
+
+### Task 5b: Promo codes at checkout (coach codes and platform codes)
+
+Added 2026-10-11 at Kassem's request. Ruling recorded in the ledger: a **coach** code reduces the coach's price (coach bears it, commission on the reduced price); a **platform** code is borne by the company (payee receives full price minus normal commission; the difference is posted to `promo_expense`). Shop coupons stay out until the shop is routed.
+
+**Files:**
+- Create: `db/migrations/2026-10-11_payments_promo_codes.sql`
+- Test: `db/tests/payments_promos.sql`
+
+**Interfaces:**
+- Consumes: `payments` (Task 2), `private.mark_payment_held`, `private.release_due`, `private.post_entry` (Task 3), `coach_promos(coach_id, code, pct, active)`, `platform_promos(code, pct, audience, active)`, enum `promo_audience ('all','new','inactive_30d')`.
+- Produces:
+  - `payments` gains `list_price_cents int` (what the payee's side is worth; equals `price_cents` when no platform code), `discount_cents int default 0`, `promo_kind text` (`coach`|`platform`), `promo_id uuid`, `promo_code text`. `price_cents` keeps its meaning: what the member pays and what is held/refunded. Constraint relaxed to `price_cents >= 0 and (price_cents > 0 or discount_cents > 0)`.
+  - `promo_redemptions(id, promo_kind, promo_id, user_id, payment_id, created_at)` with `unique (promo_kind, promo_id, user_id)`.
+  - `public.apply_promo_code(p_payment uuid, p_code text) returns table(price_cents int, discount_cents int, fee_cents int, total_cents int, promo_kind text)` — authenticated, payer only, payment must be `awaiting_payment`. Validates: code exists and is active; a coach code's `coach_id` must equal `payments.payee_id` and kind in (`session`,`package`); a platform code's audience: `'all'` always, `'new'` only if the member's `users.created_at > now() - interval '30 days'`, `'inactive_30d'` only if the member has no booking/reservation/entry/attendance created in the last 30 days; not already redeemed by this member. Recomputes `discount = round(original × pct / 100)`, `price_cents = original − discount`, fee from `payment_settings` on the new price (0 when price is 0). Replacing an existing code is allowed (one code at a time). Error messages: `'That code does not exist or has ended.'`, `'That code is for a different coach.'`, `'You have already used that code.'`, `'That code is not available to your account.'`, `'This payment can no longer be changed.'`.
+  - `public.remove_promo_code(p_payment uuid) returns void` — restores the original price and fee.
+  - `private.mark_payment_held` inserts the `promo_redemptions` row when `promo_id` is set (on conflict do nothing).
+  - `private.release_due` posts, per release: `gross = round(amount × list_price_cents / price_cents)` when `price_cents > 0` else `list_price_cents` (single release) ; `commission = round(gross × rate_bps / 10000)`; lines `held +amount`, `payee −(gross − commission)`, `commission_revenue −commission`, `promo_expense +(gross − amount)` (omitted when 0). Add `promo_expense` (expense) to `ledger_accounts`.
+  - Free checkout: a payment whose `price_cents + fee_cents = 0` is captured without a gateway call — Task 6's `checkout` action calls `payments_begin_charge` then `payments_mark_held(p_ref := 'free:' || id, p_cost := 0, p_method := null)` directly.
+
+- [ ] **Step 1: Write the failing test** — `db/tests/payments_promos.sql`: one `do $$ … $$` block, fixture = member, coach with price 10000 and `coach_promos` row `COACH20` (20%), `platform_promos` rows `WELCOME50` (50%, audience all) and `NEWBIE` (audience new), a second coach; `payment_settings` fee_bps 300, enabled_kinds `{session}`. Checks: (1) `apply_promo_code` with COACH20 on a session with the first coach → price 8000, discount 2000, fee 240, promo_kind coach; (2) COACH20 on a booking with the second coach → `'That code is for a different coach.'`; (3) WELCOME50 → price 5000, list_price 10000, fee 150; after pay + complete + release: payee balance 10000 − 1200, commission 1200, promo_expense 5000, soft-split holds; (4) same member, second payment, WELCOME50 again → `'You have already used that code.'`; (5) NEWBIE for a member whose `users.created_at` is set 40 days back → `'That code is not available to your account.'`; (6) a 100% platform code → price 0, fee 0, `payments_begin_charge` + `payments_mark_held('free:…', 0, null)` captures it and the booking is confirmed; (7) `remove_promo_code` restores 10000 / fee 300; (8) apply on a `held` payment → `'This payment can no longer be changed.'`; (9) an inactive code → `'That code does not exist or has ended.'`. Final raise `ALL PAYMENTS PROMO CHECKS PASSED`.
+- [ ] **Step 2: Run it to verify it fails.** Expected: `function apply_promo_code(...) does not exist`.
+- [ ] **Step 3: Write the migration** implementing every item under Produces, as `create or replace` of `private.mark_payment_held` and `private.release_due` (copy the live bodies with `pg_get_functiondef` and change only the promo lines) plus the new objects. Grants: `apply_promo_code`/`remove_promo_code` revoke from public, anon; grant to authenticated. RLS on `promo_redemptions`: members select their own; writes service_role only. No blanket revoke on schema private.
+- [ ] **Step 4: Apply** as `payments_promo_codes`. **Step 5: Run the test** → pass. Re-run `payments_core.sql` and `payments_subjects.sql` (they must still pass with the relaxed constraint and the new release maths). **Step 6: Commit.**
+
+Downstream additions (carried into those tasks' dispatches):
+- Task 6: the free-checkout path above; `checkout` reply unchanged.
+- Task 7: `applyPromoCode(paymentId, code)` and `removePromoCode(paymentId)` in `lib/payments.ts` returning the quote; `MyPayment` gains `discountCents` and `promoCode`.
+- Task 9: `CheckoutPanel` gets a "Have a code?" field with Apply/Remove, a Discount line when `discountCents > 0`, and pays without a method when the total is 0.
+- Task 12: history shows the discount line.
+
 # Stage B — Gateway (edge function)
 
 ### Task 6: `payments` edge function with the Test gateway
