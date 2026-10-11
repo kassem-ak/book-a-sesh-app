@@ -49,7 +49,7 @@ alter table public.reviews
 create or replace function public.guard_not_self(p_other uuid, p_what text)
 returns void
 language plpgsql
-immutable
+stable
 set search_path to 'public'
 as $function$
 begin
@@ -89,22 +89,26 @@ grant execute on function public.guard_not_self(uuid, text) to authenticated;
 -- ---------------------------------------------------------------------------
 --
 -- Only after step 3, and only if step 1 found something. VALIDATE takes a scan
--- but not a write lock on readers.
---
---   alter table public.bookings validate constraint bookings_not_self;
---   alter table public.reviews  validate constraint reviews_not_self;
+-- but not a write lock on readers. Step 1 found nothing in the live database
+-- (0 self-bookings, 0 self-reviews on 2026-10-11), so there is nothing to clean
+-- and both are validated here.
+alter table public.bookings validate constraint bookings_not_self;
+alter table public.reviews  validate constraint reviews_not_self;
 
 -- ---------------------------------------------------------------------------
--- NOT APPLIED
+-- Applied 2026-10-11
 -- ---------------------------------------------------------------------------
 --
--- No database access this session. Steps 2 is safe to run as written; steps 1,
--- 3 and 4 are the commented sequence above and want a person reading the
--- counts between them.
+-- Applied to project qievymkkprhbvxrsdukb as `nobody_books_themselves`. None
+-- of it was on the live database before: not the two constraints, not
+-- `guard_not_self`, not either trigger. The live data had no self-bookings or
+-- self-reviews, so the constraints are validated, not just NOT VALID.
 --
--- The two RPC guards are in the migration that follows this line -- they are
--- here rather than in their original files so that one file carries the whole
--- rule.
+-- `guard_not_self` was written `immutable` while calling `current_app_user()`;
+-- it is `stable` here. Nothing calls it yet.
+--
+-- The triggers follow. The self-booking one is checked by
+-- db/tests/fulfilment.sql (a direct insert, and through create_booking_for_coach).
 
 -- create_booking_for_coach: refuse before anything else, so a self-booking
 -- never reaches the availability checks and cannot fail with a message about
@@ -148,10 +152,8 @@ create trigger trg_reviews_refuse_self
   before insert or update on public.reviews
   for each row execute function public.reviews_refuse_self();
 
--- Checks to run once applied, in a transaction that is rolled back:
+-- Checks, in a transaction that is rolled back:
 --   booking yourself through create_booking_for_coach  -> refused, by sentence
---   booking yourself through book_package_sessions     -> refused, by sentence
 --   inserting a self-booking directly                  -> refused by the trigger
 --   rating yourself                                    -> refused
 --   booking somebody else                              -> unaffected
---   a coach who is also a member booking a real coach  -> unaffected

@@ -28,9 +28,10 @@ alter table public.bookings
 -- Sessions already closed out by a coach under the old one-sided rule keep
 -- their status. Back-dating the coach's stamp to the row's own completion is
 -- honest -- a coach did say it happened -- while leaving the client's stamp
--- empty, which is the truth: they were never asked.
+-- empty, which is the truth: they were never asked. `bookings` has no
+-- `updated_at`, so the session's own time is the best date there is.
 update public.bookings
-   set coach_confirmed_at = coalesce(coach_confirmed_at, updated_at, scheduled_for)
+   set coach_confirmed_at = coalesce(coach_confirmed_at, scheduled_for)
  where status = 'completed'
    and coach_confirmed_at is null;
 
@@ -86,8 +87,12 @@ begin
   if v_row.coach_confirmed_at is not null
      and v_row.client_confirmed_at is not null
      and v_row.status <> 'completed' then
+    -- The booking guard exempts the payment system's own writes, and this
+    -- function is the completion signal the payment system reads.
+    perform set_config('app.payments_internal', 'on', true);
     update bookings b set status = 'completed'
      where b.id = p_booking returning * into v_row;
+    perform set_config('app.payments_internal', 'off', true);
   end if;
 
   return query select v_row.id, v_row.status::text,
@@ -155,7 +160,11 @@ create trigger trg_notify_session_confirmation
 -- The pack's remaining count is deliberately NOT changed to match: a slot that
 -- has been booked and has passed is gone whether or not it was confirmed, and
 -- handing it back would let somebody re-book a time that has already gone by.
-create or replace view public.package_progress
+-- Dropped and recreated rather than replaced: `awaiting_confirmation` sits
+-- between `taken` and `remaining`, and `create or replace view` can only append
+-- columns. Nothing depends on the view in the database.
+drop view if exists public.package_progress;
+create view public.package_progress
 with (security_invoker = true) as
 select b.client_id,
        b.coach_id,
@@ -257,26 +266,31 @@ revoke execute on function public.cancel_unused_package(uuid, uuid) from public,
 grant execute on function public.cancel_unused_package(uuid, uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- NOT APPLIED
+-- Applied 2026-10-11
 -- ---------------------------------------------------------------------------
 --
--- This session had no database access, so none of the above has been run or
--- checked against the live schema. Before applying it, two things are worth
--- confirming, because neither could be read from here:
+-- Applied to project qievymkkprhbvxrsdukb as `fulfilment_and_free_cancel`,
+-- after checking against the live schema:
 --
---   * `bookings` has an `updated_at` column. The back-fill above reads it; if
---     it does not exist, drop that term and the coalesce falls through to
---     `scheduled_for`.
---   * `guard_booking_status_transition()` -- the trigger on bookings -- is not
---     in this repo, so its rules could not be read. `confirm_session_fulfilled`
---     is SECURITY DEFINER and should pass it, but the guard may reject a
---     client-authored update even from a definer function depending on how it
---     reads the actor. Check it, and if so, have the function set the actor or
---     exempt itself the way the venues guard exempts `service_role`.
+--   * `bookings` has no `updated_at`; the back-fill reads `scheduled_for` only.
+--   * `guard_booking_status_transition()` carries the `app.payments_internal`
+--     bypass. A client may only cancel, so `confirm_session_fulfilled` sets the
+--     flag around the `completed` write. A stamp-only update leaves `status`
+--     alone and the guard lets it through.
+--   * Neither function existed before this ran.
+--   * `package_progress` was dropped and recreated (a column is inserted
+--     mid-list); it had no dependents. `taken` now counts `completed` only.
 --
--- Checks to run once it is applied, in a transaction that is rolled back:
+--   * `confirm_session_fulfilled` was replaced the same day by
+--     2026-10-11_payments_followups.sql and again by
+--     2026-10-11_payments_followups_2.sql, which refuse a `pending` booking.
+--     `cancel_unused_package` was replaced by the second one too, to refund what
+--     was paid. Those files have the current bodies.
+--
+-- The checks below are db/tests/fulfilment.sql (rolled back; passes by raising
+-- 'ALL FULFILMENT CHECKS PASSED'):
 --   coach confirms, client has not          -> status stays 'confirmed'
---   client then confirms                    -> status 'completed', one push each
+--   client then confirms                    -> status 'completed'
 --   either confirms twice                   -> stamp does not move
 --   a stranger confirms                     -> refused
 --   confirming before scheduled_for         -> refused
