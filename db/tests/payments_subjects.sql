@@ -8,7 +8,7 @@ declare
   v_owner_auth uuid := gen_random_uuid(); v_owner uuid; v_venue2 uuid; v_court2 uuid;
   v_pkg2 uuid; v_pkg3 uuid; v_pkg4 uuid; v_p1 uuid; v_b2 uuid; v_res uuid;
   v_ev uuid; v_ev2 uuid; v_entry uuid; v_entry2 uuid; v_comm uuid; v_event uuid;
-  v_fee0 bigint; v_fee1 bigint;
+  v_fee0 bigint; v_fee1 bigint; v_pkg5 uuid; v_cancel uuid;
 begin
   insert into auth.users (id) values (v_auth), (v_coach_auth), (v_owner_auth);
   set local role service_role;
@@ -24,6 +24,7 @@ begin
   insert into packages (coach_id, sessions, price_cents, active) values (v_coach, 4, 20000, true) returning id into v_pkg2;
   insert into packages (coach_id, sessions, price_cents, active) values (v_coach, 4, 20000, true) returning id into v_pkg3;
   insert into packages (coach_id, sessions, price_cents, active) values (v_coach, 4, 20000, true) returning id into v_pkg4;
+  insert into packages (coach_id, sessions, price_cents, active) values (v_coach, 4, 20000, true) returning id into v_pkg5;
   insert into venues (slug, name, city, sport, status, equipment_cents_per_hour, timezone, opens_at, closes_at)
   values ('zz-pay-venue', 'ZZ Pay Venue', 'Beirut', 'Paddle', 'open', 0, 'UTC', '00:00', '23:59') returning id into v_venue;
   insert into courts (venue_id, name, price_cents_per_hour, active) values (v_venue, 'ZZ PAY COURT', 3000, true) returning id into v_court;
@@ -282,9 +283,6 @@ begin
   end if;
 
   -- 16. Cancelling a paid pack with no completed session refunds its full price and cancels its sessions.
-  -- public.cancel_unused_package is not in the live database (migration 2026-09-22_fulfilment_and_free_cancel
-  -- was never applied), so this runs the two statements it makes: cancel the live sessions, then write the
-  -- approved cancellation at the pack price.
   set local role authenticated;
   perform book_package_sessions(v_coach, v_pkg4, jsonb_build_array(
     jsonb_build_object('at', v_slot + interval '60 days', 'label', 'A'),
@@ -294,17 +292,60 @@ begin
   perform payments_begin_charge(v_pay);
   perform payments_mark_held(v_pay, 'zz_sub_16', 0, null);
   set local role authenticated;
-  update bookings set status = 'cancelled'
-   where client_id = v_me and coach_id = v_coach and package_id = v_pkg4 and status in ('pending', 'confirmed');
+  perform cancel_unused_package(v_coach, v_pkg4);
   set local role service_role;
-  insert into package_cancellations (client_id, coach_id, package_id, reason, status, refund_cents, decided_by, decided_at)
-  values (v_me, v_coach, v_pkg4, 'No sessions taken', 'approved', 20000, v_me, now());
   if (select coalesce(sum(amount_cents), 0) from refunds where payment_id = v_pay) <> 20000 then
     raise exception 'FAIL 16: unused pack not refunded in full';
   end if;
   if exists (select 1 from bookings where client_id = v_me and package_id = v_pkg4 and status <> 'cancelled') then
     raise exception 'FAIL 16b: a session of the cancelled pack is still live';
   end if;
+
+  -- 17. A paid single session: the coach and then the client confirm it happened; it completes and releases once.
+  set local role authenticated;
+  v_booking := create_booking_for_coach(v_coach, v_slot + interval '70 days', 'ZZ confirm', null, null);
+  set local role service_role;
+  select id into v_pay from payments where kind = 'session' and subject_id = v_booking;
+  perform payments_begin_charge(v_pay);
+  perform payments_mark_held(v_pay, 'zz_sub_17', 0, null);
+  update bookings set scheduled_for = now() - interval '4 days' where id = v_booking;
+  set local role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', v_coach_auth::text, 'role', 'authenticated')::text, true);
+  perform confirm_session_fulfilled(v_booking);
+  set local role service_role;
+  if (select status from bookings where id = v_booking) <> 'confirmed' or exists (select 1 from payment_releases where payment_id = v_pay) then
+    raise exception 'FAIL 17: one confirmation completed or released the session';
+  end if;
+  set local role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', v_auth::text, 'role', 'authenticated')::text, true);
+  perform confirm_session_fulfilled(v_booking);
+  set local role service_role;
+  if (select status from bookings where id = v_booking) <> 'completed' then raise exception 'FAIL 17b: both confirmations did not complete the session'; end if;
+  select count(*) into v_n from payment_releases where payment_id = v_pay and subject_id = v_booking;
+  if v_n <> 1 then raise exception 'FAIL 17c: % releases after both confirmed, expected 1', v_n; end if;
+
+  -- 18. A negotiated cancellation that refunds less than what is held releases the remainder to the coach.
+  set local role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', v_auth::text, 'role', 'authenticated')::text, true);
+  perform book_package_sessions(v_coach, v_pkg5, jsonb_build_array(
+    jsonb_build_object('at', v_slot + interval '80 days', 'label', 'A'),
+    jsonb_build_object('at', v_slot + interval '81 days', 'label', 'B')));
+  set local role service_role;
+  select payment_id into v_pay from bookings where client_id = v_me and package_id = v_pkg5 and payment_id is not null limit 1;
+  perform payments_begin_charge(v_pay);
+  perform payments_mark_held(v_pay, 'zz_sub_18', 0, null);
+  update bookings set status = 'completed' where client_id = v_me and package_id = v_pkg5 and slot_label = 'A';
+  if (select amount_cents from payment_releases where payment_id = v_pay) <> 5000 then raise exception 'FAIL 18: per-session release'; end if;
+  insert into package_cancellations (client_id, coach_id, package_id, status, refund_cents)
+  values (v_me, v_coach, v_pkg5, 'approved', 9000) returning id into v_cancel;
+  if (select coalesce(sum(amount_cents), 0) from refunds where payment_id = v_pay) <> 9000 then
+    raise exception 'FAIL 18b: refund is not the 9000 approved';
+  end if;
+  if not exists (select 1 from payment_releases where payment_id = v_pay and subject_id = v_cancel and amount_cents = 6000) then
+    raise exception 'FAIL 18c: the unrefunded 6000 was not released to the coach (releases: %)',
+      (select string_agg(amount_cents::text, ',') from payment_releases where payment_id = v_pay);
+  end if;
+  if private.payment_unallocated(v_pay) <> 0 then raise exception 'FAIL 18d: money still unallocated'; end if;
 
   raise exception 'ALL PAYMENTS SUBJECT CHECKS PASSED';
 end $$;
