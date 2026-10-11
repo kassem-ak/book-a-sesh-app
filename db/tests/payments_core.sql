@@ -280,5 +280,29 @@ begin
     if (select status from payments where id = v_t) <> 'expired' then raise exception 'FAIL 21: tick did not expire'; end if;
   end;
 
+  -- 22. One payment that throws on expiry is skipped; the others still expire.
+  declare v_bad uuid; v_good uuid;
+  begin
+    set local role service_role;
+    v_bad := private.open_payment('session', gen_random_uuid(), v_me, v_other, 1000);
+    v_good := private.open_payment('session', gen_random_uuid(), v_me, v_other, 1000);
+    update payments set expires_at = now() - interval '1 second' where id in (v_bad, v_good);
+    reset role;
+    create function pg_temp.zz_boom() returns trigger language plpgsql as $f$
+    begin
+      if new.status = 'expired' and new.id::text = current_setting('zz.boom_id') then raise exception 'boom'; end if;
+      return new;
+    end $f$;
+    create trigger zz_boom before update on payments for each row execute function pg_temp.zz_boom();
+    perform set_config('zz.boom_id', v_bad::text, true);
+    set local role service_role;
+    perform private.payments_tick();
+    reset role;
+    drop trigger zz_boom on payments;
+    set local role service_role;
+    if (select status from payments where id = v_bad) <> 'awaiting_payment' then raise exception 'FAIL 22: throwing payment not left alone'; end if;
+    if (select status from payments where id = v_good) <> 'expired' then raise exception 'FAIL 22b: one bad row stalled the tick'; end if;
+  end;
+
   raise exception 'ALL PAYMENTS CORE CHECKS PASSED';
 end $$;
