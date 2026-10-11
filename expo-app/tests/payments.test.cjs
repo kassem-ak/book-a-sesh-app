@@ -18,7 +18,9 @@ function harness(responses = {}) {
         const target = new URL(url);
         calls.push({ method: init?.method ?? 'GET', path: target.pathname, query: target.search, body: init?.body ? JSON.parse(init.body) : null });
         const key = Object.keys(responses).find((k) => target.pathname.endsWith(k));
-        return new Response(JSON.stringify(key ? responses[key] : []), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        const { __status = 200, ...rest } = key && !Array.isArray(responses[key]) ? responses[key] : {};
+        const payload = key ? (Array.isArray(responses[key]) ? responses[key] : rest) : [];
+        return new Response(JSON.stringify(payload), { status: __status, headers: { 'Content-Type': 'application/json' } });
       },
     },
   });
@@ -119,4 +121,9 @@ test('applyPromoCode sends the rpc args and maps the quote row', async () => {
   const result = await module.applyPromoCode('p1', 'SPRING');
   assert.deepEqual(calls.at(-1).body, { p_payment: 'p1', p_code: 'SPRING' });
   assert.deepEqual({ ...result }, { priceCents: 4000, discountCents: 1000, feeCents: 145, totalCents: 4145, promoKind: 'coach' });
+});
+
+test('payFor surfaces the server message from a non-2xx reply', async () => {
+  const { module } = harness({ '/functions/v1/payments': { __status: 422, error: 'Pick one of your payment methods.' } });
+  await assert.rejects(module.payFor('p1', 'm1'), (e) => e.message === 'Pick one of your payment methods.');
 });

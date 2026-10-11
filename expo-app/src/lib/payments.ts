@@ -82,7 +82,12 @@ export function earningsSummary(payments: MyPayment[]): Earnings {
 async function callPayments<T>(body: Record<string, unknown>): Promise<T> {
   await ensureAppSession();
   const { data, error } = await supabase.functions.invoke('payments', { method: 'POST', body });
-  if (error) throw error;
+  if (error) {
+    // supabase-js hides the server's message behind a generic non-2xx error; dig it out of the response body.
+    let message: unknown;
+    try { message = (await (error as { context?: Response }).context?.json())?.error; } catch { /* no readable body */ }
+    throw typeof message === 'string' ? new Error(message) : error;
+  }
   if (data && typeof data === 'object' && 'error' in data) throw new Error(String((data as { error: unknown }).error));
   return data as T;
 }
