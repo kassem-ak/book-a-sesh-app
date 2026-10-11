@@ -282,8 +282,10 @@ grant execute on function public.cancel_unused_package(uuid, uuid) to authentica
 --     mid-list); it had no dependents. `taken` now counts `completed` only.
 --
 --   * `confirm_session_fulfilled` was replaced the same day by
---     2026-10-11_payments_followups.sql, which also refuses a `pending` (unpaid)
---     booking. That file has the current body.
+--     2026-10-11_payments_followups.sql and again by
+--     2026-10-11_payments_followups_2.sql, which refuse a `pending` booking.
+--     `cancel_unused_package` was replaced by the second one too, to refund what
+--     was paid. Those files have the current bodies.
 --
 -- The checks below are db/tests/fulfilment.sql (rolled back; passes by raising
 -- 'ALL FULFILMENT CHECKS PASSED'):

@@ -5,7 +5,7 @@ declare
   v_me_auth uuid := gen_random_uuid(); v_coach_auth uuid := gen_random_uuid(); v_x_auth uuid := gen_random_uuid();
   v_me uuid; v_coach uuid;
   v_pkg uuid; v_pkg2 uuid; v_pkg3 uuid;
-  v_b uuid; v_future uuid; v_cancelled uuid; v_pending uuid;
+  v_b uuid; v_future uuid; v_cancelled uuid; v_pending uuid; v_restore uuid;
   v_past timestamptz := now() - interval '2 days';
   v_t timestamptz := timestamptz '2020-01-01 00:00+00';
   v_err text; v_status text; v_n int; v_c boolean; v_k boolean; v_cancel_id uuid; v_refund int;
@@ -155,7 +155,8 @@ begin
   select count(*) into v_n from package_cancellations where package_id = v_pkg3 and status in ('requested', 'offered', 'approved');
   if v_n <> 1 then raise exception 'FAIL 9c: % open requests, expected 1', v_n; end if;
 
-  -- 10. An unpaid (pending) session cannot be confirmed, by either side.
+  -- 10. A pending session cannot be confirmed, by either side. With payments off it is
+  -- waiting on the coach; with payments on it is unpaid.
   set local role service_role;
   insert into bookings (client_id, coach_id, scheduled_for, slot_label, status)
   values (v_me, v_coach, now() - interval '5 days', 'ZZ pending', 'pending') returning id into v_pending;
@@ -167,7 +168,7 @@ begin
   exception when others then
     get stacked diagnostics v_err = message_text;
     if v_err like 'FAIL%' then raise; end if;
-    if v_err <> 'This session has not been paid for yet.' then raise exception 'FAIL 10b: %', v_err; end if;
+    if v_err <> 'This session has not been confirmed by the coach yet.' then raise exception 'FAIL 10b: %', v_err; end if;
   end;
   perform set_config('request.jwt.claims', json_build_object('sub', v_me_auth::text, 'role', 'authenticated')::text, true);
   begin
@@ -176,12 +177,25 @@ begin
   exception when others then
     get stacked diagnostics v_err = message_text;
     if v_err like 'FAIL%' then raise; end if;
-    if v_err <> 'This session has not been paid for yet.' then raise exception 'FAIL 10d: %', v_err; end if;
+    if v_err <> 'This session has not been confirmed by the coach yet.' then raise exception 'FAIL 10d: %', v_err; end if;
   end;
   set local role service_role;
   if exists (select 1 from bookings where id = v_pending and (status <> 'pending' or coach_confirmed_at is not null or client_confirmed_at is not null)) then
     raise exception 'FAIL 10e: a refused confirmation still touched the booking';
   end if;
+  update payment_settings set enabled_kinds = array['session'];
+  set local role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', v_coach_auth::text, 'role', 'authenticated')::text, true);
+  begin
+    perform confirm_session_fulfilled(v_pending);
+    raise exception 'FAIL 10f: the coach confirmed an unpaid session with payments on';
+  exception when others then
+    get stacked diagnostics v_err = message_text;
+    if v_err like 'FAIL%' then raise; end if;
+    if v_err <> 'This session has not been paid for yet.' then raise exception 'FAIL 10g: %', v_err; end if;
+  end;
+  set local role service_role;
+  update payment_settings set enabled_kinds = '{}';
 
   -- 11. Nobody books themselves: a direct insert and the booking RPC both refuse.
   begin
@@ -203,6 +217,34 @@ begin
     if v_err like 'FAIL%' then raise; end if;
     if v_err <> 'You cannot book a session with yourself.' then raise exception 'FAIL 11d: %', v_err; end if;
   end;
+
+  -- 12. The completion write puts app.payments_internal back as it found it.
+  set local role service_role;
+  insert into bookings (client_id, coach_id, scheduled_for, slot_label, status)
+  values (v_me, v_coach, now() - interval '6 days', 'ZZ restore', 'confirmed') returning id into v_restore;
+  set local role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', v_coach_auth::text, 'role', 'authenticated')::text, true);
+  perform confirm_session_fulfilled(v_restore);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_me_auth::text, 'role', 'authenticated')::text, true);
+  perform set_config('app.payments_internal', 'on', true);
+  perform confirm_session_fulfilled(v_restore);
+  if current_setting('app.payments_internal', true) is distinct from 'on' then
+    raise exception 'FAIL 12: the flag was left at %, the caller had it on', current_setting('app.payments_internal', true);
+  end if;
+  perform set_config('app.payments_internal', 'off', true);
+  set local role service_role;
+  if (select status from bookings where id = v_restore) <> 'completed' then raise exception 'FAIL 12b: not completed'; end if;
+  -- and from off it ends off
+  insert into bookings (client_id, coach_id, scheduled_for, slot_label, status)
+  values (v_me, v_coach, now() - interval '7 days', 'ZZ restore off', 'confirmed') returning id into v_restore;
+  set local role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', v_coach_auth::text, 'role', 'authenticated')::text, true);
+  perform confirm_session_fulfilled(v_restore);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_me_auth::text, 'role', 'authenticated')::text, true);
+  perform confirm_session_fulfilled(v_restore);
+  if coalesce(current_setting('app.payments_internal', true), 'off') not in ('off', '') then
+    raise exception 'FAIL 12c: the flag was left on';
+  end if;
 
   raise exception 'ALL FULFILMENT CHECKS PASSED';
 end $$;

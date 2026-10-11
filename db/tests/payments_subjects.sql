@@ -8,7 +8,7 @@ declare
   v_owner_auth uuid := gen_random_uuid(); v_owner uuid; v_venue2 uuid; v_court2 uuid;
   v_pkg2 uuid; v_pkg3 uuid; v_pkg4 uuid; v_p1 uuid; v_b2 uuid; v_res uuid;
   v_ev uuid; v_ev2 uuid; v_entry uuid; v_entry2 uuid; v_comm uuid; v_event uuid;
-  v_fee0 bigint; v_fee1 bigint; v_pkg5 uuid; v_cancel uuid;
+  v_fee0 bigint; v_fee1 bigint; v_pkg5 uuid; v_pkg6 uuid; v_cancel uuid;
 begin
   insert into auth.users (id) values (v_auth), (v_coach_auth), (v_owner_auth);
   set local role service_role;
@@ -25,6 +25,7 @@ begin
   insert into packages (coach_id, sessions, price_cents, active) values (v_coach, 4, 20000, true) returning id into v_pkg3;
   insert into packages (coach_id, sessions, price_cents, active) values (v_coach, 4, 20000, true) returning id into v_pkg4;
   insert into packages (coach_id, sessions, price_cents, active) values (v_coach, 4, 20000, true) returning id into v_pkg5;
+  insert into packages (coach_id, sessions, price_cents, active) values (v_coach, 4, 20000, true) returning id into v_pkg6;
   insert into venues (slug, name, city, sport, status, equipment_cents_per_hour, timezone, opens_at, closes_at)
   values ('zz-pay-venue', 'ZZ Pay Venue', 'Beirut', 'Paddle', 'open', 0, 'UTC', '00:00', '23:59') returning id into v_venue;
   insert into courts (venue_id, name, price_cents_per_hour, active) values (v_venue, 'ZZ PAY COURT', 3000, true) returning id into v_court;
@@ -346,6 +347,34 @@ begin
       (select string_agg(amount_cents::text, ',') from payment_releases where payment_id = v_pay);
   end if;
   if private.payment_unallocated(v_pay) <> 0 then raise exception 'FAIL 18d: money still unallocated'; end if;
+  if not exists (select 1 from payment_releases r join payments p on p.id = r.payment_id
+                  where r.payment_id = v_pay and r.subject_id = v_cancel
+                    and r.commission_cents = round(6000 * p.rate_bps / 10000.0)::int) then
+    raise exception 'FAIL 18e: commission on the remainder is not 6000 at the payment rate';
+  end if;
+
+  -- 19. A free cancel refunds what was paid, not today's listing price, and releases nothing to the coach.
+  set local role authenticated;
+  perform book_package_sessions(v_coach, v_pkg6, jsonb_build_array(
+    jsonb_build_object('at', v_slot + interval '90 days', 'label', 'A')));
+  set local role service_role;
+  select payment_id into v_pay from bookings where client_id = v_me and package_id = v_pkg6 and payment_id is not null limit 1;
+  if (select price_cents from payments where id = v_pay) <> 20000 then raise exception 'FAIL 19: pack payment is not 20000'; end if;
+  perform payments_begin_charge(v_pay);
+  perform payments_mark_held(v_pay, 'zz_sub_19', 0, null);
+  update packages set price_cents = 15000 where id = v_pkg6;
+  set local role authenticated;
+  select c.id into v_cancel from cancel_unused_package(v_coach, v_pkg6) c;
+  set local role service_role;
+  if (select refund_cents from package_cancellations where id = v_cancel) <> 20000 then
+    raise exception 'FAIL 19b: cancellation recorded %, expected the 20000 paid', (select refund_cents from package_cancellations where id = v_cancel);
+  end if;
+  if (select coalesce(sum(amount_cents), 0) from refunds where payment_id = v_pay) <> 20000 then
+    raise exception 'FAIL 19c: refund is not the 20000 paid';
+  end if;
+  if exists (select 1 from payment_releases where payment_id = v_pay) then
+    raise exception 'FAIL 19d: a cancelled unused pack released money to the coach';
+  end if;
 
   raise exception 'ALL PAYMENTS SUBJECT CHECKS PASSED';
 end $$;
