@@ -67,6 +67,7 @@ organisers and sellers. Shareholders can never withdraw money that belongs to me
 1. **Member books and pays.** They see: price + payment fee = total. They pay by card or Whish.
    The booking is only confirmed once the payment goes through. If it fails or isn't finished in
    15 minutes, the booking is cancelled and the slot is freed.
+1b. **Discount codes.** A member can enter one code at checkout. A **coach's own code** reduces that coach's price (the coach bears it; BOOK'D's percentage is taken on the reduced price). A **BOOK'D code** is paid for by the company: the member pays less, the coach or venue still receives their full price minus the normal percentage, and the difference is recorded as a promotion expense. One use per member per code. Refunds return what the member paid.
 2. **Money is held** in the company Whish account.
 3. **The service happens and is confirmed:**
    - Coach session — both coach and member confirm it happened.
