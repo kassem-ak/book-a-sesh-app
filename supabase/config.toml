@@ -487,3 +487,6 @@ enabled = true
 # see db/migrations/2026-09-19_push_notifications.sql and expo-app/DEPLOY.md.
 [functions.send-push]
 verify_jwt = false
+
+[functions.payments]
+verify_jwt = false
