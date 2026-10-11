@@ -270,5 +270,15 @@ begin
     end;
   end;
 
+  -- 21. The tick expires unpaid checkouts and releases what is due.
+  declare v_t uuid;
+  begin
+    set local role service_role;
+    v_t := private.open_payment('session', gen_random_uuid(), v_me, v_other, 1000);
+    update payments set expires_at = now() - interval '1 second' where id = v_t;
+    perform private.payments_tick();
+    if (select status from payments where id = v_t) <> 'expired' then raise exception 'FAIL 21: tick did not expire'; end if;
+  end;
+
   raise exception 'ALL PAYMENTS CORE CHECKS PASSED';
 end $$;
