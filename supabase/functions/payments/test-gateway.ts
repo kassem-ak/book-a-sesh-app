@@ -12,8 +12,8 @@ export const WHISH_NUMBER = /^\+?961\d{7,8}$/;
 export const testGateway: Gateway = {
   async tokenise(input) {
     if (input.kind === "card") {
+      if (!Object.hasOwn(TEST_CARDS, input.testCard)) throw new InputError("Pick one of the test cards.");
       const card = TEST_CARDS[input.testCard];
-      if (!card) throw new InputError("Pick one of the test cards.");
       return { ...card, canPay: true, canReceive: false };
     }
     const number = input.number.replace(/[\s-]/g, "");

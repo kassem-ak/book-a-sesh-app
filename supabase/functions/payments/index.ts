@@ -24,24 +24,31 @@ async function runQueue(admin: Admin, gateway: Gateway) {
   if (error) throw error;
   let sent = 0, failed = 0;
   for (const item of (items ?? []) as { item_kind: string; item_id: string; amount_cents: number; token: string | null; charge_ref: string | null }[]) {
-    const result = item.item_kind === "payout"
-      ? await gateway.payout({ token: item.token!, amountCents: item.amount_cents, reference: item.item_id })
-      : await gateway.refund({ chargeRef: item.charge_ref!, amountCents: item.amount_cents, reference: item.item_id });
-    if (result.ok) {
-      await admin.rpc("payments_queue_sent", { p_kind: item.item_kind, p_id: item.item_id, p_ref: result.ref, p_fee: result.feeCents });
-      sent++;
-    } else {
-      await admin.rpc("payments_queue_failed", { p_kind: item.item_kind, p_id: item.item_id, p_message: result.message });
-      failed++;
+    try {
+      const result = item.item_kind === "payout"
+        ? await gateway.payout({ token: item.token!, amountCents: item.amount_cents, reference: item.item_id })
+        : await gateway.refund({ chargeRef: item.charge_ref!, amountCents: item.amount_cents, reference: item.item_id });
+      if (result.ok) {
+        const { error: sentError } = await admin.rpc("payments_queue_sent", { p_kind: item.item_kind, p_id: item.item_id, p_ref: result.ref, p_fee: result.feeCents });
+        if (sentError) {
+          console.error(`PAYMENTS: queue item ${item.item_kind} ${item.item_id} was sent (${result.ref}) but could not be recorded: ${sentError.message}`);
+        } else {
+          sent++;
+        }
+      } else {
+        const { error: failError } = await admin.rpc("payments_queue_failed", { p_kind: item.item_kind, p_id: item.item_id, p_message: result.message });
+        if (failError) console.error(`PAYMENTS: queue item ${item.item_kind} ${item.item_id} failed but could not be recorded: ${failError.message}`);
+        failed++;
+      }
+    } catch (e) {
+      // The real outcome is unknown, so do not mark it failed: an operator settles it from the console.
+      console.error(`PAYMENTS: queue item ${item.item_kind} ${item.item_id} threw: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return { sent, failed };
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  if (req.method !== "POST") return json({ error: "Use POST." }, 405);
-
+async function handle(req: Request): Promise<Response> {
   const url = Deno.env.get("SUPABASE_URL")!;
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
   let body: Record<string, unknown>;
@@ -101,16 +108,21 @@ Deno.serve(async (req: Request) => {
     const { data: payment } = await admin.from("payments")
       .select("id, payer_id, price_cents, fee_cents, status").eq("id", paymentId).maybeSingle();
     if (!payment || payment.payer_id !== me) return json({ error: "That payment was not found." }, 404);
+    // A double-submit of a checkout that already went through is not an error.
+    if (payment.status === "held") return json({ ok: true });
 
     // A 100% promo code leaves nothing to charge: hold it with no method and no gateway call.
     if (payment.price_cents + payment.fee_cents === 0) {
-      const { data: begunFree } = await admin.rpc("payments_begin_charge", { p_payment: payment.id });
+      const { data: begunFree, error: beginFreeError } = await admin.rpc("payments_begin_charge", { p_payment: payment.id });
+      if (beginFreeError) return json({ error: "Could not start the payment." }, 500);
       if (begunFree !== true) return json({ error: "This checkout has expired or is already paid. Book again if needed." }, 409);
       const { error: freeError } = await admin.rpc("payments_mark_held", {
         p_payment: payment.id, p_ref: "free:" + payment.id, p_cost: 0, p_method: null,
       });
       if (freeError) {
+        // Nothing was captured, so release the payment for a retry (and for the clock to expire).
         console.error(`PAYMENTS: free checkout ${payment.id} could not be recorded: ${freeError.message}`);
+        await admin.rpc("payments_end_charge", { p_payment: payment.id });
         return json({ error: "We could not confirm the booking. Please try again." }, 500);
       }
       return json({ ok: true });
@@ -122,12 +134,20 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Pick one of your payment methods." }, 422);
     }
 
-    const { data: begun } = await admin.rpc("payments_begin_charge", { p_payment: payment.id });
+    const { data: begun, error: beginError } = await admin.rpc("payments_begin_charge", { p_payment: payment.id });
+    if (beginError) return json({ error: "Could not start the payment." }, 500);
     if (begun !== true) return json({ error: "This checkout has expired or is already paid. Book again if needed." }, 409);
 
-    const result = await gateway.charge({
-      token: method.token, amountCents: payment.price_cents + payment.fee_cents, reference: payment.id,
-    });
+    let result;
+    try {
+      result = await gateway.charge({
+        token: method.token, amountCents: payment.price_cents + payment.fee_cents, reference: payment.id,
+      });
+    } catch (e) {
+      console.error(`PAYMENTS: charge threw for ${payment.id}: ${e instanceof Error ? e.message : String(e)}`);
+      await admin.rpc("payments_end_charge", { p_payment: payment.id });
+      return json({ ok: false, message: "The payment could not be taken. Try again." });
+    }
     if (!result.ok) {
       await admin.rpc("payments_end_charge", { p_payment: payment.id });
       return json({ ok: false, message: result.message });
@@ -145,4 +165,15 @@ Deno.serve(async (req: Request) => {
   }
 
   return json({ error: "Unknown action." }, 400);
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method !== "POST") return json({ error: "Use POST." }, 405);
+  try {
+    return await handle(req);
+  } catch (e) {
+    console.error("PAYMENTS: unhandled", e);
+    return json({ error: "Something went wrong on our side. Nothing was charged." }, 500);
+  }
 });
